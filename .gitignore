@@ -1,0 +1,14 @@
+.next/
+node_modules/
+dist/
+coverage/
+
+.env
+.env*.local
+
+supabase/.env
+supabase/.branches/
+supabase/.temp/
+
+*.tsbuildinfo
+*.zip
