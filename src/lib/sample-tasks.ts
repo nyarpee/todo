@@ -3,19 +3,85 @@ import { DEFAULT_MY_TASKS_GROUP_ID } from "./task-groups";
 
 export function createSampleTasks(userId: UserId): Task[] {
   const now = new Date().toISOString();
-  const rootReact = crypto.randomUUID();
-  const hooks = crypto.randomUUID();
-  const appTask = crypto.randomUUID();
+  const addTask = crypto.randomUUID();
+  const addSubtask = crypto.randomUUID();
+  const editTitle = crypto.randomUUID();
+  const addDate = crypto.randomUUID();
+  const addPriority = crypto.randomUUID();
+  const useTree = crypto.randomUUID();
+  const addHabit = crypto.randomUUID();
 
   return [
-    createTask(rootReact, userId, "React\u3092\u52c9\u5f37\u3059\u308b", null, 0, false, now),
-    createTask(crypto.randomUUID(), userId, "JSX\u3092\u7406\u89e3\u3059\u308b", rootReact, 0, false, now),
-    createTask(hooks, userId, "Hooks\u3092\u7406\u89e3\u3059\u308b", rootReact, 1, false, now),
-    createTask(crypto.randomUUID(), userId, "useState", hooks, 0, true, now),
-    createTask(crypto.randomUUID(), userId, "useEffect", hooks, 1, false, now),
-    createTask(appTask, userId, "Todo\u30a2\u30d7\u30ea\u3092\u4f5c\u308b", rootReact, 2, false, now),
-    createTask(crypto.randomUUID(), userId, "\u30c7\u30fc\u30bf\u69cb\u9020\u3092\u4f5c\u308b", appTask, 0, true, now),
-    createTask(crypto.randomUUID(), userId, "List / Tree UI\u3092\u4f5c\u308b", appTask, 1, false, now),
+    createTask(
+      addTask,
+      userId,
+      "タスクを追加してみよう",
+      "右下の+ボタンから新しいタスクを作れます。タイトルを書いて保存すると、Inboxに追加されます。",
+      null,
+      0,
+      false,
+      now,
+    ),
+    createTask(
+      addSubtask,
+      userId,
+      "サブタスクを追加してみよう",
+      "タスクをタップすると詳細ページが開きます。詳細ページのAdd subtaskから、作業を小さく分けられます。",
+      null,
+      1,
+      false,
+      now,
+    ),
+    createTask(
+      editTitle,
+      userId,
+      "タイトルを編集してみる",
+      "詳細ページのタイトルをタップすると、そのまま編集できます。",
+      addSubtask,
+      0,
+      false,
+      now,
+    ),
+    createTask(
+      addDate,
+      userId,
+      "日付を追加してみる",
+      "詳細ページのNo dateをタップすると、日付と時間を設定できます。",
+      addSubtask,
+      1,
+      false,
+      now,
+    ),
+    createTask(
+      addPriority,
+      userId,
+      "優先度を追加してみる",
+      "詳細ページのPriorityから、High / Medium / Low / Noneを選べます。",
+      addSubtask,
+      2,
+      false,
+      now,
+    ),
+    createTask(
+      useTree,
+      userId,
+      "Treeを使ってみよう",
+      "タスク行のTreeアイコンを押すと、そのタスクを中心にキャンバス表示できます。ノードの+から枝を伸ばせます。",
+      null,
+      2,
+      false,
+      now,
+    ),
+    createTask(
+      addHabit,
+      userId,
+      "Habitを追加してみよう",
+      "下のHabitタブで+を押すと、習慣カードを作れます。1 checkの単位を決めて、少しずつ積み上げられます。",
+      null,
+      3,
+      false,
+      now,
+    ),
   ];
 }
 
@@ -23,6 +89,7 @@ function createTask(
   id: string,
   userId: UserId,
   title: string,
+  description: string,
   parentId: string | null,
   order: number,
   completed: boolean,
@@ -32,7 +99,7 @@ function createTask(
     id,
     userId,
     title,
-    description: "",
+    description,
     groupId: DEFAULT_MY_TASKS_GROUP_ID,
     parentId,
     order,
