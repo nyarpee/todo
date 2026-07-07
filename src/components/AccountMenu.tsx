@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogIn, LogOut, UserCircle } from "lucide-react";
+import { ChevronDown, LogIn, LogOut, RefreshCw, UserCircle } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { getBrowserSupabaseClient } from "@/lib/supabase-client";
 
@@ -55,18 +55,27 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isOpen]);
 
-  async function handleSignIn() {
+  async function handleSignIn({ selectAccount = false }: { selectAccount?: boolean } = {}) {
     if (!supabase) {
       setStatus("Supabase env is not set.");
       return;
     }
 
     setStatus(null);
+    const options = selectAccount
+      ? {
+          redirectTo: window.location.origin,
+          queryParams: {
+            prompt: "select_account",
+          },
+        }
+      : {
+          redirectTo: window.location.origin,
+        };
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-      },
+      options,
     });
 
     if (error) {
@@ -118,12 +127,23 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
           {user && syncStatus ? <p className="accountCloudCopy">{syncStatus}</p> : null}
 
           {user ? (
-            <button className="accountMenuItem" type="button" role="menuitem" onClick={handleSignOut}>
-              <LogOut size={16} aria-hidden="true" />
-              Sign out
-            </button>
+            <>
+              <button
+                className="accountMenuItem"
+                type="button"
+                role="menuitem"
+                onClick={() => handleSignIn({ selectAccount: true })}
+              >
+                <RefreshCw size={16} aria-hidden="true" />
+                Switch account
+              </button>
+              <button className="accountMenuItem" type="button" role="menuitem" onClick={handleSignOut}>
+                <LogOut size={16} aria-hidden="true" />
+                Sign out
+              </button>
+            </>
           ) : (
-            <button className="accountMenuItem" type="button" role="menuitem" onClick={handleSignIn}>
+            <button className="accountMenuItem" type="button" role="menuitem" onClick={() => handleSignIn()}>
               <LogIn size={16} aria-hidden="true" />
               Sign in with Google
             </button>

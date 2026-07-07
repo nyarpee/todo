@@ -5,4 +5,5 @@ export type TaskRepository = {
   saveTasks(userId: UserId, tasks: Task[]): Promise<void>;
 };
 
-export const LOCAL_USER_ID = "local-user";
+export const ANONYMOUS_USER_ID = "anonymous";
+export const LEGACY_LOCAL_USER_ID = "local-user";

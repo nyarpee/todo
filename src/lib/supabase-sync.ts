@@ -3,7 +3,6 @@ import type { ActivityEvent } from "@/types/activity";
 import type { Habit, HabitEntry } from "@/types/habit";
 import type { SyncQueueItem } from "@/types/sync";
 import type { Task, TaskGroup, UserId } from "@/types/task";
-import { LOCAL_USER_ID } from "@/repositories/task-repository";
 
 export type LocalSyncSnapshot = {
   groups: TaskGroup[];
@@ -53,6 +52,7 @@ export async function pushLocalSnapshotToSupabase(
 export async function pullSupabaseSnapshot(
   client: SupabaseClient,
   authUserId: string,
+  localUserId: UserId,
 ): Promise<PulledSyncSnapshot> {
   const [groups, tasks, habits, habitEntries, activityEvents] = await Promise.all([
     selectRows<TaskGroupRow>(client, "task_groups", authUserId, "sort_order"),
@@ -63,11 +63,11 @@ export async function pullSupabaseSnapshot(
   ]);
 
   return {
-    groups: groups.map(rowToGroup),
-    tasks: tasks.map(rowToTask),
-    habits: habits.map(rowToHabit),
-    habitEntries: habitEntries.map(rowToHabitEntry),
-    activityEvents: activityEvents.map(rowToActivityEvent),
+    groups: groups.map((row) => rowToGroup(row, localUserId)),
+    tasks: tasks.map((row) => rowToTask(row, localUserId)),
+    habits: habits.map((row) => rowToHabit(row, localUserId)),
+    habitEntries: habitEntries.map((row) => rowToHabitEntry(row, localUserId)),
+    activityEvents: activityEvents.map((row) => rowToActivityEvent(row, localUserId)),
   };
 }
 
@@ -251,10 +251,10 @@ function activityEventToRow(event: ActivityEvent, authUserId: string): ActivityE
   };
 }
 
-function rowToGroup(row: TaskGroupRow): TaskGroup {
+function rowToGroup(row: TaskGroupRow, localUserId: UserId): TaskGroup {
   return {
     id: row.id,
-    userId: LOCAL_USER_ID,
+    userId: localUserId,
     name: row.name,
     order: row.sort_order,
     createdAt: row.created_at,
@@ -262,10 +262,10 @@ function rowToGroup(row: TaskGroupRow): TaskGroup {
   };
 }
 
-function rowToTask(row: TaskRow): Task {
+function rowToTask(row: TaskRow, localUserId: UserId): Task {
   return {
     id: row.id,
-    userId: LOCAL_USER_ID,
+    userId: localUserId,
     title: row.title,
     description: row.description,
     groupId: row.group_id,
@@ -281,10 +281,10 @@ function rowToTask(row: TaskRow): Task {
   };
 }
 
-function rowToHabit(row: HabitRow): Habit {
+function rowToHabit(row: HabitRow, localUserId: UserId): Habit {
   return {
     id: row.id,
-    userId: LOCAL_USER_ID,
+    userId: localUserId,
     title: row.title,
     unitType: row.unit_type,
     unitMinutes: row.unit_minutes,
@@ -295,21 +295,21 @@ function rowToHabit(row: HabitRow): Habit {
   };
 }
 
-function rowToHabitEntry(row: HabitEntryRow): HabitEntry {
+function rowToHabitEntry(row: HabitEntryRow, localUserId: UserId): HabitEntry {
   return {
     id: row.id,
     habitId: row.habit_id,
-    userId: LOCAL_USER_ID,
+    userId: localUserId,
     minutes: row.minutes,
     checkedAt: row.checked_at,
     createdAt: row.created_at,
   };
 }
 
-function rowToActivityEvent(row: ActivityEventRow): ActivityEvent {
+function rowToActivityEvent(row: ActivityEventRow, localUserId: UserId): ActivityEvent {
   return {
     id: row.id,
-    userId: LOCAL_USER_ID,
+    userId: localUserId,
     type: row.type,
     entityType: row.entity_type,
     entityId: row.entity_id,

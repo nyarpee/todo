@@ -1,7 +1,7 @@
 import type { UserId } from "@/types/task";
 
 const DB_NAME = "todoapp.local-first";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const INDEXED_DB_STORES = {
   tasks: "tasks",
@@ -22,14 +22,18 @@ export function openTodoDatabase(): Promise<IDBDatabase> {
   databasePromise = new Promise((resolve, reject) => {
     const request = window.indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const database = request.result;
-      ensureUserStore(database, INDEXED_DB_STORES.tasks);
-      ensureUserStore(database, INDEXED_DB_STORES.taskGroups);
-      ensureUserStore(database, INDEXED_DB_STORES.habits);
-      ensureUserStore(database, INDEXED_DB_STORES.habitEntries);
-      ensureUserStore(database, INDEXED_DB_STORES.activityEvents);
-      ensureUserStore(database, INDEXED_DB_STORES.syncQueue);
+      const transaction = request.transaction;
+      const oldVersion = event.oldVersion;
+
+      for (const storeName of Object.values(INDEXED_DB_STORES)) {
+        if (oldVersion > 0 && oldVersion < 2 && database.objectStoreNames.contains(storeName)) {
+          migrateUserStoreToCompoundKey(database, transaction, storeName);
+        } else {
+          ensureUserStore(database, storeName);
+        }
+      }
     };
 
     request.onerror = () => reject(request.error ?? new Error("Failed to open IndexedDB."));
@@ -96,10 +100,49 @@ export async function putRecord<T extends { id: string }>(
 function ensureUserStore(database: IDBDatabase, storeName: StoreName): void {
   if (database.objectStoreNames.contains(storeName)) return;
 
-  const store = database.createObjectStore(storeName, { keyPath: "id" });
+  const store = database.createObjectStore(storeName, { keyPath: ["userId", "id"] });
   store.createIndex("userId", "userId", { unique: false });
   store.createIndex("updatedAt", "updatedAt", { unique: false });
   store.createIndex("createdAt", "createdAt", { unique: false });
+}
+
+function migrateUserStoreToCompoundKey(
+  database: IDBDatabase,
+  transaction: IDBTransaction | null,
+  storeName: StoreName,
+): void {
+  if (!transaction) {
+    database.deleteObjectStore(storeName);
+    ensureUserStore(database, storeName);
+    return;
+  }
+
+  const oldStore = transaction.objectStore(storeName);
+  const getAllRequest = oldStore.getAll();
+
+  getAllRequest.onsuccess = () => {
+    const records = getAllRequest.result;
+    database.deleteObjectStore(storeName);
+    const newStore = database.createObjectStore(storeName, { keyPath: ["userId", "id"] });
+    newStore.createIndex("userId", "userId", { unique: false });
+    newStore.createIndex("updatedAt", "updatedAt", { unique: false });
+    newStore.createIndex("createdAt", "createdAt", { unique: false });
+
+    records.forEach((record) => {
+      if (isUserRecord(record)) {
+        newStore.put(record);
+      }
+    });
+  };
+}
+
+function isUserRecord(value: unknown): value is { id: string; userId: UserId } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === "string" &&
+    typeof (value as { userId?: unknown }).userId === "string"
+  );
 }
 
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {

@@ -46,10 +46,10 @@ import { IndexedDbGroupRepository } from "@/repositories/indexed-db-group-reposi
 import { IndexedDbHabitRepository } from "@/repositories/indexed-db-habit-repository";
 import { IndexedDbSyncQueueRepository } from "@/repositories/indexed-db-sync-queue-repository";
 import { IndexedDbTaskRepository } from "@/repositories/indexed-db-task-repository";
-import { LOCAL_USER_ID } from "@/repositories/task-repository";
-import type { ActivityEntityId, ActivityEntityType, ActivityEventType } from "@/types/activity";
+import { ANONYMOUS_USER_ID, LEGACY_LOCAL_USER_ID } from "@/repositories/task-repository";
+import type { ActivityEntityId, ActivityEntityType, ActivityEvent, ActivityEventType } from "@/types/activity";
 import type { Habit, HabitColor, HabitEntry, HabitEntryId, HabitId, HabitUnitType } from "@/types/habit";
-import type { Task, TaskGroup, TaskGroupId, TaskId, TaskNode } from "@/types/task";
+import type { Task, TaskGroup, TaskGroupId, TaskId, TaskNode, UserId } from "@/types/task";
 import { AccountMenu } from "./AccountMenu";
 import { CalendarTabView } from "./CalendarTabView";
 import { DatePickerView } from "./DatePickerView";
@@ -68,6 +68,14 @@ import { TaskDetailView } from "./TaskDetailView";
 import { TaskListView } from "./TaskListView";
 import { ThemeToggle } from "./ThemeToggle";
 
+type LocalWorkspaceData = {
+  groups: TaskGroup[];
+  tasks: Task[];
+  habits: Habit[];
+  habitEntries: HabitEntry[];
+  activityEvents: ActivityEvent[];
+};
+
 export function TaskApp() {
   const repository = useMemo(() => new IndexedDbTaskRepository(), []);
   const groupRepository = useMemo(() => new IndexedDbGroupRepository(), []);
@@ -81,6 +89,7 @@ export function TaskApp() {
   const [habitEntries, setHabitEntries] = useState<HabitEntry[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<TaskGroupId>(DEFAULT_MY_TASKS_GROUP_ID);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<UserId | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [hasLoadedTheme, setHasLoadedTheme] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("inbox");
@@ -95,6 +104,7 @@ export function TaskApp() {
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
+  const [isAuthLoaded, setIsAuthLoaded] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const groupHoverTimerRef = useRef<number | null>(null);
   const hoveredGroupIdRef = useRef<TaskGroupId | null>(null);
@@ -109,6 +119,10 @@ export function TaskApp() {
   const groupChipsScrollTimerRef = useRef<number | null>(null);
   const groupChipsScrollDirectionRef = useRef<"left" | "right" | null>(null);
   const lastSyncedFingerprintRef = useRef<string | null>(null);
+  const pendingActivityWritesRef = useRef<Promise<void>[]>([]);
+  const realtimeSyncTimerRef = useRef<number | null>(null);
+  const resetAnonymousOnNextLoadRef = useRef(false);
+  const [remoteSyncRequestId, setRemoteSyncRequestId] = useState(0);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -117,6 +131,7 @@ export function TaskApp() {
       },
     }),
   );
+  const workspaceId = authUser ? getAuthenticatedWorkspaceId(authUser.id) : ANONYMOUS_USER_ID;
 
   const roots = useMemo(() => buildTaskTree(tasks), [tasks]);
   const allNodes = useMemo(() => flattenTaskTree(roots), [roots]);
@@ -181,44 +196,181 @@ export function TaskApp() {
     groupEditorMode === null &&
     habitEditorMode === null;
 
+  async function listWorkspaceLocalData(currentWorkspaceId: UserId): Promise<LocalWorkspaceData> {
+    const storedTasks = await repository.listTasks(currentWorkspaceId);
+    const storedHabits = await habitRepository.listHabits(currentWorkspaceId);
+    const storedHabitEntries = await habitRepository.listHabitEntries(currentWorkspaceId);
+    const storedActivityEvents = await activityRepository.listEvents(currentWorkspaceId);
+
+    if (
+      currentWorkspaceId === ANONYMOUS_USER_ID &&
+      storedTasks.length === 0 &&
+      storedHabits.length === 0 &&
+      storedHabitEntries.length === 0
+    ) {
+      const [legacyTasks, legacyGroups, legacyHabits, legacyHabitEntries, legacyActivityEvents] =
+        await Promise.all([
+          repository.listTasks(LEGACY_LOCAL_USER_ID),
+          groupRepository.listGroups(LEGACY_LOCAL_USER_ID),
+          habitRepository.listHabits(LEGACY_LOCAL_USER_ID),
+          habitRepository.listHabitEntries(LEGACY_LOCAL_USER_ID),
+          activityRepository.listEvents(LEGACY_LOCAL_USER_ID),
+        ]);
+
+      if (legacyTasks.length > 0 || legacyHabits.length > 0 || legacyHabitEntries.length > 0) {
+        return reassignLocalWorkspaceData(
+          {
+            groups: legacyGroups,
+            tasks: legacyTasks,
+            habits: legacyHabits,
+            habitEntries: legacyHabitEntries,
+            activityEvents: legacyActivityEvents,
+          },
+          ANONYMOUS_USER_ID,
+        );
+      }
+    }
+
+    return {
+      groups: await groupRepository.listGroups(currentWorkspaceId),
+      tasks: storedTasks,
+      habits: storedHabits,
+      habitEntries: storedHabitEntries,
+      activityEvents: storedActivityEvents,
+    };
+  }
+
   useEffect(() => {
+    if (!isAuthLoaded) return;
+
     let isActive = true;
 
-    async function loadTasks() {
-      const storedTasks = await repository.listTasks(LOCAL_USER_ID);
-      const storedGroups = await groupRepository.listGroups(LOCAL_USER_ID);
-      const storedHabits = await habitRepository.listHabits(LOCAL_USER_ID);
-      const storedHabitEntries = await habitRepository.listHabitEntries(LOCAL_USER_ID);
-      const nextGroups = storedGroups.length > 0
-        ? storedGroups
-        : createDefaultGroups(LOCAL_USER_ID);
-      const nextTasksBeforeDateRollover =
-        storedTasks.length > 0 ? storedTasks : createSampleTasks(LOCAL_USER_ID);
+    async function loadWorkspace() {
+      setIsLoaded(false);
+      setLoadedWorkspaceId(null);
+      setTasks([]);
+      setGroups([]);
+      setHabits([]);
+      setHabitEntries([]);
+      lastSyncedFingerprintRef.current = null;
+      setSelectedTaskId(null);
+      setDatePickerTaskId(null);
+      setMindMapRootId(null);
+      setDetailReturnTarget("list");
+
+      const shouldResetAnonymous =
+        workspaceId === ANONYMOUS_USER_ID && resetAnonymousOnNextLoadRef.current;
+      if (shouldResetAnonymous) {
+        resetAnonymousOnNextLoadRef.current = false;
+      }
+
+      const storedLocalData = shouldResetAnonymous
+        ? {
+            groups: createDefaultGroups(workspaceId),
+            tasks: [],
+            habits: [],
+            habitEntries: [],
+            activityEvents: [],
+          }
+        : await listWorkspaceLocalData(workspaceId);
+      const pendingSyncItems = shouldResetAnonymous
+        ? []
+        : await syncQueueRepository.listPendingItems(workspaceId);
+      const shouldMergeLocalPending = pendingSyncItems.length > 0;
+
+      let nextGroups = storedLocalData.groups.length > 0
+        ? storedLocalData.groups
+        : createDefaultGroups(workspaceId);
+      let nextTasksBeforeDateRollover =
+        storedLocalData.tasks.length > 0 ? storedLocalData.tasks : createSampleTasks(workspaceId);
+      let nextHabits = storedLocalData.habits;
+      let nextHabitEntries = storedLocalData.habitEntries;
+      let nextActivityEvents = storedLocalData.activityEvents;
+
+      if (authUser && supabase) {
+        try {
+          const cloudSnapshot = await pullSupabaseSnapshot(supabase, authUser.id, workspaceId);
+          const hasCloudData = hasExistingCloudWorkspace(cloudSnapshot);
+
+          if (hasCloudData && shouldMergeLocalPending) {
+            const mergedSnapshot = mergeSyncSnapshots({
+              local: {
+                groups: nextGroups,
+                tasks: nextTasksBeforeDateRollover,
+                habits: nextHabits,
+                habitEntries: nextHabitEntries,
+                activityEvents: nextActivityEvents,
+              },
+              remote: cloudSnapshot,
+            });
+
+            nextGroups = mergedSnapshot.groups;
+            nextTasksBeforeDateRollover = mergedSnapshot.tasks;
+            nextHabits = mergedSnapshot.habits;
+            nextHabitEntries = mergedSnapshot.habitEntries;
+            nextActivityEvents = mergedSnapshot.activityEvents;
+          } else if (hasCloudData) {
+            nextGroups = cloudSnapshot.groups;
+            nextTasksBeforeDateRollover = cloudSnapshot.tasks;
+            nextHabits = cloudSnapshot.habits;
+            nextHabitEntries = cloudSnapshot.habitEntries;
+            nextActivityEvents = cloudSnapshot.activityEvents;
+          } else if (!hasLocalWorkspaceContent(storedLocalData)) {
+            const anonymousLocalData = await listWorkspaceLocalData(ANONYMOUS_USER_ID);
+
+            if (hasLocalWorkspaceContent(anonymousLocalData)) {
+              const inheritedLocalData = reassignLocalWorkspaceData(anonymousLocalData, workspaceId);
+              nextGroups = inheritedLocalData.groups;
+              nextTasksBeforeDateRollover = inheritedLocalData.tasks;
+              nextHabits = inheritedLocalData.habits;
+              nextHabitEntries = inheritedLocalData.habitEntries;
+              nextActivityEvents = inheritedLocalData.activityEvents;
+            }
+          }
+        } catch (error) {
+          const message = getSyncErrorMessage(error);
+          console.error("Initial cloud pull failed", error);
+          setSyncStatus(`Cloud sync failed: ${message}`);
+        }
+      }
+
       const nextTasks = rolloverIncompletePastTasks(nextTasksBeforeDateRollover);
 
       if (!isActive) return;
 
       setTasks(nextTasks);
       setGroups(nextGroups);
-      setHabits(storedHabits);
-      setHabitEntries(storedHabitEntries);
+      setHabits(nextHabits);
+      setHabitEntries(nextHabitEntries);
       setActiveGroupId(nextGroups[0]?.id ?? DEFAULT_MY_TASKS_GROUP_ID);
+      setLoadedWorkspaceId(workspaceId);
       setIsLoaded(true);
 
-      if (storedTasks.length === 0) {
-        await repository.saveTasks(LOCAL_USER_ID, nextTasks);
-      }
-      if (storedGroups.length === 0) {
-        await groupRepository.saveGroups(LOCAL_USER_ID, nextGroups);
-      }
+      await Promise.all([
+        repository.saveTasks(workspaceId, nextTasks),
+        groupRepository.saveGroups(workspaceId, nextGroups),
+        habitRepository.saveHabits(workspaceId, nextHabits),
+        habitRepository.saveHabitEntries(workspaceId, nextHabitEntries),
+        activityRepository.saveEvents(workspaceId, nextActivityEvents),
+      ]);
     }
 
-    void loadTasks();
+    void loadWorkspace();
 
     return () => {
       isActive = false;
     };
-  }, [groupRepository, habitRepository, repository]);
+  }, [
+    activityRepository,
+    authUser,
+    groupRepository,
+    habitRepository,
+    isAuthLoaded,
+    repository,
+    supabase,
+    syncQueueRepository,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -236,7 +388,10 @@ export function TaskApp() {
   }, []);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) {
+      setIsAuthLoaded(true);
+      return;
+    }
     const client = supabase;
 
     let isActive = true;
@@ -245,13 +400,18 @@ export function TaskApp() {
       const { data } = await client.auth.getSession();
       if (isActive) {
         setAuthUser(data.session?.user ?? null);
+        setIsAuthLoaded(true);
       }
     }
 
     void loadSession();
 
-    const { data: subscription } = client.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = client.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        resetAnonymousOnNextLoadRef.current = true;
+      }
       setAuthUser(session?.user ?? null);
+      setIsAuthLoaded(true);
       lastSyncedFingerprintRef.current = null;
       setSyncStatus(session?.user ? "Cloud sync ready" : null);
     });
@@ -263,24 +423,24 @@ export function TaskApp() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!isLoaded) return;
-    void repository.saveTasks(LOCAL_USER_ID, tasks);
-  }, [isLoaded, repository, tasks]);
+    if (!isLoaded || loadedWorkspaceId !== workspaceId) return;
+    void repository.saveTasks(workspaceId, tasks);
+  }, [isLoaded, loadedWorkspaceId, repository, tasks, workspaceId]);
 
   useEffect(() => {
-    if (!isLoaded) return;
-    void groupRepository.saveGroups(LOCAL_USER_ID, groups);
-  }, [groupRepository, groups, isLoaded]);
+    if (!isLoaded || loadedWorkspaceId !== workspaceId) return;
+    void groupRepository.saveGroups(workspaceId, groups);
+  }, [groupRepository, groups, isLoaded, loadedWorkspaceId, workspaceId]);
 
   useEffect(() => {
-    if (!isLoaded) return;
-    void habitRepository.saveHabits(LOCAL_USER_ID, habits);
-  }, [habitRepository, habits, isLoaded]);
+    if (!isLoaded || loadedWorkspaceId !== workspaceId) return;
+    void habitRepository.saveHabits(workspaceId, habits);
+  }, [habitRepository, habits, isLoaded, loadedWorkspaceId, workspaceId]);
 
   useEffect(() => {
-    if (!isLoaded) return;
-    void habitRepository.saveHabitEntries(LOCAL_USER_ID, habitEntries);
-  }, [habitEntries, habitRepository, isLoaded]);
+    if (!isLoaded || loadedWorkspaceId !== workspaceId) return;
+    void habitRepository.saveHabitEntries(workspaceId, habitEntries);
+  }, [habitEntries, habitRepository, isLoaded, loadedWorkspaceId, workspaceId]);
 
   useEffect(() => {
     if (groups.length === 0) return;
@@ -289,7 +449,7 @@ export function TaskApp() {
   }, [activeGroupId, groups]);
 
   useEffect(() => {
-    if (!isLoaded || !authUser || !supabase) return;
+    if (!isLoaded || loadedWorkspaceId !== workspaceId || !authUser || !supabase) return;
 
     const fingerprint = buildSyncFingerprint(groups, tasks, habits, habitEntries);
     if (fingerprint === lastSyncedFingerprintRef.current) return;
@@ -299,11 +459,84 @@ export function TaskApp() {
     }, 900);
 
     return () => window.clearTimeout(timeoutId);
-  }, [authUser, groups, habitEntries, habits, isLoaded, supabase, tasks]);
+  }, [authUser, groups, habitEntries, habits, isLoaded, loadedWorkspaceId, supabase, tasks, workspaceId]);
+
+  useEffect(() => {
+    if (
+      !isLoaded ||
+      loadedWorkspaceId !== workspaceId ||
+      !authUser ||
+      !supabase ||
+      remoteSyncRequestId === 0
+    ) return;
+
+    void syncLocalDataToCloud(`remote:${remoteSyncRequestId}`);
+  }, [authUser, isLoaded, loadedWorkspaceId, remoteSyncRequestId, supabase, workspaceId]);
+
+  useEffect(() => {
+    if (!isLoaded || loadedWorkspaceId !== workspaceId || !authUser || !supabase) return;
+
+    function requestRemoteSync(statusMessage: string) {
+      if (realtimeSyncTimerRef.current !== null) {
+        window.clearTimeout(realtimeSyncTimerRef.current);
+      }
+
+      setSyncStatus(statusMessage);
+      realtimeSyncTimerRef.current = window.setTimeout(() => {
+        realtimeSyncTimerRef.current = null;
+        setRemoteSyncRequestId((currentRequestId) => currentRequestId + 1);
+      }, 700);
+    }
+
+    const channel = supabase
+      .channel(`activity-events:${authUser.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "activity_events",
+          filter: `user_id=eq.${authUser.id}`,
+        },
+        (payload) => {
+          const eventClientId = getRealtimePayloadClientId(payload);
+          if (eventClientId === getClientId()) return;
+
+          requestRemoteSync("Updating from another device...");
+        },
+      )
+      .subscribe();
+
+    function handleVisible() {
+      if (document.visibilityState !== "visible") return;
+      requestRemoteSync("Checking cloud changes...");
+    }
+
+    function handleFocus() {
+      requestRemoteSync("Checking cloud changes...");
+    }
+
+    document.addEventListener("visibilitychange", handleVisible);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      if (realtimeSyncTimerRef.current !== null) {
+        window.clearTimeout(realtimeSyncTimerRef.current);
+        realtimeSyncTimerRef.current = null;
+      }
+
+      document.removeEventListener("visibilitychange", handleVisible);
+      window.removeEventListener("focus", handleFocus);
+      void supabase.removeChannel(channel);
+    };
+  }, [authUser, isLoaded, loadedWorkspaceId, supabase, workspaceId]);
 
   useEffect(() => () => {
     clearGroupHoverTimer();
     clearEdgeSwitchTimer();
+    if (realtimeSyncTimerRef.current !== null) {
+      window.clearTimeout(realtimeSyncTimerRef.current);
+    }
   }, []);
 
   function handleTabChange(nextTab: AppTab) {
@@ -319,11 +552,14 @@ export function TaskApp() {
 
     try {
       setSyncStatus("Syncing...");
+      if (pendingActivityWritesRef.current.length > 0) {
+        await Promise.allSettled(pendingActivityWritesRef.current);
+      }
       const [activityEvents, pendingSyncItems] = await Promise.all([
-        activityRepository.listEvents(LOCAL_USER_ID),
-        syncQueueRepository.listPendingItems(LOCAL_USER_ID),
+        activityRepository.listEvents(workspaceId),
+        syncQueueRepository.listPendingItems(workspaceId),
       ]);
-      const pulledSnapshot = await pullSupabaseSnapshot(supabase, authUser.id);
+      const pulledSnapshot = await pullSupabaseSnapshot(supabase, authUser.id, workspaceId);
       const mergedSnapshot = mergeSyncSnapshots({
         local: {
           groups,
@@ -344,7 +580,7 @@ export function TaskApp() {
         pendingSyncItems,
       });
 
-      await syncQueueRepository.markItemsSynced(LOCAL_USER_ID, syncedQueueItemIds);
+      await syncQueueRepository.markItemsSynced(workspaceId, syncedQueueItemIds);
       const pulledFingerprint = buildSyncFingerprint(
         mergedSnapshot.groups,
         mergedSnapshot.tasks,
@@ -353,7 +589,7 @@ export function TaskApp() {
       );
 
       lastSyncedFingerprintRef.current = pulledFingerprint || fingerprint;
-      await activityRepository.saveEvents(LOCAL_USER_ID, mergedSnapshot.activityEvents);
+      await activityRepository.saveEvents(workspaceId, mergedSnapshot.activityEvents);
       setGroups(mergedSnapshot.groups);
       setTasks(mergedSnapshot.tasks);
       setHabits(mergedSnapshot.habits);
@@ -376,7 +612,7 @@ export function TaskApp() {
     const clientId = getClientId();
     const event = {
       id: crypto.randomUUID(),
-      userId: LOCAL_USER_ID,
+      userId: workspaceId,
       type,
       entityType,
       entityId,
@@ -385,23 +621,33 @@ export function TaskApp() {
       createdAt: now,
     };
 
-    void activityRepository.addEvent(event);
-    void syncQueueRepository.enqueueItem({
-      id: crypto.randomUUID(),
-      userId: LOCAL_USER_ID,
-      activityEventId: event.id,
-      entityType,
-      entityId,
-      operation: type,
-      payload,
-      clientId,
-      status: "pending",
-      attempts: 0,
-      createdAt: now,
-      updatedAt: now,
-      syncedAt: null,
-      lastError: null,
-    });
+    const writePromise = Promise.all([
+      activityRepository.addEvent(event),
+      syncQueueRepository.enqueueItem({
+        id: crypto.randomUUID(),
+        userId: workspaceId,
+        activityEventId: event.id,
+        entityType,
+        entityId,
+        operation: type,
+        payload,
+        clientId,
+        status: "pending",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+        syncedAt: null,
+        lastError: null,
+      }),
+    ])
+      .then(() => undefined)
+      .finally(() => {
+        pendingActivityWritesRef.current = pendingActivityWritesRef.current.filter(
+          (pendingWrite) => pendingWrite !== writePromise,
+        );
+      });
+
+    pendingActivityWritesRef.current.push(writePromise);
   }
 
   function handleAddTask(draft?: QuickAddDraft) {
@@ -409,7 +655,7 @@ export function TaskApp() {
 
     setTasks((currentTasks) =>
       addTask(currentTasks, {
-        userId: LOCAL_USER_ID,
+        userId: workspaceId,
         title: draft?.title ?? TEXT.newTask,
         parentId: null,
         groupId: activeGroupId,
@@ -438,7 +684,7 @@ export function TaskApp() {
 
     setTasks((currentTasks) => {
       const nextTasks = addTask(currentTasks, {
-        userId: LOCAL_USER_ID,
+        userId: workspaceId,
         title,
         parentId,
         dueDate: draft?.dueDate ?? null,
@@ -460,7 +706,7 @@ export function TaskApp() {
     const now = new Date().toISOString();
     const group = createGroup(
       crypto.randomUUID(),
-      LOCAL_USER_ID,
+      workspaceId,
       name,
       groups.length,
       now,
@@ -494,6 +740,9 @@ export function TaskApp() {
 
     const deletedGroupId = activeGroup.id;
     const nextActiveGroup = groups.find((group) => group.id !== deletedGroupId);
+    const deletedTaskIds = tasks
+      .filter((task) => task.groupId === deletedGroupId)
+      .map((task) => task.id);
 
     setGroups((currentGroups) =>
       currentGroups
@@ -506,6 +755,9 @@ export function TaskApp() {
     setActiveGroupId(nextActiveGroup?.id ?? DEFAULT_MY_TASKS_GROUP_ID);
     setGroupEditorMode(null);
     recordActivity("group_deleted", "task_group", deletedGroupId);
+    deletedTaskIds.forEach((deletedTaskId) => {
+      recordActivity("task_deleted", "task", deletedTaskId, { groupId: deletedGroupId });
+    });
   }
 
   function handleToggleComplete(taskId: TaskId) {
@@ -562,19 +814,22 @@ export function TaskApp() {
 
   function handleDeleteTask(taskId: TaskId) {
     const deletedTask = allNodes.find((node) => node.id === taskId) ?? null;
+    const deletedTaskIds = deletedTask ? collectTaskNodeIds(deletedTask) : [taskId];
 
     setTasks((currentTasks) => deleteTask(currentTasks, taskId));
 
-    if (selectedTaskId === taskId) {
+    if (selectedTaskId && deletedTaskIds.includes(selectedTaskId)) {
       setSelectedTaskId(
         detailReturnTarget === "mindmap" ? null : deletedTask?.parentId ?? null,
       );
     }
 
-    if (mindMapRootId === taskId) {
+    if (mindMapRootId && deletedTaskIds.includes(mindMapRootId)) {
       setMindMapRootId(null);
     }
-    recordActivity("task_deleted", "task", taskId);
+    deletedTaskIds.forEach((deletedTaskId) => {
+      recordActivity("task_deleted", "task", deletedTaskId, { rootTaskId: taskId });
+    });
   }
 
   function handleAddHabit(
@@ -587,7 +842,7 @@ export function TaskApp() {
 
     setHabits((currentHabits) =>
       addHabit(currentHabits, {
-        userId: LOCAL_USER_ID,
+        userId: workspaceId,
         title,
         unitType,
         unitMinutes,
@@ -1380,6 +1635,52 @@ function getAdjacentGroupId(
   return groups[nextIndex]?.id ?? null;
 }
 
+function collectTaskNodeIds(task: TaskNode): TaskId[] {
+  return [
+    task.id,
+    ...task.children.flatMap((child) => collectTaskNodeIds(child)),
+  ];
+}
+
+function getAuthenticatedWorkspaceId(authUserId: string): UserId {
+  return `auth:${authUserId}`;
+}
+
+function hasExistingCloudWorkspace(snapshot: {
+  groups: TaskGroup[];
+  tasks: Task[];
+  habits: Habit[];
+  habitEntries: HabitEntry[];
+  activityEvents: unknown[];
+}): boolean {
+  return (
+    snapshot.groups.length > 0 ||
+    snapshot.tasks.length > 0 ||
+    snapshot.habits.length > 0 ||
+    snapshot.habitEntries.length > 0 ||
+    snapshot.activityEvents.length > 0
+  );
+}
+
+function hasLocalWorkspaceContent(data: LocalWorkspaceData): boolean {
+  return (
+    data.tasks.length > 0 ||
+    data.habits.length > 0 ||
+    data.habitEntries.length > 0 ||
+    data.activityEvents.length > 0
+  );
+}
+
+function reassignLocalWorkspaceData(data: LocalWorkspaceData, userId: UserId): LocalWorkspaceData {
+  return {
+    groups: data.groups.map((group) => ({ ...group, userId })),
+    tasks: data.tasks.map((task) => ({ ...task, userId })),
+    habits: data.habits.map((habit) => ({ ...habit, userId })),
+    habitEntries: data.habitEntries.map((entry) => ({ ...entry, userId })),
+    activityEvents: data.activityEvents.map((event) => ({ ...event, userId })),
+  };
+}
+
 function buildSyncFingerprint(
   groups: TaskGroup[],
   tasks: Task[],
@@ -1456,4 +1757,14 @@ function getSyncErrorMessage(error: unknown): string {
   }
 
   return "Unknown error";
+}
+
+function getRealtimePayloadClientId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+
+  const maybePayload = payload as { new?: unknown };
+  if (!maybePayload.new || typeof maybePayload.new !== "object") return null;
+
+  const maybeNewRecord = maybePayload.new as { client_id?: unknown };
+  return typeof maybeNewRecord.client_id === "string" ? maybeNewRecord.client_id : null;
 }
