@@ -45,6 +45,62 @@ export function DraggableBottomSheet({
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!isMounted) return;
+
+    lockPagePullToRefresh();
+
+    let lastTouchY = 0;
+
+    function handleTouchStart(event: TouchEvent) {
+      if (event.touches.length !== 1) return;
+      lastTouchY = event.touches[0]?.clientY ?? 0;
+    }
+
+    function handleTouchMove(event: TouchEvent) {
+      if (event.touches.length !== 1) return;
+
+      const touch = event.touches[0];
+      const target = event.target;
+      if (!touch || !(target instanceof HTMLElement)) return;
+
+      const currentTouchY = touch.clientY;
+      const deltaY = currentTouchY - lastTouchY;
+      lastTouchY = currentTouchY;
+
+      const sheet = target.closest(".draggableSheet");
+      if (!(sheet instanceof HTMLElement)) {
+        event.preventDefault();
+        return;
+      }
+
+      const scrollContainer = findScrollableAncestor(target, sheet);
+      if (!scrollContainer) {
+        event.preventDefault();
+        return;
+      }
+
+      const isPullingDownAtTop = deltaY > 0 && scrollContainer.scrollTop <= 0;
+      const isPushingUpAtBottom =
+        deltaY < 0 &&
+        scrollContainer.scrollTop + scrollContainer.clientHeight >=
+          scrollContainer.scrollHeight - 1;
+
+      if (isPullingDownAtTop || isPushingUpAtBottom) {
+        event.preventDefault();
+      }
+    }
+
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchmove", handleTouchMove);
+      unlockPagePullToRefresh();
+    };
+  }, [isMounted]);
+
   function handlePointerDown(event: PointerEvent<HTMLElement>) {
     if (isClosing || !sheetRef.current) return;
     if (shouldIgnoreSheetDrag(event.target)) return;
@@ -196,3 +252,44 @@ function shouldIgnoreSheetDrag(target: EventTarget): boolean {
 }
 
 const DRAG_START_THRESHOLD = 10;
+
+let activeSheetLockCount = 0;
+
+function lockPagePullToRefresh() {
+  activeSheetLockCount += 1;
+  document.documentElement.classList.add("isBottomSheetOpen");
+  document.body.classList.add("isBottomSheetOpen");
+}
+
+function unlockPagePullToRefresh() {
+  activeSheetLockCount = Math.max(0, activeSheetLockCount - 1);
+  if (activeSheetLockCount > 0) return;
+
+  document.documentElement.classList.remove("isBottomSheetOpen");
+  document.body.classList.remove("isBottomSheetOpen");
+}
+
+function findScrollableAncestor(
+  target: HTMLElement,
+  boundary: HTMLElement,
+): HTMLElement | null {
+  let element: HTMLElement | null = target;
+
+  while (element && boundary.contains(element)) {
+    if (canScrollVertically(element)) return element;
+    if (element === boundary) break;
+    element = element.parentElement;
+  }
+
+  return canScrollVertically(boundary) ? boundary : null;
+}
+
+function canScrollVertically(element: HTMLElement): boolean {
+  const style = window.getComputedStyle(element);
+  const overflowY = style.overflowY;
+
+  return (
+    (overflowY === "auto" || overflowY === "scroll") &&
+    element.scrollHeight > element.clientHeight
+  );
+}

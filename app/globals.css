@@ -47,6 +47,10 @@
   box-sizing: border-box;
 }
 
+html {
+  overscroll-behavior-y: none;
+}
+
 body {
   min-width: 320px;
   margin: 0;
@@ -55,6 +59,14 @@ body {
     linear-gradient(180deg, var(--surface) 0, var(--bg) 260px),
     var(--bg);
   transition: color 160ms ease, background 160ms ease;
+  overscroll-behavior-y: none;
+}
+
+html.isBottomSheetOpen,
+body.isBottomSheetOpen {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 button,
@@ -1415,6 +1427,8 @@ h1 {
   display: grid;
   align-items: end;
   background: rgb(15 23 42 / 18%);
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .draggableSheet {
@@ -1432,6 +1446,7 @@ h1 {
   background: var(--bg);
   box-shadow: 0 -22px 54px rgb(15 23 42 / 20%);
   touch-action: pan-y;
+  overscroll-behavior: contain;
   animation: scheduleSheetIn 180ms ease-out;
   transition: transform 190ms ease;
 }
