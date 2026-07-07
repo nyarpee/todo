@@ -47,10 +47,6 @@
   box-sizing: border-box;
 }
 
-html {
-  overscroll-behavior-y: none;
-}
-
 body {
   min-width: 320px;
   margin: 0;
@@ -59,7 +55,6 @@ body {
     linear-gradient(180deg, var(--surface) 0, var(--bg) 260px),
     var(--bg);
   transition: color 160ms ease, background 160ms ease;
-  overscroll-behavior-y: none;
 }
 
 html.isBottomSheetOpen,
@@ -2586,7 +2581,22 @@ h1 {
 
 .react-flow__controls {
   border: 1px solid var(--line);
+  background: var(--surface);
   box-shadow: var(--shadow);
+}
+
+.react-flow__controls-button {
+  border-bottom-color: var(--line);
+  color: var(--text);
+  background: var(--surface);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--surface-muted);
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
 }
 
 .react-flow__attribution {
