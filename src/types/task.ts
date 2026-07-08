@@ -40,6 +40,7 @@ export type CreateTaskInput = {
   title: string;
   description?: string;
   groupId?: TaskGroupId;
+  order?: number;
   priority?: TaskPriority;
   dueDate?: string | null;
   dueTime?: string | null;

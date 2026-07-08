@@ -50,7 +50,9 @@ export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
   useEffect(() => {
     if (!isOpen) return;
 
-    const focusTimer = window.setTimeout(() => titleInputRef.current?.focus(), 80);
+    const focusTimer = window.setTimeout(() => {
+      titleInputRef.current?.focus({ preventScroll: true });
+    }, 80);
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();

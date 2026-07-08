@@ -41,7 +41,9 @@ export function HabitEditorSheet(props: HabitEditorSheetProps) {
     (unitType === "times" || (Number.isFinite(parsedUnit) && parsedUnit > 0));
 
   useEffect(() => {
-    const focusTimer = window.setTimeout(() => titleInputRef.current?.focus(), 80);
+    const focusTimer = window.setTimeout(() => {
+      titleInputRef.current?.focus({ preventScroll: true });
+    }, 80);
     return () => window.clearTimeout(focusTimer);
   }, []);
 

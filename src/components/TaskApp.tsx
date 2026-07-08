@@ -115,6 +115,7 @@ export function TaskApp() {
   const [groupEditorMode, setGroupEditorMode] = useState<"create" | "menu" | null>(null);
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<TaskId | null>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
@@ -672,11 +673,16 @@ export function TaskApp() {
   function handleAddTask(draft?: QuickAddDraft) {
     const taskId = crypto.randomUUID();
     const now = new Date().toISOString();
+    const rootOrdersInGroup = tasks
+      .filter((task) => task.parentId === null && task.groupId === activeGroupId)
+      .map((task) => task.order);
+    const topOrder = rootOrdersInGroup.length > 0 ? Math.min(...rootOrdersInGroup) - 1 : 0;
     const nextTasks = addTask(tasks, {
       userId: workspaceId,
       title: draft?.title ?? text.newTask,
       parentId: null,
       groupId: activeGroupId,
+      order: topOrder,
       dueDate: draft?.dueDate ?? null,
       dueTime: draft?.dueTime ?? null,
       priority: draft?.priority ?? "none",
@@ -687,6 +693,10 @@ export function TaskApp() {
     const createdTask = nextTasks.find((task) => task.id === taskId) ?? null;
 
     setTasks(nextTasks);
+    setHighlightedTaskId(taskId);
+    window.setTimeout(() => {
+      setHighlightedTaskId((currentTaskId) => (currentTaskId === taskId ? null : currentTaskId));
+    }, 1400);
 
     if (!draft) {
       setAutoEditTaskId(taskId);
@@ -1365,6 +1375,7 @@ export function TaskApp() {
                 onDeleteTask={handleDeleteTask}
                 autoEditTaskId={autoEditTaskId}
                 onAutoEditConsumed={() => setAutoEditTaskId(null)}
+                highlightedTaskId={highlightedTaskId}
               />
             ) : null}
           </section>

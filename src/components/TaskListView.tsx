@@ -23,6 +23,7 @@ type TaskListViewProps = {
   onDeleteTask: (taskId: TaskId) => void;
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
+  highlightedTaskId?: TaskId | null;
 };
 
 export function TaskListView({
@@ -35,6 +36,7 @@ export function TaskListView({
   onDeleteTask,
   autoEditTaskId,
   onAutoEditConsumed,
+  highlightedTaskId = null,
 }: TaskListViewProps) {
   const { messages: text } = useLanguage();
   const [isCompletedOpen, setIsCompletedOpen] = useState(false);
@@ -145,6 +147,7 @@ export function TaskListView({
         autoEditTaskId={autoEditTaskId}
         onAutoEditConsumed={onAutoEditConsumed}
         text={text}
+        isHighlighted={root.id === highlightedTaskId}
       />
     );
 
@@ -197,6 +200,7 @@ type TaskRowProps = {
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
   text: AppMessages;
+  isHighlighted: boolean;
 };
 
 function TaskRow({
@@ -217,6 +221,7 @@ function TaskRow({
   autoEditTaskId,
   onAutoEditConsumed,
   text,
+  isHighlighted,
 }: TaskRowProps) {
     const isDragging = canDelete && draggingTaskId === root.id;
     const isRevealed = canDelete && revealedTaskId === root.id;
@@ -224,7 +229,11 @@ function TaskRow({
     return (
       <div className="simpleTaskSwipe" key={root.id}>
         <div
-          className={root.completed ? "simpleTaskRow isCompletedRow" : "simpleTaskRow"}
+          className={[
+            "simpleTaskRow",
+            root.completed ? "isCompletedRow" : "",
+            isHighlighted ? "isNewlyAdded" : "",
+          ].filter(Boolean).join(" ")}
           style={{
             transform: `translateX(${
               isDragging

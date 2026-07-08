@@ -25,7 +25,7 @@ export function addTask(
   assertParentExists(tasks, parentId);
 
   const parentTask = parentId ? findTaskOrThrow(tasks, parentId) : null;
-  const nextOrder = getNextOrder(tasks, parentId);
+  const nextOrder = input.order ?? getNextOrder(tasks, parentId);
   const task: Task = {
     id: generateId(),
     userId: input.userId,

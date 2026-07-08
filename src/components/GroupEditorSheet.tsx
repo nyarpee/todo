@@ -28,7 +28,9 @@ export function GroupEditorSheet(props: GroupEditorSheetProps) {
   const canSave = name.trim().length > 0;
 
   useEffect(() => {
-    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 80);
+    const focusTimer = window.setTimeout(() => {
+      inputRef.current?.focus({ preventScroll: true });
+    }, 80);
     return () => window.clearTimeout(focusTimer);
   }, []);
 
