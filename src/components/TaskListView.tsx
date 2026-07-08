@@ -44,13 +44,19 @@ export function TaskListView({
   const [draggingTaskId, setDraggingTaskId] = useState<TaskId | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
   const dragStartXRef = useRef(0);
+  const dragStartYRef = useRef(0);
+  const swipeIntentRef = useRef<"pending" | "swiping" | "scrolling">("pending");
+  const swipeRevealThresholdRef = useRef(88);
   const didDragRef = useRef(false);
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>, taskId: TaskId) {
     const target = event.target as HTMLElement;
-    if (target.closest("button,input")) return;
+    if (isSwipeExcludedTarget(target)) return;
 
     dragStartXRef.current = event.clientX;
+    dragStartYRef.current = event.clientY;
+    swipeIntentRef.current = "pending";
+    swipeRevealThresholdRef.current = getSwipeRevealThreshold(event.currentTarget.clientWidth);
     didDragRef.current = false;
     setDraggingTaskId(taskId);
     setDragOffset(revealedTaskId === taskId ? -88 : 0);
@@ -60,18 +66,48 @@ export function TaskListView({
   function handlePointerMove(event: PointerEvent<HTMLDivElement>, taskId: TaskId) {
     if (draggingTaskId !== taskId) return;
 
-    const delta = event.clientX - dragStartXRef.current;
+    const deltaX = event.clientX - dragStartXRef.current;
+    const deltaY = event.clientY - dragStartYRef.current;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
     const baseOffset = revealedTaskId === taskId ? -88 : 0;
-    const nextOffset = Math.min(0, Math.max(-88, baseOffset + delta));
 
-    if (Math.abs(delta) > 6) didDragRef.current = true;
+    if (swipeIntentRef.current === "pending") {
+      if (absDeltaX < SWIPE_START_DISTANCE && absDeltaY < SWIPE_START_DISTANCE) return;
+
+      didDragRef.current = true;
+
+      if (absDeltaY > absDeltaX) {
+        swipeIntentRef.current = "scrolling";
+        setDraggingTaskId(null);
+        setDragOffset(baseOffset);
+        return;
+      }
+
+      if (deltaX > 0 && revealedTaskId !== taskId) {
+        swipeIntentRef.current = "scrolling";
+        setDraggingTaskId(null);
+        setDragOffset(0);
+        return;
+      }
+
+      swipeIntentRef.current = "swiping";
+      didDragRef.current = true;
+    }
+
+    if (swipeIntentRef.current !== "swiping") return;
+
+    const nextOffset = Math.min(0, Math.max(-88, baseOffset + deltaX));
+    event.preventDefault();
     setDragOffset(nextOffset);
   }
 
   function handlePointerUp(taskId: TaskId) {
     if (draggingTaskId !== taskId) return;
 
-    if (dragOffset < -44) {
+    const shouldReveal = Math.abs(dragOffset) >= swipeRevealThresholdRef.current;
+
+    if (shouldReveal) {
       setRevealedTaskId(taskId);
       setDragOffset(-88);
     } else {
@@ -80,11 +116,12 @@ export function TaskListView({
     }
 
     setDraggingTaskId(null);
+    swipeIntentRef.current = "pending";
   }
 
   function handleRowClick(event: MouseEvent<HTMLDivElement>, taskId: TaskId) {
     const target = event.target as HTMLElement;
-    if (target.closest("button,input")) return;
+    if (target.closest("input,textarea,select,.treeOpenButton,.swipeDeleteButton")) return;
 
     if (didDragRef.current) {
       didDragRef.current = false;
@@ -155,6 +192,20 @@ export function TaskListView({
 
     return <SortableTaskRow key={root.id} taskId={root.id}>{row}</SortableTaskRow>;
   }
+}
+
+const SWIPE_START_DISTANCE = 24;
+
+function getSwipeRevealThreshold(rowWidth: number): number {
+  return Math.min(88, Math.max(56, rowWidth * 0.28));
+}
+
+function isSwipeExcludedTarget(target: HTMLElement): boolean {
+  return Boolean(
+    target.closest(
+      "input,textarea,select,[contenteditable='true'],.check,.treeOpenButton,.swipeDeleteButton",
+    ),
+  );
 }
 
 type SortableTaskRowProps = {
