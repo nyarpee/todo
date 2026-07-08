@@ -117,6 +117,7 @@ export function TaskApp() {
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<TaskId | null>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
+  const [activeDragGroupId, setActiveDragGroupId] = useState<TaskGroupId | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
@@ -177,6 +178,9 @@ export function TaskApp() {
     : null;
   const activeDragTask = activeDragTaskId
     ? allNodes.find((node) => node.id === activeDragTaskId) ?? null
+    : null;
+  const activeDragGroup = activeDragGroupId
+    ? groups.find((group) => group.id === activeDragGroupId) ?? null
     : null;
   const habitsWithEntries = useMemo(
     () =>
@@ -782,6 +786,36 @@ export function TaskApp() {
     });
   }
 
+  function handleReorderGroups(activeId: TaskGroupId, overId: TaskGroupId) {
+    const orderedGroups = groups.slice().sort(sortGroupsByOrder);
+    const oldIndex = orderedGroups.findIndex((group) => group.id === activeId);
+    const newIndex = orderedGroups.findIndex((group) => group.id === overId);
+
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+
+    const now = new Date().toISOString();
+    const nextGroups = arrayMove(orderedGroups, oldIndex, newIndex).map((group, index) =>
+      group.order === index
+        ? group
+        : { ...group, order: index, updatedAt: now },
+    );
+    const changedGroups = nextGroups.filter((group) => {
+      const previousGroup = groups.find((currentGroup) => currentGroup.id === group.id);
+      return previousGroup?.order !== group.order;
+    });
+
+    setGroups(nextGroups);
+    changedGroups.forEach((group) => {
+      recordActivity("group_updated", "task_group", group.id, {
+        patch: {
+          order: group.order,
+          updatedAt: group.updatedAt,
+        },
+        fields: ["order"],
+      });
+    });
+  }
+
   function handleDeleteGroup() {
     if (!activeGroup || activeGroup.id === DEFAULT_MY_TASKS_GROUP_ID) return;
 
@@ -1038,10 +1072,20 @@ export function TaskApp() {
   }
 
   function handleDragStart(event: DragStartEvent) {
+    const dragType = getDndItemType(event.active.data.current);
+    const activeId = String(event.active.id);
+
+    if (dragType === "group") {
+      setActiveDragGroupId(activeId);
+      setActiveDragTaskId(null);
+      return;
+    }
+
     const pointerX = getPointerClientX(event.activatorEvent);
     const pointerY = getPointerClientY(event.activatorEvent);
 
-    setActiveDragTaskId(String(event.active.id));
+    setActiveDragTaskId(activeId);
+    setActiveDragGroupId(null);
     dragStartXRef.current = pointerX;
     dragStartYRef.current = pointerY;
     latestPointerRef.current =
@@ -1051,23 +1095,35 @@ export function TaskApp() {
   }
 
   function handleDragMove(event: DragMoveEvent) {
+    if (getDndItemType(event.active.data.current) === "group") return;
+
     const pointer = getCurrentDragPointer(event);
     if (!pointer) return;
     handleDragPointerMove(pointer.x, pointer.y);
   }
 
   function handleDragEnd(event: DragEndEvent) {
+    const dragType = getDndItemType(event.active.data.current);
+
     clearGroupHoverTimer();
     clearEdgeSwitchTimer();
     clearGroupChipsScrollTimer();
     stopPointerTracking();
     setActiveDragTaskId(null);
+    setActiveDragGroupId(null);
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     latestPointerRef.current = null;
 
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : null;
+
+    if (dragType === "group") {
+      if (overId && activeId !== overId) {
+        handleReorderGroups(activeId, overId);
+      }
+      return;
+    }
 
     const draggedTask = allNodes.find((node) => node.id === activeId);
     if (!draggedTask || draggedTask.parentId !== null || draggedTask.completed) return;
@@ -1104,6 +1160,7 @@ export function TaskApp() {
     clearGroupChipsScrollTimer();
     stopPointerTracking();
     setActiveDragTaskId(null);
+    setActiveDragGroupId(null);
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     latestPointerRef.current = null;
@@ -1386,6 +1443,7 @@ export function TaskApp() {
                 autoEditTaskId={autoEditTaskId}
                 onAutoEditConsumed={() => setAutoEditTaskId(null)}
                 highlightedTaskId={highlightedTaskId}
+                isSortingTask={activeDragTaskId !== null}
               />
             ) : null}
           </section>
@@ -1397,6 +1455,10 @@ export function TaskApp() {
                   aria-hidden="true"
                 />
                 <span>{activeDragTask.title}</span>
+              </div>
+            ) : activeDragGroup ? (
+              <div className="dragOverlayTask">
+                <span>{activeDragGroup.name}</span>
               </div>
             ) : null}
           </DragOverlay>
@@ -1591,6 +1653,10 @@ function sortHabitsByOrder(first: Habit, second: Habit): number {
   return first.order - second.order || first.createdAt.localeCompare(second.createdAt);
 }
 
+function sortGroupsByOrder(first: TaskGroup, second: TaskGroup): number {
+  return first.order - second.order || first.createdAt.localeCompare(second.createdAt);
+}
+
 function getPointerClientX(event: Event): number | null {
   if ("clientX" in event && typeof event.clientX === "number") {
     return event.clientX;
@@ -1629,6 +1695,12 @@ function hasTouchList(
 ): event is Event & Record<typeof key, TouchList> {
   const value = (event as unknown as Record<string, unknown>)[key];
   return value instanceof TouchList;
+}
+
+function getDndItemType(data: unknown): "task" | "group" | null {
+  if (!data || typeof data !== "object") return null;
+  const type = (data as { type?: unknown }).type;
+  return type === "task" || type === "group" ? type : null;
 }
 
 function getEdgeSwitchDirection(

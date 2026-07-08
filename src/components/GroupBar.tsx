@@ -1,5 +1,11 @@
 "use client";
 
+import { CSS } from "@dnd-kit/utilities";
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  useSortable,
+} from "@dnd-kit/sortable";
 import { MoreVertical, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskGroup, TaskGroupId } from "@/types/task";
@@ -29,15 +35,17 @@ export function GroupBar({
   return (
     <section className="groupArea" aria-label={text.lists.area}>
       <div ref={onRegisterGroupChipsContainer} className="groupChips">
-        {groups.map((group) => (
-          <GroupChip
-            activeGroupId={activeGroupId}
-            group={group}
-            key={group.id}
-            onRegisterGroupChip={onRegisterGroupChip}
-            onSelectGroup={onSelectGroup}
-          />
-        ))}
+        <SortableContext items={groups.map((group) => group.id)} strategy={horizontalListSortingStrategy}>
+          {groups.map((group) => (
+            <GroupChip
+              activeGroupId={activeGroupId}
+              group={group}
+              key={group.id}
+              onRegisterGroupChip={onRegisterGroupChip}
+              onSelectGroup={onSelectGroup}
+            />
+          ))}
+        </SortableContext>
         <button className="groupAddChip" type="button" onClick={onAddGroup} aria-label={text.lists.add}>
           <Plus size={16} aria-hidden="true" />
         </button>
@@ -63,19 +71,33 @@ type GroupChipProps = {
 };
 
 function GroupChip({ group, activeGroupId, onRegisterGroupChip, onSelectGroup }: GroupChipProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: group.id,
+    data: { type: "group" },
+  });
   const className = [
     "groupChip",
     group.id === activeGroupId ? "isActive" : "",
+    isDragging ? "isDragging" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
     <button
-      ref={(element) => onRegisterGroupChip?.(group.id, element)}
+      ref={(element) => {
+        setNodeRef(element);
+        onRegisterGroupChip?.(group.id, element);
+      }}
       className={className}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
       type="button"
       onClick={() => onSelectGroup(group.id)}
+      {...attributes}
+      {...listeners}
     >
       {group.name}
     </button>

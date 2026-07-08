@@ -1,6 +1,6 @@
 "use client";
 
-import { MouseEvent, PointerEvent, useRef, useState } from "react";
+import { MouseEvent, PointerEvent, useEffect, useRef, useState } from "react";
 import type React from "react";
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -24,6 +24,7 @@ type TaskListViewProps = {
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
   highlightedTaskId?: TaskId | null;
+  isSortingTask?: boolean;
 };
 
 export function TaskListView({
@@ -37,6 +38,7 @@ export function TaskListView({
   autoEditTaskId,
   onAutoEditConsumed,
   highlightedTaskId = null,
+  isSortingTask = false,
 }: TaskListViewProps) {
   const { messages: text } = useLanguage();
   const [isCompletedOpen, setIsCompletedOpen] = useState(false);
@@ -49,7 +51,17 @@ export function TaskListView({
   const swipeRevealThresholdRef = useRef(88);
   const didDragRef = useRef(false);
 
+  useEffect(() => {
+    if (!isSortingTask) return;
+    setDraggingTaskId(null);
+    setRevealedTaskId(null);
+    setDragOffset(0);
+    swipeIntentRef.current = "pending";
+    didDragRef.current = true;
+  }, [isSortingTask]);
+
   function handlePointerDown(event: PointerEvent<HTMLDivElement>, taskId: TaskId) {
+    if (isSortingTask) return;
     const target = event.target as HTMLElement;
     if (isSwipeExcludedTarget(target)) return;
 
@@ -64,6 +76,7 @@ export function TaskListView({
   }
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>, taskId: TaskId) {
+    if (isSortingTask) return;
     if (draggingTaskId !== taskId) return;
 
     const deltaX = event.clientX - dragStartXRef.current;
@@ -103,6 +116,7 @@ export function TaskListView({
   }
 
   function handlePointerUp(taskId: TaskId) {
+    if (isSortingTask) return;
     if (draggingTaskId !== taskId) return;
 
     const shouldReveal = Math.abs(dragOffset) >= swipeRevealThresholdRef.current;
@@ -120,6 +134,7 @@ export function TaskListView({
   }
 
   function handleRowClick(event: MouseEvent<HTMLDivElement>, taskId: TaskId) {
+    if (isSortingTask) return;
     const target = event.target as HTMLElement;
     if (target.closest("input,textarea,select,.treeOpenButton,.swipeDeleteButton")) return;
 
@@ -185,6 +200,7 @@ export function TaskListView({
         onAutoEditConsumed={onAutoEditConsumed}
         text={text}
         isHighlighted={root.id === highlightedTaskId}
+        isSortingTask={isSortingTask}
       />
     );
 
@@ -215,7 +231,7 @@ type SortableTaskRowProps = {
 
 function SortableTaskRow({ taskId, children }: SortableTaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: taskId });
+    useSortable({ id: taskId, data: { type: "task" } });
 
   return (
     <div
@@ -252,6 +268,7 @@ type TaskRowProps = {
   onAutoEditConsumed: () => void;
   text: AppMessages;
   isHighlighted: boolean;
+  isSortingTask: boolean;
 };
 
 function TaskRow({
@@ -273,6 +290,7 @@ function TaskRow({
   onAutoEditConsumed,
   text,
   isHighlighted,
+  isSortingTask,
 }: TaskRowProps) {
     const isDragging = canDelete && draggingTaskId === root.id;
     const isRevealed = canDelete && revealedTaskId === root.id;
@@ -296,10 +314,10 @@ function TaskRow({
             }px)`,
           }}
           onClick={(event) => onRowClick(event, root.id)}
-          onPointerDown={canDelete ? (event) => onPointerDown(event, root.id) : undefined}
-          onPointerMove={canDelete ? (event) => onPointerMove(event, root.id) : undefined}
-          onPointerUp={canDelete ? () => onPointerUp(root.id) : undefined}
-          onPointerCancel={canDelete ? () => onPointerUp(root.id) : undefined}
+          onPointerDown={canDelete && !isSortingTask ? (event) => onPointerDown(event, root.id) : undefined}
+          onPointerMove={canDelete && !isSortingTask ? (event) => onPointerMove(event, root.id) : undefined}
+          onPointerUp={canDelete && !isSortingTask ? () => onPointerUp(root.id) : undefined}
+          onPointerCancel={canDelete && !isSortingTask ? () => onPointerUp(root.id) : undefined}
         >
           <input
             className={`check ${getPriorityClass(root.priority)}`}

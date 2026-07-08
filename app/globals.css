@@ -367,6 +367,10 @@ h1 {
   background: color-mix(in srgb, var(--focus) 10%, var(--surface));
 }
 
+.groupChip.isDragging {
+  opacity: 0.42;
+}
+
 .groupAddChip {
   display: grid;
   place-items: center;
@@ -482,6 +486,11 @@ h1 {
 
 .sortableTaskItem.isDragging {
   opacity: 0.34;
+}
+
+.sortableTaskItem.isDragging .swipeDeleteButton {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .simpleTaskRow {
