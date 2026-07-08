@@ -113,5 +113,5 @@ function TreeFocusNode({
 }
 
 const TEXT = {
-  addSubtask: "\u30b5\u30d6\u30bf\u30b9\u30af\u3092\u8ffd\u52a0",
+  addSubtask: "Add subtask",
 };

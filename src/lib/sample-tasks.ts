@@ -1,88 +1,88 @@
 import type { Task, UserId } from "@/types/task";
 import { DEFAULT_MY_TASKS_GROUP_ID } from "./task-groups";
 
+type SampleTaskSeed = {
+  key: "addTask" | "addSubtask" | "editTitle" | "addDate" | "addPriority" | "useTree" | "addHabit";
+  title: string;
+  description: string;
+  parentKey: SampleTaskSeed["key"] | null;
+  order: number;
+};
+
+const SAMPLE_TASKS: SampleTaskSeed[] = [
+  {
+    key: "addTask",
+    title: "Add your first task",
+    description:
+      "Use the + button in the lower-right corner to create a new task. Enter a title, save it, and it will appear in your Inbox.",
+    parentKey: null,
+    order: 0,
+  },
+  {
+    key: "addSubtask",
+    title: "Add a subtask",
+    description:
+      "Tap a task to open its detail sheet. Use Add subtask to break work into smaller steps.",
+    parentKey: null,
+    order: 1,
+  },
+  {
+    key: "editTitle",
+    title: "Edit the title",
+    description: "Tap the title in the detail sheet to edit it directly.",
+    parentKey: "addSubtask",
+    order: 0,
+  },
+  {
+    key: "addDate",
+    title: "Add a date",
+    description: "Tap No date in the detail sheet to set a date and time.",
+    parentKey: "addSubtask",
+    order: 1,
+  },
+  {
+    key: "addPriority",
+    title: "Add a priority",
+    description: "Use Priority in the detail sheet to choose High, Medium, Low, or None.",
+    parentKey: "addSubtask",
+    order: 2,
+  },
+  {
+    key: "useTree",
+    title: "Try the tree canvas",
+    description:
+      "Press the tree icon on a task row to open that task as a canvas. Use the + on a node to grow new branches.",
+    parentKey: null,
+    order: 2,
+  },
+  {
+    key: "addHabit",
+    title: "Add a habit",
+    description:
+      "Open the Habit tab and press + to create a habit card. Choose the unit for 1 check and build progress little by little.",
+    parentKey: null,
+    order: 3,
+  },
+];
+
 export function createSampleTasks(userId: UserId): Task[] {
   const now = new Date().toISOString();
-  const addTask = crypto.randomUUID();
-  const addSubtask = crypto.randomUUID();
-  const editTitle = crypto.randomUUID();
-  const addDate = crypto.randomUUID();
-  const addPriority = crypto.randomUUID();
-  const useTree = crypto.randomUUID();
-  const addHabit = crypto.randomUUID();
+  const ids = new Map<SampleTaskSeed["key"], string>(
+    SAMPLE_TASKS.map((task) => [task.key, crypto.randomUUID()]),
+  );
 
-  return [
+  return SAMPLE_TASKS.map((task) =>
     createTask(
-      addTask,
+      ids.get(task.key) ?? crypto.randomUUID(),
       userId,
-      "タスクを追加してみよう",
-      "右下の+ボタンから新しいタスクを作れます。タイトルを書いて保存すると、Inboxに追加されます。",
-      null,
-      0,
+      task.title,
+      task.description,
+      task.parentKey ? ids.get(task.parentKey) ?? null : null,
+      task.order,
       false,
       now,
     ),
-    createTask(
-      addSubtask,
-      userId,
-      "サブタスクを追加してみよう",
-      "タスクをタップすると詳細ページが開きます。詳細ページのAdd subtaskから、作業を小さく分けられます。",
-      null,
-      1,
-      false,
-      now,
-    ),
-    createTask(
-      editTitle,
-      userId,
-      "タイトルを編集してみる",
-      "詳細ページのタイトルをタップすると、そのまま編集できます。",
-      addSubtask,
-      0,
-      false,
-      now,
-    ),
-    createTask(
-      addDate,
-      userId,
-      "日付を追加してみる",
-      "詳細ページのNo dateをタップすると、日付と時間を設定できます。",
-      addSubtask,
-      1,
-      false,
-      now,
-    ),
-    createTask(
-      addPriority,
-      userId,
-      "優先度を追加してみる",
-      "詳細ページのPriorityから、High / Medium / Low / Noneを選べます。",
-      addSubtask,
-      2,
-      false,
-      now,
-    ),
-    createTask(
-      useTree,
-      userId,
-      "Treeを使ってみよう",
-      "タスク行のTreeアイコンを押すと、そのタスクを中心にキャンバス表示できます。ノードの+から枝を伸ばせます。",
-      null,
-      2,
-      false,
-      now,
-    ),
-    createTask(
-      addHabit,
-      userId,
-      "Habitを追加してみよう",
-      "下のHabitタブで+を押すと、習慣カードを作れます。1 checkの単位を決めて、少しずつ積み上げられます。",
-      null,
-      3,
-      false,
-      now,
-    ),
-  ];
+  );
 }
 
 function createTask(

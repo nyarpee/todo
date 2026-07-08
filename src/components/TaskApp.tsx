@@ -16,6 +16,16 @@ import {
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
+  applyGroupActivityEvent,
+  applyHabitActivityEvent,
+  applyHabitEntryActivityEvent,
+  applyTaskActivityEvent,
+  buildRootTaskBefore,
+  buildRootTaskToGroupEnd,
+  getChangedTasks,
+  getRealtimeActivityEvent,
+} from "@/lib/activity-event-operations";
+import {
   addHabit,
   addHabitEntry,
   deleteHabit,
@@ -120,9 +130,7 @@ export function TaskApp() {
   const groupChipsScrollDirectionRef = useRef<"left" | "right" | null>(null);
   const lastSyncedFingerprintRef = useRef<string | null>(null);
   const pendingActivityWritesRef = useRef<Promise<void>[]>([]);
-  const realtimeSyncTimerRef = useRef<number | null>(null);
   const resetAnonymousOnNextLoadRef = useRef(false);
-  const [remoteSyncRequestId, setRemoteSyncRequestId] = useState(0);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -462,31 +470,7 @@ export function TaskApp() {
   }, [authUser, groups, habitEntries, habits, isLoaded, loadedWorkspaceId, supabase, tasks, workspaceId]);
 
   useEffect(() => {
-    if (
-      !isLoaded ||
-      loadedWorkspaceId !== workspaceId ||
-      !authUser ||
-      !supabase ||
-      remoteSyncRequestId === 0
-    ) return;
-
-    void syncLocalDataToCloud(`remote:${remoteSyncRequestId}`);
-  }, [authUser, isLoaded, loadedWorkspaceId, remoteSyncRequestId, supabase, workspaceId]);
-
-  useEffect(() => {
     if (!isLoaded || loadedWorkspaceId !== workspaceId || !authUser || !supabase) return;
-
-    function requestRemoteSync(statusMessage: string) {
-      if (realtimeSyncTimerRef.current !== null) {
-        window.clearTimeout(realtimeSyncTimerRef.current);
-      }
-
-      setSyncStatus(statusMessage);
-      realtimeSyncTimerRef.current = window.setTimeout(() => {
-        realtimeSyncTimerRef.current = null;
-        setRemoteSyncRequestId((currentRequestId) => currentRequestId + 1);
-      }, 700);
-    }
 
     const channel = supabase
       .channel(`activity-events:${authUser.id}`)
@@ -499,32 +483,29 @@ export function TaskApp() {
           filter: `user_id=eq.${authUser.id}`,
         },
         (payload) => {
-          const eventClientId = getRealtimePayloadClientId(payload);
-          if (eventClientId === getClientId()) return;
+          const activityEvent = getRealtimeActivityEvent(payload, workspaceId);
+          if (!activityEvent || activityEvent.clientId === getClientId()) return;
 
-          requestRemoteSync("Updating from another device...");
+          void activityRepository.addEvent(activityEvent);
+          applyRemoteActivityEvent(activityEvent);
+          setSyncStatus("Updated from another device");
         },
       )
       .subscribe();
 
     function handleVisible() {
       if (document.visibilityState !== "visible") return;
-      requestRemoteSync("Checking cloud changes...");
+      void syncRemoteActivityEventsFromCloud();
     }
 
     function handleFocus() {
-      requestRemoteSync("Checking cloud changes...");
+      void syncRemoteActivityEventsFromCloud();
     }
 
     document.addEventListener("visibilitychange", handleVisible);
     window.addEventListener("focus", handleFocus);
 
     return () => {
-      if (realtimeSyncTimerRef.current !== null) {
-        window.clearTimeout(realtimeSyncTimerRef.current);
-        realtimeSyncTimerRef.current = null;
-      }
-
       document.removeEventListener("visibilitychange", handleVisible);
       window.removeEventListener("focus", handleFocus);
       void supabase.removeChannel(channel);
@@ -534,9 +515,6 @@ export function TaskApp() {
   useEffect(() => () => {
     clearGroupHoverTimer();
     clearEdgeSwitchTimer();
-    if (realtimeSyncTimerRef.current !== null) {
-      window.clearTimeout(realtimeSyncTimerRef.current);
-    }
   }, []);
 
   function handleTabChange(nextTab: AppTab) {
@@ -559,45 +537,49 @@ export function TaskApp() {
         activityRepository.listEvents(workspaceId),
         syncQueueRepository.listPendingItems(workspaceId),
       ]);
-      const pulledSnapshot = await pullSupabaseSnapshot(supabase, authUser.id, workspaceId);
-      const mergedSnapshot = mergeSyncSnapshots({
-        local: {
-          groups,
-          tasks,
-          habits,
-          habitEntries,
-          activityEvents,
-        },
-        remote: pulledSnapshot,
-      });
 
       const syncedQueueItemIds = await pushLocalSnapshotToSupabase(supabase, authUser.id, {
-        groups: mergedSnapshot.groups,
-        tasks: mergedSnapshot.tasks,
-        habits: mergedSnapshot.habits,
-        habitEntries: mergedSnapshot.habitEntries,
-        activityEvents: mergedSnapshot.activityEvents,
+        groups,
+        tasks,
+        habits,
+        habitEntries,
+        activityEvents,
         pendingSyncItems,
       });
 
       await syncQueueRepository.markItemsSynced(workspaceId, syncedQueueItemIds);
-      const pulledFingerprint = buildSyncFingerprint(
-        mergedSnapshot.groups,
-        mergedSnapshot.tasks,
-        mergedSnapshot.habits,
-        mergedSnapshot.habitEntries,
-      );
-
-      lastSyncedFingerprintRef.current = pulledFingerprint || fingerprint;
-      await activityRepository.saveEvents(workspaceId, mergedSnapshot.activityEvents);
-      setGroups(mergedSnapshot.groups);
-      setTasks(mergedSnapshot.tasks);
-      setHabits(mergedSnapshot.habits);
-      setHabitEntries(mergedSnapshot.habitEntries);
+      lastSyncedFingerprintRef.current = fingerprint;
       setSyncStatus("Synced with cloud");
     } catch (error) {
       const message = getSyncErrorMessage(error);
       console.error("Cloud sync failed", error);
+      setSyncStatus(`Cloud sync failed: ${message}`);
+    }
+  }
+
+  async function syncRemoteActivityEventsFromCloud() {
+    if (!authUser || !supabase) return;
+
+    try {
+      setSyncStatus("Checking cloud changes...");
+      const [localEvents, pulledSnapshot] = await Promise.all([
+        activityRepository.listEvents(workspaceId),
+        pullSupabaseSnapshot(supabase, authUser.id, workspaceId),
+      ]);
+      const localEventIds = new Set(localEvents.map((event) => event.id));
+      const remoteEvents = pulledSnapshot.activityEvents.filter(
+        (event) => !localEventIds.has(event.id) && event.clientId !== getClientId(),
+      );
+
+      for (const event of remoteEvents) {
+        await activityRepository.addEvent(event);
+        applyRemoteActivityEvent(event);
+      }
+
+      setSyncStatus(remoteEvents.length > 0 ? "Updated from cloud" : "Synced with cloud");
+    } catch (error) {
+      const message = getSyncErrorMessage(error);
+      console.error("Cloud event catch-up failed", error);
       setSyncStatus(`Cloud sync failed: ${message}`);
     }
   }
@@ -650,28 +632,60 @@ export function TaskApp() {
     pendingActivityWritesRef.current.push(writePromise);
   }
 
+  function applyRemoteActivityEvent(event: ActivityEvent) {
+    if (event.entityType === "task") {
+      setTasks((currentTasks) => applyTaskActivityEvent(currentTasks, event));
+      return;
+    }
+
+    if (event.entityType === "task_group") {
+      setGroups((currentGroups) => applyGroupActivityEvent(currentGroups, event));
+      if (event.type === "group_deleted") {
+        setTasks((currentTasks) => currentTasks.filter((task) => task.groupId !== event.entityId));
+      }
+      return;
+    }
+
+    if (event.entityType === "habit") {
+      setHabits((currentHabits) => applyHabitActivityEvent(currentHabits, event));
+      if (event.type === "habit_deleted") {
+        setHabitEntries((currentEntries) =>
+          currentEntries.filter((entry) => entry.habitId !== event.entityId),
+        );
+      }
+      return;
+    }
+
+    if (event.entityType === "habit_entry") {
+      setHabitEntries((currentEntries) => applyHabitEntryActivityEvent(currentEntries, event));
+    }
+  }
+
   function handleAddTask(draft?: QuickAddDraft) {
     const taskId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const nextTasks = addTask(tasks, {
+      userId: workspaceId,
+      title: draft?.title ?? TEXT.newTask,
+      parentId: null,
+      groupId: activeGroupId,
+      dueDate: draft?.dueDate ?? null,
+      dueTime: draft?.dueTime ?? null,
+      priority: draft?.priority ?? "none",
+    }, {
+      generateId: () => taskId,
+      now: () => now,
+    });
+    const createdTask = nextTasks.find((task) => task.id === taskId) ?? null;
 
-    setTasks((currentTasks) =>
-      addTask(currentTasks, {
-        userId: workspaceId,
-        title: draft?.title ?? TEXT.newTask,
-        parentId: null,
-        groupId: activeGroupId,
-        dueDate: draft?.dueDate ?? null,
-        dueTime: draft?.dueTime ?? null,
-        priority: draft?.priority ?? "none",
-      }, {
-        generateId: () => taskId,
-      }),
-    );
+    setTasks(nextTasks);
 
     if (!draft) {
       setAutoEditTaskId(taskId);
     }
 
     recordActivity("task_created", "task", taskId, {
+      task: createdTask,
       groupId: activeGroupId,
       hasDraft: Boolean(draft),
     });
@@ -681,25 +695,26 @@ export function TaskApp() {
   function handleAddChild(parentId: TaskId, draft?: QuickAddDraft) {
     const taskId = crypto.randomUUID();
     const title = draft?.title ?? TEXT.newTask;
-
-    setTasks((currentTasks) => {
-      const nextTasks = addTask(currentTasks, {
-        userId: workspaceId,
-        title,
-        parentId,
-        dueDate: draft?.dueDate ?? null,
-        dueTime: draft?.dueTime ?? null,
-        priority: draft?.priority ?? "none",
-      }, {
-        generateId: () => taskId,
-      });
-
-      return syncAncestorCompletion(nextTasks, taskId);
+    const now = new Date().toISOString();
+    const nextTasks = addTask(tasks, {
+      userId: workspaceId,
+      title,
+      parentId,
+      dueDate: draft?.dueDate ?? null,
+      dueTime: draft?.dueTime ?? null,
+      priority: draft?.priority ?? "none",
+    }, {
+      generateId: () => taskId,
+      now: () => now,
     });
+    const syncedTasks = syncAncestorCompletion(nextTasks, taskId, { now: () => now });
+    const createdTask = syncedTasks.find((task) => task.id === taskId) ?? null;
+
+    setTasks(syncedTasks);
     if (!draft) {
       setAutoEditTaskId(taskId);
     }
-    recordActivity("task_created", "task", taskId, { parentId });
+    recordActivity("task_created", "task", taskId, { task: createdTask, parentId });
   }
 
   function handleAddGroup(name: string) {
@@ -715,22 +730,26 @@ export function TaskApp() {
     setGroups((currentGroups) => [...currentGroups, group]);
     setActiveGroupId(group.id);
     setGroupEditorMode(null);
-    recordActivity("group_created", "task_group", group.id, { name });
+    recordActivity("group_created", "task_group", group.id, { group });
   }
 
   function handleRenameGroup(name: string) {
     if (!activeGroup) return;
+    const now = new Date().toISOString();
 
     setGroups((currentGroups) =>
       currentGroups.map((group) =>
         group.id === activeGroup.id
-          ? { ...group, name, updatedAt: new Date().toISOString() }
+          ? { ...group, name, updatedAt: now }
           : group,
       ),
     );
     setGroupEditorMode(null);
     recordActivity("group_updated", "task_group", activeGroup.id, {
-      name,
+      patch: {
+        name,
+        updatedAt: now,
+      },
       fields: ["name"],
     });
   }
@@ -762,35 +781,64 @@ export function TaskApp() {
 
   function handleToggleComplete(taskId: TaskId) {
     const task = allNodes.find((node) => node.id === taskId);
-    setTasks((currentTasks) => toggleTaskAndSyncAncestors(currentTasks, taskId));
+    const now = new Date().toISOString();
+    const completed = !task?.completed;
+    setTasks((currentTasks) =>
+      toggleTaskAndSyncAncestors(currentTasks, taskId, { now: () => now }),
+    );
     recordActivity(
       task?.completed ? "task_uncompleted" : "task_completed",
       "task",
       taskId,
-      { fields: ["completed", "completedAt"] },
+      {
+        patch: {
+          completed,
+          completedAt: completed ? now : null,
+          updatedAt: now,
+        },
+        fields: ["completed", "completedAt"],
+      },
     );
   }
 
   function handleRenameTask(taskId: TaskId, title: string) {
-    setTasks((currentTasks) => renameTask(currentTasks, taskId, title));
-    recordActivity("task_updated", "task", taskId, { field: "title", fields: ["title"] });
+    const now = new Date().toISOString();
+    setTasks((currentTasks) => renameTask(currentTasks, taskId, title, { now: () => now }));
+    recordActivity("task_updated", "task", taskId, {
+      patch: {
+        title: title.trim(),
+        updatedAt: now,
+      },
+      field: "title",
+      fields: ["title"],
+    });
   }
 
   function handleUpdateDescription(taskId: TaskId, description: string) {
+    const now = new Date().toISOString();
     setTasks((currentTasks) =>
-      updateTaskDescription(currentTasks, taskId, description),
+      updateTaskDescription(currentTasks, taskId, description, { now: () => now }),
     );
     recordActivity("task_updated", "task", taskId, {
+      patch: {
+        description,
+        updatedAt: now,
+      },
       field: "description",
       fields: ["description"],
     });
   }
 
   function handleUpdatePriority(taskId: TaskId, priority: Task["priority"]) {
+    const now = new Date().toISOString();
     setTasks((currentTasks) =>
-      updateTaskPriority(currentTasks, taskId, priority),
+      updateTaskPriority(currentTasks, taskId, priority, { now: () => now }),
     );
     recordActivity("task_priority_changed", "task", taskId, {
+      patch: {
+        priority,
+        updatedAt: now,
+      },
       priority,
       fields: ["priority"],
     });
@@ -801,11 +849,17 @@ export function TaskApp() {
     dueDate: string | null,
     dueTime: string | null,
   ) {
+    const now = new Date().toISOString();
     setTasks((currentTasks) =>
-      updateTaskSchedule(currentTasks, taskId, dueDate, dueTime),
+      updateTaskSchedule(currentTasks, taskId, dueDate, dueTime, { now: () => now }),
     );
     setDatePickerTaskId(null);
     recordActivity("task_scheduled", "task", taskId, {
+      patch: {
+        dueDate,
+        dueTime,
+        updatedAt: now,
+      },
       dueDate,
       dueTime,
       fields: ["dueDate", "dueTime"],
@@ -839,20 +893,22 @@ export function TaskApp() {
     color: HabitColor,
   ) {
     const habitId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const nextHabits = addHabit(habits, {
+      userId: workspaceId,
+      title,
+      unitType,
+      unitMinutes,
+      color,
+    }, {
+      generateId: () => habitId,
+      now: () => now,
+    });
+    const habit = nextHabits.find((item) => item.id === habitId) ?? null;
 
-    setHabits((currentHabits) =>
-      addHabit(currentHabits, {
-        userId: workspaceId,
-        title,
-        unitType,
-        unitMinutes,
-        color,
-      }, {
-        generateId: () => habitId,
-      }),
-    );
+    setHabits(nextHabits);
     setHabitEditorMode(null);
-    recordActivity("habit_created", "habit", habitId, { title, unitType, unitMinutes, color });
+    recordActivity("habit_created", "habit", habitId, { habit });
   }
 
   function handleUpdateHabit(
@@ -862,23 +918,31 @@ export function TaskApp() {
     color: HabitColor,
   ) {
     if (!editingHabit) return;
+    const now = new Date().toISOString();
 
     if (editingHabit.unitType !== unitType || editingHabit.unitMinutes !== unitMinutes) {
       setHabitEntries((currentEntries) =>
-        rebalanceHabitEntriesForUnit(currentEntries, editingHabit, unitType, unitMinutes),
+        rebalanceHabitEntriesForUnit(currentEntries, editingHabit, unitType, unitMinutes, {
+          now: () => now,
+        }),
       );
     }
 
     setHabits((currentHabits) =>
-      updateHabit(currentHabits, editingHabit.id, { title, unitType, unitMinutes, color }),
+      updateHabit(currentHabits, editingHabit.id, { title, unitType, unitMinutes, color }, {
+        now: () => now,
+      }),
     );
     setHabitEditorMode(null);
     setEditingHabitId(null);
     recordActivity("habit_updated", "habit", editingHabit.id, {
-      title,
-      unitType,
-      unitMinutes,
-      color,
+      patch: {
+        title,
+        unitType,
+        unitMinutes: unitType === "times" ? 0 : Math.round(unitMinutes),
+        color,
+        updatedAt: now,
+      },
       fields: ["title", "unitType", "unitMinutes", "color"],
     });
   }
@@ -899,10 +963,15 @@ export function TaskApp() {
     if (!habit) return;
 
     const entryId = crypto.randomUUID();
-    setHabitEntries((currentEntries) =>
-      addHabitEntry(currentEntries, habit, { generateId: () => entryId }),
-    );
-    recordActivity("habit_checked", "habit_entry", entryId, { habitId });
+    const now = new Date().toISOString();
+    const nextEntries = addHabitEntry(habitEntries, habit, {
+      generateId: () => entryId,
+      now: () => now,
+    });
+    const entry = nextEntries.find((item) => item.id === entryId) ?? null;
+
+    setHabitEntries(nextEntries);
+    recordActivity("habit_checked", "habit_entry", entryId, { entry, habitId });
   }
 
   function handleUncheckHabit(entryId: HabitEntryId) {
@@ -928,10 +997,16 @@ export function TaskApp() {
 
     if (oldIndex < 0 || newIndex < 0) return;
 
-    setHabits((currentHabits) =>
-      reorderHabits(currentHabits, arrayMove(orderedIds, oldIndex, newIndex)),
-    );
-    recordActivity("habit_reordered", "habit", activeId, { overId, fields: ["order"] });
+    const now = new Date().toISOString();
+    const nextOrderedIds = arrayMove(orderedIds, oldIndex, newIndex);
+    const nextHabits = reorderHabits(habits, nextOrderedIds, { now: () => now });
+
+    setHabits(nextHabits);
+    recordActivity("habit_reordered", "habit", activeId, {
+      orderedHabitIds: nextOrderedIds,
+      overId,
+      fields: ["order"],
+    });
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -971,8 +1046,9 @@ export function TaskApp() {
 
     if (!overId) {
       if (dragTargetGroupIdRef.current) {
-        moveRootTaskToGroupEnd(activeId, dragTargetGroupIdRef.current);
+        const nextTasks = moveRootTaskToGroupEnd(activeId, dragTargetGroupIdRef.current);
         recordActivity("task_moved", "task", activeId, {
+          tasks: getChangedTasks(tasks, nextTasks),
           groupId: dragTargetGroupIdRef.current,
           fields: ["groupId", "parentId", "order"],
         });
@@ -984,8 +1060,9 @@ export function TaskApp() {
     const overTask = allNodes.find((node) => node.id === overId);
     if (!overTask || overTask.parentId !== null || overTask.completed) return;
 
-    moveRootTaskBefore(activeId, overTask.id, overTask.groupId);
+    const nextTasks = moveRootTaskBefore(activeId, overTask.id, overTask.groupId);
     recordActivity("task_moved", "task", activeId, {
+      tasks: getChangedTasks(tasks, nextTasks),
       groupId: overTask.groupId,
       beforeTaskId: overTask.id,
       fields: ["groupId", "parentId", "order"],
@@ -1061,51 +1138,20 @@ export function TaskApp() {
     scheduleGroupHoverSwitch(overGroupId);
   }
 
-  function moveRootTaskBefore(taskId: TaskId, overTaskId: TaskId, destinationGroupId: TaskGroupId) {
-    setTasks((currentTasks) => {
-      const draggedTask = currentTasks.find((task) => task.id === taskId);
-      if (!draggedTask) return currentTasks;
-
-      const destinationRoots = currentTasks
-        .filter(
-          (task) =>
-            task.parentId === null &&
-            task.groupId === destinationGroupId &&
-            !task.completed,
-        )
-        .sort(sortTasksByOrder);
-      const oldIndex = destinationRoots.findIndex((task) => task.id === taskId);
-      const overIndex = destinationRoots.findIndex((task) => task.id === overTaskId);
-
-      if (overIndex < 0) return currentTasks;
-
-      const orderedRoots =
-        oldIndex >= 0
-          ? arrayMove(destinationRoots, oldIndex, overIndex)
-          : insertTaskAt(destinationRoots, { ...draggedTask, groupId: destinationGroupId }, overIndex);
-
-      return applyRootOrderAndGroup(currentTasks, taskId, destinationGroupId, orderedRoots);
-    });
+  function moveRootTaskBefore(
+    taskId: TaskId,
+    overTaskId: TaskId,
+    destinationGroupId: TaskGroupId,
+  ): Task[] {
+    const nextTasks = buildRootTaskBefore(tasks, taskId, overTaskId, destinationGroupId);
+    setTasks(nextTasks);
+    return nextTasks;
   }
 
-  function moveRootTaskToGroupEnd(taskId: TaskId, destinationGroupId: TaskGroupId) {
-    setTasks((currentTasks) => {
-      const draggedTask = currentTasks.find((task) => task.id === taskId);
-      if (!draggedTask) return currentTasks;
-
-      const destinationRoots = currentTasks
-        .filter(
-          (task) =>
-            task.parentId === null &&
-            task.groupId === destinationGroupId &&
-            !task.completed &&
-            task.id !== taskId,
-        )
-        .sort(sortTasksByOrder);
-      const orderedRoots = [...destinationRoots, { ...draggedTask, groupId: destinationGroupId }];
-
-      return applyRootOrderAndGroup(currentTasks, taskId, destinationGroupId, orderedRoots);
-    });
+  function moveRootTaskToGroupEnd(taskId: TaskId, destinationGroupId: TaskGroupId): Task[] {
+    const nextTasks = buildRootTaskToGroupEnd(tasks, taskId, destinationGroupId);
+    setTasks(nextTasks);
+    return nextTasks;
   }
 
   function clearGroupHoverTimer() {
@@ -1468,9 +1514,9 @@ function sortCompletedTasks(first: TaskNode, second: TaskNode): number {
 }
 
 const TEXT = {
-  addTask: "\u30bf\u30b9\u30af\u3092\u8ffd\u52a0",
-  newTask: "\u65b0\u3057\u3044\u30bf\u30b9\u30af",
-  empty: "\u307e\u3060\u30bf\u30b9\u30af\u304c\u3042\u308a\u307e\u305b\u3093\u3002",
+  addTask: "Add task",
+  newTask: "New task",
+  empty: "No tasks yet.",
 };
 
 const THEME_STORAGE_KEY = "todoapp.theme";
@@ -1502,10 +1548,6 @@ function buildNodePath(nodes: TaskNode[], task: TaskNode): TaskNode[] {
   return path;
 }
 
-function sortTasksByOrder(first: Task, second: Task): number {
-  return first.order - second.order || first.createdAt.localeCompare(second.createdAt);
-}
-
 function rolloverIncompletePastTasks(tasks: Task[]): Task[] {
   const todayKey = getTodayKey();
   const now = new Date().toISOString();
@@ -1523,55 +1565,6 @@ function rolloverIncompletePastTasks(tasks: Task[]): Task[] {
 
 function sortHabitsByOrder(first: Habit, second: Habit): number {
   return first.order - second.order || first.createdAt.localeCompare(second.createdAt);
-}
-
-function insertTaskAt(tasks: Task[], task: Task, index: number): Task[] {
-  const nextTasks = tasks.filter((item) => item.id !== task.id);
-  nextTasks.splice(index, 0, task);
-  return nextTasks;
-}
-
-function applyRootOrderAndGroup(
-  tasks: Task[],
-  movedTaskId: TaskId,
-  destinationGroupId: TaskGroupId,
-  orderedDestinationRoots: Task[],
-): Task[] {
-  const now = new Date().toISOString();
-  const destinationOrderById = new Map(
-    orderedDestinationRoots.map((task, index) => [task.id, index]),
-  );
-  const descendantIds = collectDescendantIds(tasks, movedTaskId);
-
-  return tasks.map((task) => {
-    const isMovedTree = task.id === movedTaskId || descendantIds.has(task.id);
-    const destinationOrder = destinationOrderById.get(task.id);
-
-    if (!isMovedTree && destinationOrder === undefined) return task;
-
-    return {
-      ...task,
-      groupId: isMovedTree ? destinationGroupId : task.groupId,
-      parentId: task.id === movedTaskId ? null : task.parentId,
-      order: destinationOrder ?? task.order,
-      updatedAt: now,
-    };
-  });
-}
-
-function collectDescendantIds(tasks: Task[], taskId: TaskId): Set<TaskId> {
-  const descendants = new Set<TaskId>();
-  const queue = tasks.filter((task) => task.parentId === taskId).map((task) => task.id);
-
-  while (queue.length > 0) {
-    const currentId = queue.shift();
-    if (!currentId || descendants.has(currentId)) continue;
-
-    descendants.add(currentId);
-    queue.push(...tasks.filter((task) => task.parentId === currentId).map((task) => task.id));
-  }
-
-  return descendants;
 }
 
 function getPointerClientX(event: Event): number | null {
@@ -1757,14 +1750,4 @@ function getSyncErrorMessage(error: unknown): string {
   }
 
   return "Unknown error";
-}
-
-function getRealtimePayloadClientId(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-
-  const maybePayload = payload as { new?: unknown };
-  if (!maybePayload.new || typeof maybePayload.new !== "object") return null;
-
-  const maybeNewRecord = maybePayload.new as { client_id?: unknown };
-  return typeof maybeNewRecord.client_id === "string" ? maybeNewRecord.client_id : null;
 }
