@@ -1,7 +1,9 @@
 "use client";
 
 import { Check, ChevronLeft, Pencil } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLanguage } from "@/i18n/LanguageProvider";
+import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import { getPriorityClass, getPriorityLabel, PRIORITY_OPTIONS } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import type { TaskPriority } from "@/types/task";
@@ -18,8 +20,10 @@ export function PriorityEditorSheet({
   onChange,
   onDismiss,
 }: PriorityEditorSheetProps) {
+  const { messages: text } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
-  const { labels, saveLabels } = usePriorityLabels();
+  const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
+  const { labels, saveLabels } = usePriorityLabels(translatedPriorityLabels);
   const [draftLabels, setDraftLabels] = useState(labels);
 
   useEffect(() => {
@@ -31,7 +35,7 @@ export function PriorityEditorSheet({
   );
 
   function handleDismiss() {
-    if (isEditing && hasUnsavedChanges && !window.confirm("Discard unsaved priority changes?")) {
+    if (isEditing && hasUnsavedChanges && !window.confirm(text.priority.discardChanges)) {
       return;
     }
 
@@ -39,7 +43,7 @@ export function PriorityEditorSheet({
   }
 
   function handleBackToOptions() {
-    if (hasUnsavedChanges && !window.confirm("Discard unsaved priority changes?")) {
+    if (hasUnsavedChanges && !window.confirm(text.priority.discardChanges)) {
       return;
     }
 
@@ -49,7 +53,7 @@ export function PriorityEditorSheet({
 
   return (
     <DraggableBottomSheet
-      ariaLabel="Edit priority"
+      ariaLabel={text.common.priority}
       className="prioritySheet"
       dismissOnBackdrop
       onDismiss={handleDismiss}
@@ -58,7 +62,7 @@ export function PriorityEditorSheet({
         <>
           <button className="priorityBackButton" type="button" onClick={handleBackToOptions}>
             <ChevronLeft size={16} aria-hidden="true" />
-            Priority
+            {text.common.priority}
           </button>
           <div className="priorityEditList">
             {PRIORITY_OPTIONS.map((option) => (
@@ -69,7 +73,7 @@ export function PriorityEditorSheet({
                 />
                 <input
                   value={draftLabels[option.id]}
-                  aria-label={`${getPriorityLabel(option.id, labels)} label`}
+                  aria-label={text.priority.labelInput.replace("{label}", getPriorityLabel(option.id, labels))}
                   onChange={(event) =>
                     setDraftLabels((currentLabels) => ({
                       ...currentLabels,
@@ -88,12 +92,12 @@ export function PriorityEditorSheet({
               setIsEditing(false);
             }}
           >
-            Save
+            {text.common.save}
           </button>
         </>
       ) : (
         <>
-          <div className="prioritySheetTitle">Priority</div>
+          <div className="prioritySheetTitle">{text.common.priority}</div>
           <div className="priorityOptions">
             {PRIORITY_OPTIONS.map((option) => (
               <button
@@ -116,7 +120,7 @@ export function PriorityEditorSheet({
           </div>
           <button className="priorityEditButton" type="button" onClick={() => setIsEditing(true)}>
             <Pencil size={15} aria-hidden="true" />
-            Edit priority
+            {text.priority.edit}
           </button>
         </>
       )}

@@ -35,6 +35,7 @@ import {
   updateHabit,
 } from "@/lib/habit-actions";
 import { getTodayKey } from "@/lib/date-utils";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import { createSampleHabits } from "@/lib/sample-habits";
 import {
   addTask,
@@ -88,6 +89,7 @@ type LocalWorkspaceData = {
 };
 
 export function TaskApp() {
+  const { language, messages: text } = useLanguage();
   const repository = useMemo(() => new IndexedDbTaskRepository(), []);
   const groupRepository = useMemo(() => new IndexedDbGroupRepository(), []);
   const habitRepository = useMemo(() => new IndexedDbHabitRepository(), []);
@@ -291,10 +293,10 @@ export function TaskApp() {
         ? storedLocalData.groups
         : createDefaultGroups(workspaceId);
       let nextTasksBeforeDateRollover =
-        storedLocalData.tasks.length > 0 ? storedLocalData.tasks : createSampleTasks(workspaceId);
+        storedLocalData.tasks.length > 0 ? storedLocalData.tasks : createSampleTasks(workspaceId, language);
       let nextHabits = storedLocalData.habits.length > 0
         ? storedLocalData.habits
-        : createSampleHabits(workspaceId);
+        : createSampleHabits(workspaceId, language);
       let nextHabitEntries = storedLocalData.habitEntries;
       let nextActivityEvents = storedLocalData.activityEvents;
 
@@ -377,6 +379,7 @@ export function TaskApp() {
     groupRepository,
     habitRepository,
     isAuthLoaded,
+    language,
     repository,
     supabase,
     syncQueueRepository,
@@ -671,7 +674,7 @@ export function TaskApp() {
     const now = new Date().toISOString();
     const nextTasks = addTask(tasks, {
       userId: workspaceId,
-      title: draft?.title ?? TEXT.newTask,
+      title: draft?.title ?? text.newTask,
       parentId: null,
       groupId: activeGroupId,
       dueDate: draft?.dueDate ?? null,
@@ -699,7 +702,7 @@ export function TaskApp() {
 
   function handleAddChild(parentId: TaskId, draft?: QuickAddDraft) {
     const taskId = crypto.randomUUID();
-    const title = draft?.title ?? TEXT.newTask;
+    const title = draft?.title ?? text.newTask;
     const now = new Date().toISOString();
     const nextTasks = addTask(tasks, {
       userId: workspaceId,
@@ -1302,7 +1305,7 @@ export function TaskApp() {
       <header className="appHeader">
         <div className="brand">
           <span className="brandMark" aria-hidden="true" />
-          <h1>Todoapp</h1>
+          <h1>{text.appName}</h1>
         </div>
         <div className="headerActions">
           <AccountMenu syncStatus={syncStatus} />
@@ -1316,7 +1319,7 @@ export function TaskApp() {
       </header>
 
       {!isLoaded ? (
-        <div className="loadingState">Loading</div>
+        <div className="loadingState">{text.loading}</div>
       ) : activeTab === "calendar" ? (
         <CalendarTabView tasks={allNodes} onSelectTask={openCalendarDetail} />
       ) : activeTab === "habit" ? (
@@ -1348,7 +1351,7 @@ export function TaskApp() {
             />
             {activeGroupRoots.length === 0 ? (
               <div className="emptyState compactEmpty">
-                <p>{TEXT.empty}</p>
+                <p>{text.emptyTasks}</p>
               </div>
             ) : null}
             {activeGroupRoots.length > 0 ? (
@@ -1490,21 +1493,21 @@ export function TaskApp() {
             type="button"
             onClick={() => handleTabChange("inbox")}
           >
-            Inbox
+            {text.tabs.inbox}
           </button>
           <button
             className={activeTab === "calendar" ? "bottomTab isActive" : "bottomTab"}
             type="button"
             onClick={() => handleTabChange("calendar")}
           >
-            Calendar
+            {text.tabs.calendar}
           </button>
           <button
             className={activeTab === "habit" ? "bottomTab isActive" : "bottomTab"}
             type="button"
             onClick={() => handleTabChange("habit")}
           >
-            Habit
+            {text.tabs.habit}
           </button>
         </nav>
       ) : null}
@@ -1517,12 +1520,6 @@ function sortCompletedTasks(first: TaskNode, second: TaskNode): number {
   const secondCompletedAt = second.completedAt ?? second.updatedAt;
   return secondCompletedAt.localeCompare(firstCompletedAt);
 }
-
-const TEXT = {
-  addTask: "Add task",
-  newTask: "New task",
-  empty: "No tasks yet.",
-};
 
 const THEME_STORAGE_KEY = "todoapp.theme";
 const CLIENT_ID_STORAGE_KEY = "todoapp.client-id";

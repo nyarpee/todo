@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Lightbulb, LogIn, LogOut, RefreshCw, UserCircle } from "lucide-react";
+import { ChevronDown, Globe2, Lightbulb, LogIn, LogOut, RefreshCw, UserCircle } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import { APP_LANGUAGES, isAppLanguage } from "@/i18n/messages";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import { getBrowserSupabaseClient } from "@/lib/supabase-client";
 
 type AccountMenuProps = {
@@ -10,6 +12,7 @@ type AccountMenuProps = {
 };
 
 export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
+  const { language, messages: text, setLanguage } = useLanguage();
   const [user, setUser] = useState<User | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -57,7 +60,7 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
 
   async function handleSignIn({ selectAccount = false }: { selectAccount?: boolean } = {}) {
     if (!supabase) {
-      setStatus("Supabase env is not set.");
+      setStatus(text.account.missingSupabaseEnv);
       return;
     }
 
@@ -101,7 +104,7 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
       <button
         className="accountButton"
         type="button"
-        aria-label={user ? "Open account menu" : "Open sign in menu"}
+        aria-label={user ? text.account.openAccountMenu : text.account.openSignInMenu}
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
@@ -112,19 +115,56 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
       {isOpen ? (
         <div className="accountPopover" role="menu">
           <div className="accountSummary">
-            <span>{user ? "Signed in" : "Local mode"}</span>
-            <strong>{user?.email ?? "Not signed in"}</strong>
+            <span>{user ? text.account.signedIn : text.account.localMode}</span>
+            <strong>{user?.email ?? text.account.notSignedIn}</strong>
           </div>
 
           {!user ? (
             <p className="accountCloudCopy">
-              Sync your todos with Google.
-              <br />
-              Access them anytime, on any device.
+              {text.account.cloudCopy.split("\n").map((line, index) => (
+                <span key={`${line}-${index}`}>
+                  {line}
+                  {index === 0 ? <br /> : null}
+                </span>
+              ))}
             </p>
           ) : null}
 
           {user && syncStatus ? <p className="accountCloudCopy">{syncStatus}</p> : null}
+
+          <label className="accountLanguageRow">
+            <span>
+              <Globe2 size={16} aria-hidden="true" />
+              {text.account.language}
+            </span>
+            <select
+              aria-label={text.account.language}
+              value={language}
+              onChange={(event) => {
+                const nextLanguage = event.target.value;
+                if (isAppLanguage(nextLanguage)) {
+                  setLanguage(nextLanguage);
+                }
+              }}
+            >
+              {APP_LANGUAGES.map((appLanguage) => (
+                <option key={appLanguage.value} value={appLanguage.value}>
+                  {appLanguage.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <a
+            className="accountMenuItem"
+            href={FEEDBACK_FORM_URL}
+            target="_blank"
+            rel="noreferrer"
+            role="menuitem"
+          >
+            <Lightbulb size={16} aria-hidden="true" />
+            {text.account.message}
+          </a>
 
           {user ? (
             <>
@@ -135,30 +175,19 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
                 onClick={() => handleSignIn({ selectAccount: true })}
               >
                 <RefreshCw size={16} aria-hidden="true" />
-                Switch account
+                {text.account.switchAccount}
               </button>
               <button className="accountMenuItem" type="button" role="menuitem" onClick={handleSignOut}>
                 <LogOut size={16} aria-hidden="true" />
-                Sign out
+                {text.account.signOut}
               </button>
             </>
           ) : (
             <button className="accountMenuItem" type="button" role="menuitem" onClick={() => handleSignIn()}>
               <LogIn size={16} aria-hidden="true" />
-              Sign in with Google
+              {text.account.signIn}
             </button>
           )}
-
-          <a
-            className="accountMenuItem"
-            href={FEEDBACK_FORM_URL}
-            target="_blank"
-            rel="noreferrer"
-            role="menuitem"
-          >
-            <Lightbulb size={16} aria-hidden="true" />
-            Message to creator
-          </a>
 
           {status ? <p className="accountStatus">{status}</p> : null}
         </div>

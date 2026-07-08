@@ -250,6 +250,39 @@ h1 {
   background: color-mix(in srgb, var(--focus) 8%, transparent);
 }
 
+.accountLanguageRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.accountLanguageRow span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.accountLanguageRow select {
+  min-width: 96px;
+  height: 30px;
+  padding: 0 24px 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 680;
+}
+
 .accountCloudCopy {
   color: var(--muted);
   font-size: 13px;

@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Flag, Save } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
+import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import { getScheduleLabel } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
@@ -24,13 +26,15 @@ export function TaskCreateSheet({
   onDismiss,
   onSave,
 }: TaskCreateSheetProps) {
+  const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueTime, setDueTime] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>("none");
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
-  const { labels } = usePriorityLabels();
+  const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
+  const { labels } = usePriorityLabels(translatedPriorityLabels);
   const inputRef = useRef<HTMLInputElement>(null);
   const canSave = title.trim().length > 0;
 
@@ -69,12 +73,15 @@ export function TaskCreateSheet({
         <div className="quickAddMetaRow">
           <button className="quickAddDateButton" type="button" onClick={() => setIsScheduleOpen(true)}>
             <CalendarDays size={18} aria-hidden="true" />
-            <span>Date</span>
-            <strong>{getScheduleLabel(dueDate, dueTime)}</strong>
+            <span>{text.common.date}</span>
+            <strong>{getScheduleLabel(dueDate, dueTime, {
+              locale: text.common.locale,
+              noDateLabel: text.common.noDate,
+            })}</strong>
           </button>
           <button className="quickAddDateButton" type="button" onClick={() => setIsPriorityOpen(true)}>
             <Flag size={18} aria-hidden="true" />
-            <span>Priority</span>
+            <span>{text.common.priority}</span>
             <strong className="priorityValue">
               <span className={`priorityDot ${getPriorityClass(priority)}`} aria-hidden="true" />
               {getPriorityLabel(priority, labels)}
@@ -85,7 +92,7 @@ export function TaskCreateSheet({
           className="quickAddSaveButton"
           type="submit"
           disabled={!canSave}
-          aria-label="Save task"
+          aria-label={text.common.save}
         >
           <Save size={20} aria-hidden="true" />
         </button>

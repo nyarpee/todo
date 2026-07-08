@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskId, TaskNode } from "@/types/task";
 import {
   buildCalendarDays,
@@ -20,6 +21,7 @@ type CalendarTabViewProps = {
 };
 
 export function CalendarTabView({ tasks, onSelectTask }: CalendarTabViewProps) {
+  const { messages: text } = useLanguage();
   const [visibleMonth, setVisibleMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(getTodayKey());
   const [highlightedDate, setHighlightedDate] = useState<string | null>(null);
@@ -86,11 +88,11 @@ export function CalendarTabView({ tasks, onSelectTask }: CalendarTabViewProps) {
     <section className="calendarTabView">
       <section className="calendarAgenda">
         <div className="calendarSectionHeader">
-          <h2>Scheduled</h2>
+          <h2>{text.calendar.scheduled}</h2>
           <span>{scheduledTasks.length}</span>
         </div>
         {scheduledTasks.length === 0 ? (
-          <p className="placeholderText">No dated tasks yet.</p>
+          <p className="placeholderText">{text.calendar.empty}</p>
         ) : (
           <div className="agendaList">
             {groupedTasks.map((group) => (
@@ -105,7 +107,11 @@ export function CalendarTabView({ tasks, onSelectTask }: CalendarTabViewProps) {
                 className={group.date === highlightedDate ? "agendaGroup isHighlighted" : "agendaGroup"}
                 key={group.date}
               >
-                <h3>{getAgendaDateLabel(group.date, todayKey, tomorrowKey)}</h3>
+                <h3>{getAgendaDateLabel(group.date, todayKey, tomorrowKey, {
+                  today: text.common.today,
+                  tomorrow: text.common.tomorrow,
+                  locale: text.common.locale,
+                })}</h3>
                 <div className="agendaGroupRows">
                   {group.tasks.map((task) => (
                     <button
@@ -134,17 +140,17 @@ export function CalendarTabView({ tasks, onSelectTask }: CalendarTabViewProps) {
 
       <section className="calendarMonthPanel">
         <div className="calendarHeader">
-          <button type="button" aria-label="Previous month" onClick={() => moveMonth(-1)}>
+          <button type="button" aria-label={text.common.previousMonth} onClick={() => moveMonth(-1)}>
             <ChevronLeft size={18} aria-hidden="true" />
           </button>
-          <h2>{getMonthLabel(visibleMonth)}</h2>
-          <button type="button" aria-label="Next month" onClick={() => moveMonth(1)}>
+          <h2>{getMonthLabel(visibleMonth, text.common.locale)}</h2>
+          <button type="button" aria-label={text.common.nextMonth} onClick={() => moveMonth(1)}>
             <ChevronRight size={18} aria-hidden="true" />
           </button>
         </div>
 
         <div className="calendarWeekdays" aria-hidden="true">
-          {WEEKDAYS.map((weekday) => (
+          {text.common.weekdays.map((weekday) => (
             <span key={weekday}>{weekday}</span>
           ))}
         </div>
@@ -171,7 +177,7 @@ export function CalendarTabView({ tasks, onSelectTask }: CalendarTabViewProps) {
                 {taskCount > 0 ? (
                   <small
                     className={getPriorityClass(priority)}
-                    aria-label={`${taskCount} scheduled tasks`}
+                    aria-label={text.calendar.scheduledTasks.replace("{count}", String(taskCount))}
                   />
                 ) : null}
               </button>
@@ -182,8 +188,6 @@ export function CalendarTabView({ tasks, onSelectTask }: CalendarTabViewProps) {
     </section>
   );
 }
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type AgendaGroup = {
   date: string;
@@ -208,10 +212,11 @@ function getAgendaDateLabel(
   date: string,
   todayKey: string,
   tomorrowKey: string,
+  labels: { today: string; tomorrow: string; locale: string },
 ): string {
-  if (date === todayKey) return "Today";
-  if (date === tomorrowKey) return "Tomorrow";
-  return getDisplayDate(date);
+  if (date === todayKey) return labels.today;
+  if (date === tomorrowKey) return labels.tomorrow;
+  return getDisplayDate(date, labels.locale);
 }
 
 function sortAgendaTasks(

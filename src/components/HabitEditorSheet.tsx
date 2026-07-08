@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Save, Trash2 } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import { DEFAULT_HABIT_COLOR, HABIT_COLORS } from "@/lib/habit-colors";
 import type { Habit, HabitColor, HabitUnitType } from "@/types/habit";
 import { DraggableBottomSheet } from "./DraggableBottomSheet";
@@ -22,6 +23,7 @@ type HabitEditorSheetProps =
     };
 
 export function HabitEditorSheet(props: HabitEditorSheetProps) {
+  const { messages: text } = useLanguage();
   const [title, setTitle] = useState(props.mode === "edit" ? props.habit.title : "");
   const [unitMinutes, setUnitMinutes] = useState(
     props.mode === "edit" ? String(props.habit.unitMinutes) : "15",
@@ -54,8 +56,8 @@ export function HabitEditorSheet(props: HabitEditorSheetProps) {
 
     const message =
       props.entryCount > 0
-        ? `Delete this habit and ${props.entryCount} checks?`
-        : "Delete this habit?";
+        ? text.habitEditor.deleteWithChecks.replace("{count}", String(props.entryCount))
+        : text.habitEditor.deleteOne;
 
     if (window.confirm(message)) {
       props.onDelete();
@@ -64,7 +66,7 @@ export function HabitEditorSheet(props: HabitEditorSheetProps) {
 
   return (
     <DraggableBottomSheet
-      ariaLabel={props.mode === "create" ? "Add habit" : "Habit menu"}
+      ariaLabel={props.mode === "create" ? text.habitEditor.addHabit : text.habitEditor.habitMenu}
       className="habitEditorSheet"
       dismissOnBackdrop
       showHandle={false}
@@ -72,18 +74,18 @@ export function HabitEditorSheet(props: HabitEditorSheetProps) {
     >
       <form className="habitEditorForm" onSubmit={handleSubmit}>
         <label className="habitEditorRow habitTitleRow">
-          <span>Title</span>
+          <span>{text.habitEditor.title}</span>
           <input
             ref={titleInputRef}
             className="habitTitleEditorInput"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Title"
+            placeholder={text.habitEditor.title}
           />
         </label>
 
         <div className="habitEditorRow">
-          <span>1 check</span>
+          <span>{text.habitEditor.oneCheck}</span>
           <div className="habitUnitControl">
             {unitType === "minutes" ? (
               <label className="habitUnitValue">
@@ -94,36 +96,36 @@ export function HabitEditorSheet(props: HabitEditorSheetProps) {
                   value={unitMinutes}
                   onChange={(event) => setUnitMinutes(event.target.value)}
                 />
-                <strong>min</strong>
+                <strong>{text.habitEditor.min}</strong>
               </label>
             ) : (
               <div className="habitUnitValue isReadOnly">
                 <span>1</span>
-                <strong>time</strong>
+                <strong>{text.habitEditor.time}</strong>
               </div>
             )}
-            <div className="habitUnitSegment" aria-label="Habit unit">
+            <div className="habitUnitSegment" aria-label={text.habitEditor.unit}>
               <button
                 className={unitType === "minutes" ? "isSelected" : ""}
                 type="button"
                 onClick={() => setUnitType("minutes")}
               >
-                min
+                {text.habitEditor.min}
               </button>
               <button
                 className={unitType === "times" ? "isSelected" : ""}
                 type="button"
                 onClick={() => setUnitType("times")}
               >
-                count
+                {text.habitEditor.count}
               </button>
             </div>
           </div>
         </div>
 
         <div className="habitEditorRow habitColorRow" data-color={color}>
-          <span>Color</span>
-          <div className="habitColorGrid" aria-label="Habit color">
+          <span>{text.habitEditor.color}</span>
+          <div className="habitColorGrid" aria-label={text.habitEditor.colorLabel}>
             {HABIT_COLORS.map((option) => (
               <button
                 className={option.value === color ? "habitColorCheck isSelected" : "habitColorCheck"}
@@ -139,13 +141,13 @@ export function HabitEditorSheet(props: HabitEditorSheetProps) {
 
         <button className="habitEditorSaveButton" type="submit" disabled={!canSave}>
           <Save size={18} aria-hidden="true" />
-          {props.mode === "create" ? "Add habit" : "Save habit"}
+          {props.mode === "create" ? text.habitEditor.addHabit : text.habitEditor.saveHabit}
         </button>
       </form>
       {props.mode === "edit" ? (
         <button className="habitDeleteButton" type="button" onClick={handleDelete}>
           <Trash2 size={18} aria-hidden="true" />
-          Delete habit
+          {text.habitEditor.deleteHabit}
         </button>
       ) : null}
     </DraggableBottomSheet>

@@ -4,7 +4,7 @@ import "@xyflow/react/dist/style.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Todoapp",
+  title: "KizamiTask",
   description: "A simple hierarchical todo MVP.",
 };
 
@@ -14,7 +14,7 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="ja" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

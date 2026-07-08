@@ -40,17 +40,17 @@ export function getEndOfWeekKey(): string {
   return toDateKey(addDays(today, daysUntilSunday));
 }
 
-export function getMonthLabel(monthDate: Date): string {
-  return new Intl.DateTimeFormat("en", {
+export function getMonthLabel(monthDate: Date, locale = "en"): string {
+  return new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
   }).format(monthDate);
 }
 
-export function getDisplayDate(dateKey: string | null): string {
-  if (!dateKey) return "No date";
+export function getDisplayDate(dateKey: string | null, locale = "en", noDateLabel = "No date"): string {
+  if (!dateKey) return noDateLabel;
 
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
   }).format(fromDateKey(dateKey));
@@ -59,9 +59,13 @@ export function getDisplayDate(dateKey: string | null): string {
 export function getScheduleLabel(
   dueDate: string | null,
   dueTime: string | null,
+  options: { locale?: string; noDateLabel?: string } = {},
 ): string {
-  if (!dueDate) return "No date";
-  return dueTime ? `${getDisplayDate(dueDate)} ${dueTime}` : getDisplayDate(dueDate);
+  const locale = options.locale ?? "en";
+  const noDateLabel = options.noDateLabel ?? "No date";
+  if (!dueDate) return noDateLabel;
+  const displayDate = getDisplayDate(dueDate, locale, noDateLabel);
+  return dueTime ? `${displayDate} ${dueTime}` : displayDate;
 }
 
 export function buildCalendarDays(monthDate: Date): CalendarDay[] {

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskGroup } from "@/types/task";
 import { DEFAULT_MY_TASKS_GROUP_ID } from "@/lib/task-groups";
 import { DraggableBottomSheet } from "./DraggableBottomSheet";
@@ -21,6 +22,7 @@ type GroupEditorSheetProps =
     };
 
 export function GroupEditorSheet(props: GroupEditorSheetProps) {
+  const { messages: text } = useLanguage();
   const [name, setName] = useState(props.mode === "menu" ? props.group.name : "");
   const inputRef = useRef<HTMLInputElement>(null);
   const canSave = name.trim().length > 0;
@@ -47,8 +49,8 @@ export function GroupEditorSheet(props: GroupEditorSheetProps) {
 
     const message =
       props.taskCount > 0
-        ? `This list has ${props.taskCount} tasks. Delete the list and all tasks?`
-        : "Delete this list?";
+        ? text.lists.deleteWithTasks.replace("{count}", String(props.taskCount))
+        : text.lists.deleteOne;
 
     if (window.confirm(message)) {
       props.onDelete();
@@ -59,7 +61,7 @@ export function GroupEditorSheet(props: GroupEditorSheetProps) {
 
   return (
     <DraggableBottomSheet
-      ariaLabel={props.mode === "create" ? "Add list" : "List menu"}
+      ariaLabel={props.mode === "create" ? text.lists.add : text.lists.menu}
       className="groupEditorSheet"
       dismissOnBackdrop
       showHandle={false}
@@ -71,10 +73,10 @@ export function GroupEditorSheet(props: GroupEditorSheetProps) {
           className="quickAddTitleInput"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="List name"
+          placeholder={text.lists.name}
         />
         <button className="groupEditorSaveButton" type="submit" disabled={!canSave}>
-          {props.mode === "create" ? "Add list" : "Rename list"}
+          {props.mode === "create" ? text.lists.add : text.lists.rename}
         </button>
       </form>
       {props.mode === "menu" ? (
@@ -84,7 +86,7 @@ export function GroupEditorSheet(props: GroupEditorSheetProps) {
           disabled={isProtected}
           onClick={handleDelete}
         >
-          Delete list
+          {text.lists.delete}
         </button>
       ) : null}
     </DraggableBottomSheet>

@@ -8,18 +8,18 @@ import {
   savePriorityLabels,
 } from "@/lib/priority-labels";
 
-export function usePriorityLabels() {
-  const [labels, setLabels] = useState<PriorityLabels>(DEFAULT_PRIORITY_LABELS);
+export function usePriorityLabels(defaultLabels: PriorityLabels = DEFAULT_PRIORITY_LABELS) {
+  const [labels, setLabels] = useState<PriorityLabels>(defaultLabels);
 
   useEffect(() => {
     function handleLabelsChange() {
-      setLabels(loadPriorityLabels());
+      setLabels(loadPriorityLabels(defaultLabels));
     }
 
     handleLabelsChange();
     window.addEventListener(PRIORITY_LABELS_EVENT, handleLabelsChange);
     return () => window.removeEventListener(PRIORITY_LABELS_EVENT, handleLabelsChange);
-  }, []);
+  }, [defaultLabels]);
 
   function saveLabels(nextLabels: PriorityLabels) {
     savePriorityLabels(nextLabels);

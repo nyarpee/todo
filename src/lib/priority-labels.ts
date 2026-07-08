@@ -6,24 +6,24 @@ import type { TaskPriority } from "@/types/task";
 
 const STORAGE_KEY = "todoapp.priorityLabels.v1";
 
-export function loadPriorityLabels(): PriorityLabels {
-  if (typeof window === "undefined") return DEFAULT_PRIORITY_LABELS;
+export function loadPriorityLabels(defaultLabels: PriorityLabels = DEFAULT_PRIORITY_LABELS): PriorityLabels {
+  if (typeof window === "undefined") return defaultLabels;
 
   const rawValue = window.localStorage.getItem(STORAGE_KEY);
-  if (!rawValue) return DEFAULT_PRIORITY_LABELS;
+  if (!rawValue) return defaultLabels;
 
   try {
     const parsedValue: unknown = JSON.parse(rawValue);
-    if (!isRecord(parsedValue)) return DEFAULT_PRIORITY_LABELS;
+    if (!isRecord(parsedValue)) return defaultLabels;
 
     return {
-      high: getLabel(parsedValue.high, DEFAULT_PRIORITY_LABELS.high),
-      medium: getLabel(parsedValue.medium, DEFAULT_PRIORITY_LABELS.medium),
-      low: getLabel(parsedValue.low, DEFAULT_PRIORITY_LABELS.low),
-      none: getLabel(parsedValue.none, DEFAULT_PRIORITY_LABELS.none),
+      high: getLabel(parsedValue.high, defaultLabels.high),
+      medium: getLabel(parsedValue.medium, defaultLabels.medium),
+      low: getLabel(parsedValue.low, defaultLabels.low),
+      none: getLabel(parsedValue.none, defaultLabels.none),
     };
   } catch {
-    return DEFAULT_PRIORITY_LABELS;
+    return defaultLabels;
   }
 }
 

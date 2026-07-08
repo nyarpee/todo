@@ -11,6 +11,8 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import type { MouseEvent } from "react";
+import { useLanguage } from "@/i18n/LanguageProvider";
+import type { AppMessages } from "@/i18n/messages";
 import type { TaskId, TaskNode } from "@/types/task";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
@@ -35,6 +37,7 @@ type TaskMindMapNodeData = {
   onAutoEditConsumed: () => void;
   onSelectTask: (taskId: TaskId) => void;
   onToggleComplete: (taskId: TaskId) => void;
+  text: AppMessages;
 };
 
 const nodeTypes = {
@@ -51,14 +54,16 @@ export function MindMapView({
   onSelectTask,
   onToggleComplete,
 }: MindMapViewProps) {
+  const { messages: text } = useLanguage();
   const { nodes, edges } = buildMindMap(root, {
     onAddChild,
     onRenameTask,
-    onDeleteTask: (task) => confirmDelete(task, onDeleteTask),
+    onDeleteTask: (task) => confirmDelete(task, onDeleteTask, text.taskDetail.deleteWithSubtasks),
     autoEditTaskId,
     onAutoEditConsumed,
     onSelectTask,
     onToggleComplete,
+    text,
   });
 
   return (
@@ -102,6 +107,7 @@ function TaskMindMapNode({ data }: NodeProps<Node<TaskMindMapNodeData>>) {
     onAutoEditConsumed,
     onSelectTask,
     onToggleComplete,
+    text,
   } = data;
 
   return (
@@ -116,7 +122,7 @@ function TaskMindMapNode({ data }: NodeProps<Node<TaskMindMapNodeData>>) {
           type="checkbox"
           checked={task.completed}
           onChange={() => onToggleComplete(task.id)}
-          aria-label={`${task.title} complete`}
+          aria-label={text.taskDetail.complete.replace("{title}", task.title)}
         />
         <EditableTitle
           value={task.title}
@@ -133,8 +139,8 @@ function TaskMindMapNode({ data }: NodeProps<Node<TaskMindMapNodeData>>) {
       <button
         className="mindMapAddHandle"
         type="button"
-        aria-label="Add child task"
-        title="Add child task"
+        aria-label={text.taskDetail.addChildTask}
+        title={text.taskDetail.addChildTask}
         onClick={(event) => {
           event.stopPropagation();
           onAddChild(task.id);
@@ -145,8 +151,8 @@ function TaskMindMapNode({ data }: NodeProps<Node<TaskMindMapNodeData>>) {
       <button
         className="mindMapDeleteHandle"
         type="button"
-        aria-label="Delete task"
-        title="Delete task"
+        aria-label={text.taskDetail.deleteTask}
+        title={text.taskDetail.deleteTask}
         onClick={(event) => {
           event.stopPropagation();
           onDeleteTask(task);
@@ -211,15 +217,11 @@ const MIND_MAP_COLUMN_GAP = 330;
 const MIND_MAP_ROW_GAP = 116;
 const MIND_MAP_NODE_HEIGHT = 82;
 
-function confirmDelete(task: TaskNode, onDeleteTask: (taskId: TaskId) => void) {
+function confirmDelete(task: TaskNode, onDeleteTask: (taskId: TaskId) => void, message: string) {
   if (task.children.length === 0) {
     onDeleteTask(task.id);
     return;
   }
-
-  const message = task.children.length > 0
-    ? "This task has subtasks. Delete it and all subtasks?"
-    : "Delete this task?";
 
   if (window.confirm(message)) {
     onDeleteTask(task.id);

@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Flag, Plus, Save } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
+import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import { getScheduleLabel } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
@@ -23,21 +25,25 @@ type QuickAddSheetProps = {
 };
 
 export function FloatingAddButton({ onClick }: { onClick: () => void }) {
+  const { messages: text } = useLanguage();
+
   return (
-    <button className="floatingAddButton" type="button" onClick={onClick} aria-label="Add task">
+    <button className="floatingAddButton" type="button" onClick={onClick} aria-label={text.common.addTask}>
       <Plus size={26} aria-hidden="true" />
     </button>
   );
 }
 
 export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
+  const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueTime, setDueTime] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>("none");
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
-  const { labels } = usePriorityLabels();
+  const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
+  const { labels } = usePriorityLabels(translatedPriorityLabels);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const canSave = title.trim().length > 0;
 
@@ -85,12 +91,12 @@ export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
 
   return (
     <div className="quickAddLayer" role="presentation">
-      <button className="quickAddBackdrop" type="button" aria-label="Close add task" onClick={onClose} />
+      <button className="quickAddBackdrop" type="button" aria-label={text.common.close} onClick={onClose} />
       <form
         className="quickAddSheet"
         role="dialog"
         aria-modal="true"
-        aria-label="Add task"
+        aria-label={text.common.addTask}
         onSubmit={handleSubmit}
       >
         <input
@@ -99,19 +105,22 @@ export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
           className="quickAddTitleInput"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Title"
+          placeholder={text.common.title}
         />
 
         <div className="quickAddMetaRow">
           <button className="quickAddDateButton" type="button" onClick={() => setIsScheduleOpen(true)}>
             <CalendarDays size={18} aria-hidden="true" />
-            <span>Date</span>
-            <strong>{getScheduleLabel(dueDate, dueTime)}</strong>
+            <span>{text.common.date}</span>
+            <strong>{getScheduleLabel(dueDate, dueTime, {
+              locale: text.common.locale,
+              noDateLabel: text.common.noDate,
+            })}</strong>
           </button>
 
           <button className="quickAddDateButton" type="button" onClick={() => setIsPriorityOpen(true)}>
             <Flag size={18} aria-hidden="true" />
-            <span>Priority</span>
+            <span>{text.common.priority}</span>
             <strong className="priorityValue">
               <span className={`priorityDot ${getPriorityClass(priority)}`} aria-hidden="true" />
               {getPriorityLabel(priority, labels)}
@@ -119,7 +128,7 @@ export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
           </button>
         </div>
 
-        <button className="quickAddSaveButton" type="submit" disabled={!canSave} aria-label="Save task">
+        <button className="quickAddSaveButton" type="submit" disabled={!canSave} aria-label={text.common.save}>
           <Save size={20} aria-hidden="true" />
         </button>
       </form>

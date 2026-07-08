@@ -1,6 +1,7 @@
 "use client";
 
 import { MoreVertical, Plus } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskGroup, TaskGroupId } from "@/types/task";
 
 type GroupBarProps = {
@@ -22,10 +23,11 @@ export function GroupBar({
   onAddGroup,
   onOpenMenu,
 }: GroupBarProps) {
+  const { messages: text } = useLanguage();
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
 
   return (
-    <section className="groupArea" aria-label="Lists">
+    <section className="groupArea" aria-label={text.lists.area}>
       <div ref={onRegisterGroupChipsContainer} className="groupChips">
         {groups.map((group) => (
           <GroupChip
@@ -36,7 +38,7 @@ export function GroupBar({
             onSelectGroup={onSelectGroup}
           />
         ))}
-        <button className="groupAddChip" type="button" onClick={onAddGroup} aria-label="Add list">
+        <button className="groupAddChip" type="button" onClick={onAddGroup} aria-label={text.lists.add}>
           <Plus size={16} aria-hidden="true" />
         </button>
       </div>
@@ -44,7 +46,7 @@ export function GroupBar({
       {activeGroup ? (
         <div className="groupHeader">
           <h2>{activeGroup.name}</h2>
-          <button className="groupMenuButton" type="button" onClick={onOpenMenu} aria-label="List menu">
+          <button className="groupMenuButton" type="button" onClick={onOpenMenu} aria-label={text.lists.menu}>
             <MoreVertical size={18} aria-hidden="true" />
           </button>
         </div>

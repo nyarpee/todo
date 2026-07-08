@@ -5,6 +5,8 @@ import type React from "react";
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronDown, Network } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
+import type { AppMessages } from "@/i18n/messages";
 import { getPriorityClass } from "@/lib/priority";
 import type { TaskId, TaskNode } from "@/types/task";
 import { EditableTitle } from "./EditableTitle";
@@ -34,6 +36,7 @@ export function TaskListView({
   autoEditTaskId,
   onAutoEditConsumed,
 }: TaskListViewProps) {
+  const { messages: text } = useLanguage();
   const [isCompletedOpen, setIsCompletedOpen] = useState(false);
   const [revealedTaskId, setRevealedTaskId] = useState<TaskId | null>(null);
   const [draggingTaskId, setDraggingTaskId] = useState<TaskId | null>(null);
@@ -102,7 +105,7 @@ export function TaskListView({
             type="button"
             onClick={() => setIsCompletedOpen((current) => !current)}
           >
-            <span>Completed</span>
+            <span>{text.lists.completed}</span>
             <strong>{completedRoots.length}</strong>
             <ChevronDown
               className={isCompletedOpen ? "isOpen" : ""}
@@ -141,6 +144,7 @@ export function TaskListView({
         onDeleteTask={onDeleteTask}
         autoEditTaskId={autoEditTaskId}
         onAutoEditConsumed={onAutoEditConsumed}
+        text={text}
       />
     );
 
@@ -192,6 +196,7 @@ type TaskRowProps = {
   onDeleteTask: (taskId: TaskId) => void;
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
+  text: AppMessages;
 };
 
 function TaskRow({
@@ -211,6 +216,7 @@ function TaskRow({
   onDeleteTask,
   autoEditTaskId,
   onAutoEditConsumed,
+  text,
 }: TaskRowProps) {
     const isDragging = canDelete && draggingTaskId === root.id;
     const isRevealed = canDelete && revealedTaskId === root.id;
@@ -239,7 +245,7 @@ function TaskRow({
             type="checkbox"
             checked={root.completed}
             onChange={() => onToggleComplete(root.id)}
-            aria-label={`${root.title} complete`}
+            aria-label={text.taskDetail.complete.replace("{title}", root.title)}
           />
           <div className="simpleTaskContent">
             <span
@@ -265,8 +271,8 @@ function TaskRow({
               event.stopPropagation();
               onOpenMindMap(root.id);
             }}
-            aria-label={`${root.title} tree canvas`}
-            title="Open tree"
+            aria-label={text.taskDetail.treeCanvas.replace("{title}", root.title)}
+            title={text.taskDetail.openTree}
           >
             <Network size={18} aria-hidden="true" />
           </button>
@@ -275,8 +281,8 @@ function TaskRow({
           <button
             className="swipeDeleteButton"
             type="button"
-            onClick={() => confirmDelete(root, onDeleteTask)}
-            aria-label={`Delete ${root.title}`}
+            onClick={() => confirmDelete(root, onDeleteTask, text.taskDetail.deleteWithSubtasks)}
+            aria-label={text.taskDetail.deleteTask}
           >
             <TrashIcon />
           </button>
@@ -285,13 +291,13 @@ function TaskRow({
     );
 }
 
-function confirmDelete(task: TaskNode, onDeleteTask: (taskId: TaskId) => void) {
+function confirmDelete(task: TaskNode, onDeleteTask: (taskId: TaskId) => void, message: string) {
   if (task.children.length === 0) {
     onDeleteTask(task.id);
     return;
   }
 
-  if (window.confirm("This task has subtasks. Delete it and all subtasks?")) {
+  if (window.confirm(message)) {
     onDeleteTask(task.id);
   }
 }

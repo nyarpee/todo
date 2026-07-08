@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarClock, Flag, GitBranch, Plus } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
+import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import type { TaskId, TaskNode } from "@/types/task";
 import { getScheduleLabel } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
@@ -44,9 +46,11 @@ export function TaskDetailView({
   onAutoEditConsumed,
   onAddChild,
 }: TaskDetailViewProps) {
+  const { messages: text } = useLanguage();
   const [isSubtaskSheetOpen, setIsSubtaskSheetOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
-  const { labels } = usePriorityLabels();
+  const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
+  const { labels } = usePriorityLabels(translatedPriorityLabels);
 
   function handleDelete() {
     if (task.children.length === 0) {
@@ -54,7 +58,7 @@ export function TaskDetailView({
       return;
     }
 
-    if (window.confirm("This task has subtasks. Delete it and all subtasks?")) {
+    if (window.confirm(text.taskDetail.deleteWithSubtasks)) {
       onDeleteTask(task.id);
     }
   }
@@ -63,7 +67,7 @@ export function TaskDetailView({
     <section className="detailView">
       {path.length > 1 ? (
         <div className="breadcrumbBar">
-          <nav className="breadcrumb" aria-label="Task path">
+          <nav className="breadcrumb" aria-label={text.taskDetail.path}>
             {path.slice(0, -1).map((node, index) => (
               <span className="breadcrumbItem" key={node.id}>
                 {index > 0 ? <span className="breadcrumbSeparator">&gt;</span> : null}
@@ -86,7 +90,7 @@ export function TaskDetailView({
           type="checkbox"
           checked={task.completed}
           onChange={() => onToggleComplete(task.id)}
-          aria-label={`${task.title} complete`}
+          aria-label={text.taskDetail.complete.replace("{title}", task.title)}
         />
         <EditableTitle
           value={task.title}
@@ -107,7 +111,7 @@ export function TaskDetailView({
             id={`description-${task.id}`}
             className="descriptionInput"
             value={task.description}
-            placeholder="Description"
+            placeholder={text.taskDetail.description}
             onChange={(event) => onUpdateDescription(task.id, event.target.value)}
           />
         </section>
@@ -118,7 +122,10 @@ export function TaskDetailView({
             onClick={() => onOpenSchedule(task.id)}
           >
             <CalendarClock size={18} aria-hidden="true" />
-            <span>{getScheduleLabel(task.dueDate, task.dueTime)}</span>
+            <span>{getScheduleLabel(task.dueDate, task.dueTime, {
+              locale: text.common.locale,
+              noDateLabel: text.common.noDate,
+            })}</span>
           </button>
         </section>
         <section className="detailSection">
@@ -146,7 +153,7 @@ export function TaskDetailView({
 
       <section className="subtasksSection">
         <div className="subtasksHeader">
-          <h3>Subtasks</h3>
+          <h3>{text.taskDetail.subtasks}</h3>
           <span>{task.children.length}</span>
         </div>
         <div className="subtaskList">
@@ -165,7 +172,7 @@ export function TaskDetailView({
                   type="checkbox"
                   checked={child.completed}
                   onChange={() => onToggleComplete(child.id)}
-                  aria-label={`${child.title} complete`}
+                  aria-label={text.taskDetail.complete.replace("{title}", child.title)}
                 />
                 <EditableTitle
                   value={child.title}
@@ -183,18 +190,18 @@ export function TaskDetailView({
         </div>
         <button className="subtaskAddButton" type="button" onClick={() => setIsSubtaskSheetOpen(true)}>
           <Plus size={18} aria-hidden="true" />
-          Add subtask
+          {text.taskDetail.addSubtask}
         </button>
       </section>
 
       <button className="detailDeleteButton" type="button" onClick={handleDelete}>
         <TrashIcon />
-        Delete task
+        {text.taskDetail.deleteTask}
       </button>
       {isSubtaskSheetOpen ? (
         <TaskCreateSheet
-          ariaLabel="Add subtask"
-          placeholder="Subtask title"
+          ariaLabel={text.taskDetail.addSubtask}
+          placeholder={text.taskDetail.subtaskTitle}
           onDismiss={() => setIsSubtaskSheetOpen(false)}
           onSave={(draft) => {
             onAddChild(task.id, draft);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskNode } from "@/types/task";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 
@@ -11,6 +12,7 @@ type DatePickerViewProps = {
 };
 
 export function DatePickerView({ task, onBack, onSave }: DatePickerViewProps) {
+  const { messages: text } = useLanguage();
   const initialDueDate = task.dueDate;
   const initialDueTime = task.dueTime;
   const [draftDate, setDraftDate] = useState<string | null>(initialDueDate);
@@ -21,7 +23,7 @@ export function DatePickerView({ task, onBack, onSave }: DatePickerViewProps) {
   function handleDismiss() {
     if (
       hasUnsavedChanges &&
-      !window.confirm("Discard unsaved date changes?")
+      !window.confirm(text.taskDetail.discardDateChanges)
     ) {
       return false;
     }

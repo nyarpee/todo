@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CalendarClock, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import {
   buildCalendarDays,
   fromDateKey,
@@ -30,6 +31,7 @@ export function ScheduleEditorSheet({
   onDismiss,
   onSave,
 }: ScheduleEditorSheetProps) {
+  const { messages: text } = useLanguage();
   const [visibleMonth, setVisibleMonth] = useState(() =>
     dueDate ? fromDateKey(dueDate) : new Date(),
   );
@@ -57,57 +59,57 @@ export function ScheduleEditorSheet({
 
   return (
     <DraggableBottomSheet
-      ariaLabel="Edit date"
+      ariaLabel={text.common.date}
       className="scheduleSheet"
       onDismiss={onDismiss}
     >
         {title ? (
           <div className="scheduleSheetTitle">
-            <span>Date</span>
+            <span>{text.common.date}</span>
             <strong>{title}</strong>
           </div>
         ) : null}
 
-        <div className="quickDateRow" aria-label="Quick date choices">
+        <div className="quickDateRow" aria-label={text.common.date}>
           <button
             className={dueDate === getTodayKey() ? "isSelected" : ""}
             type="button"
             onClick={() => handleSelectDate(getTodayKey())}
           >
-            Today
+            {text.common.today}
           </button>
           <button
             className={dueDate === getTomorrowKey() ? "isSelected" : ""}
             type="button"
             onClick={() => handleSelectDate(getTomorrowKey())}
           >
-            Tomorrow
+            {text.common.tomorrow}
           </button>
           <button
             className={dueDate === getEndOfWeekKey() ? "isSelected" : ""}
             type="button"
             onClick={() => handleSelectDate(getEndOfWeekKey())}
           >
-            This week
+            {text.common.thisWeek}
           </button>
           <button className={dueDate === null ? "isSelected" : ""} type="button" onClick={handleClearDate}>
-            None date
+            {text.common.noneDate}
           </button>
         </div>
 
         <div className="datePickerPanel">
           <div className="calendarHeader">
-            <button type="button" aria-label="Previous month" onClick={() => moveMonth(-1)}>
+            <button type="button" aria-label={text.common.previousMonth} onClick={() => moveMonth(-1)}>
               <ChevronLeft size={18} aria-hidden="true" />
             </button>
-            <h2>{getMonthLabel(visibleMonth)}</h2>
-            <button type="button" aria-label="Next month" onClick={() => moveMonth(1)}>
+            <h2>{getMonthLabel(visibleMonth, text.common.locale)}</h2>
+            <button type="button" aria-label={text.common.nextMonth} onClick={() => moveMonth(1)}>
               <ChevronRight size={18} aria-hidden="true" />
             </button>
           </div>
 
           <div className="calendarWeekdays" aria-hidden="true">
-            {WEEKDAYS.map((weekday) => (
+            {text.common.weekdays.map((weekday) => (
               <span key={weekday}>{weekday}</span>
             ))}
           </div>
@@ -134,7 +136,7 @@ export function ScheduleEditorSheet({
         <div className="timePanel">
           <label htmlFor="schedule-sheet-time">
             <CalendarClock size={16} aria-hidden="true" />
-            Time
+            {text.common.time}
           </label>
           <input
             id="schedule-sheet-time"
@@ -143,17 +145,18 @@ export function ScheduleEditorSheet({
             disabled={!dueDate}
             onChange={(event) => handleTimeChange(event.target.value)}
           />
-          <span>{getScheduleLabel(dueDate, dueTime)}</span>
+          <span>{getScheduleLabel(dueDate, dueTime, {
+            locale: text.common.locale,
+            noDateLabel: text.common.noDate,
+          })}</span>
         </div>
 
         {onSave ? (
           <button className="saveScheduleButton" type="button" onClick={onSave}>
             <Check size={18} aria-hidden="true" />
-            Save
+            {text.common.save}
           </button>
         ) : null}
     </DraggableBottomSheet>
   );
 }
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

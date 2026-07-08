@@ -1,14 +1,15 @@
 import type { Habit } from "@/types/habit";
 import type { UserId } from "@/types/task";
+import type { AppLanguage } from "@/types/user-settings";
 
-export function createSampleHabits(userId: UserId): Habit[] {
+export function createSampleHabits(userId: UserId, language: AppLanguage = "en"): Habit[] {
   const now = new Date().toISOString();
 
   return [
     {
       id: crypto.randomUUID(),
       userId,
-      title: "Use KizamiTask every day",
+      title: SAMPLE_HABIT_TITLES[language] ?? SAMPLE_HABIT_TITLES.en,
       unitType: "times",
       unitMinutes: 0,
       color: "cyan",
@@ -18,3 +19,9 @@ export function createSampleHabits(userId: UserId): Habit[] {
     },
   ];
 }
+
+const SAMPLE_HABIT_TITLES: Record<AppLanguage, string> = {
+  en: "Use KizamiTask every day",
+  ja: "毎日 KizamiTask を使う",
+  zh: "每天使用 KizamiTask",
+};
