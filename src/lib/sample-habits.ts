@@ -23,5 +23,6 @@ export function createSampleHabits(userId: UserId, language: AppLanguage = "en")
 const SAMPLE_HABIT_TITLES: Record<AppLanguage, string> = {
   en: "Use KizamiTask every day",
   ja: "毎日 KizamiTask を使う",
-  zh: "每天使用 KizamiTask",
+  "zh-CN": "每天使用 KizamiTask",
+  "zh-TW": "每天使用 KizamiTask",
 };

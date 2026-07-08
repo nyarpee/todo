@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_LANGUAGE, isAppLanguage } from "@/i18n/messages";
+import { normalizeAppLanguage } from "@/i18n/messages";
 import type { AppLanguage, UserSettings } from "@/types/user-settings";
 
 type UserSettingsRow = {
@@ -54,7 +54,7 @@ function rowToUserSettings(row: UserSettingsRow): UserSettings {
 }
 
 function normalizeLanguage(language: unknown): AppLanguage {
-  return isAppLanguage(language) ? language : DEFAULT_LANGUAGE;
+  return normalizeAppLanguage(language);
 }
 
 function formatSupabaseError(error: { message: string; code?: string; details?: string; hint?: string }): string {

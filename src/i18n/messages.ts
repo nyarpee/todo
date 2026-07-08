@@ -3,7 +3,8 @@ import type { AppLanguage } from "@/types/user-settings";
 export const APP_LANGUAGES: Array<{ value: AppLanguage; label: string }> = [
   { value: "en", label: "English" },
   { value: "ja", label: "日本語" },
-  { value: "zh", label: "中文" },
+  { value: "zh-CN", label: "简体中文" },
+  { value: "zh-TW", label: "繁體中文" },
 ];
 
 export const DEFAULT_LANGUAGE: AppLanguage = "en";
@@ -205,7 +206,7 @@ export const messages = {
       missingSupabaseEnv: "Supabase env が設定されていません。",
     },
   },
-  zh: {
+  "zh-CN": {
     appName: "KizamiTask",
     loading: "加载中",
     emptyTasks: "还没有任务。",
@@ -303,6 +304,104 @@ export const messages = {
       missingSupabaseEnv: "Supabase env 尚未设置。",
     },
   },
+  "zh-TW": {
+    appName: "KizamiTask",
+    loading: "載入中",
+    emptyTasks: "還沒有任務。",
+    newTask: "新任務",
+    common: {
+      addTask: "新增任務",
+      close: "關閉",
+      save: "儲存",
+      title: "標題",
+      date: "日期",
+      time: "時間",
+      priority: "優先順序",
+      noDate: "無日期",
+      today: "今天",
+      tomorrow: "明天",
+      thisWeek: "本週",
+      noneDate: "無日期",
+      previousMonth: "上個月",
+      nextMonth: "下個月",
+      weekdays: ["日", "一", "二", "三", "四", "五", "六"],
+      locale: "zh-TW",
+    },
+    priority: {
+      high: "高",
+      medium: "中",
+      low: "低",
+      none: "無",
+      edit: "編輯優先順序",
+      discardChanges: "要放棄尚未儲存的優先順序變更嗎？",
+      labelInput: "{label} 標籤",
+    },
+    taskDetail: {
+      path: "任務路徑",
+      complete: "完成 {title}",
+      description: "描述",
+      subtasks: "子任務",
+      addSubtask: "新增子任務",
+      subtaskTitle: "子任務標題",
+      deleteTask: "刪除任務",
+      deleteWithSubtasks: "這個任務有子任務。要一起刪除嗎？",
+      discardDateChanges: "要放棄尚未儲存的日期變更嗎？",
+      openTree: "開啟樹狀圖",
+      treeCanvas: "{title} 的樹狀視圖",
+      addChildTask: "新增子任務",
+    },
+    lists: {
+      area: "清單",
+      add: "新增清單",
+      menu: "清單選單",
+      name: "清單名稱",
+      rename: "重新命名清單",
+      delete: "刪除清單",
+      deleteOne: "要刪除這個清單嗎？",
+      deleteWithTasks: "這個清單有 {count} 個任務。要一起刪除嗎？",
+      completed: "已完成",
+    },
+    calendar: {
+      scheduled: "排程",
+      empty: "還沒有設定日期的任務。",
+      scheduledTasks: "{count} 個排程任務",
+    },
+    habitEditor: {
+      addHabit: "新增習慣",
+      habitMenu: "習慣選單",
+      saveHabit: "儲存習慣",
+      deleteHabit: "刪除習慣",
+      title: "標題",
+      oneCheck: "1 check",
+      min: "分鐘",
+      count: "次數",
+      time: "次",
+      unit: "習慣單位",
+      color: "顏色",
+      colorLabel: "習慣顏色",
+      deleteOne: "要刪除這個習慣嗎？",
+      deleteWithChecks: "要刪除這個習慣和 {count} 個記錄嗎？",
+    },
+    tabs: {
+      inbox: "Inbox",
+      calendar: "日曆",
+      habit: "習慣",
+    },
+    account: {
+      openAccountMenu: "開啟帳戶選單",
+      openSignInMenu: "開啟登入選單",
+      signedIn: "已登入",
+      localMode: "本機模式",
+      notSignedIn: "未登入",
+      cloudCopy: "使用 Google 同步你的待辦。\n可隨時在任何裝置存取。",
+      language: "語言",
+      message: "給創作者留言",
+      switchAccount: "切換帳戶",
+      signIn: "使用 Google 登入",
+      signOut: "登出",
+      missingSupabaseEnv: "尚未設定 Supabase env。",
+    },
+  },
 } as const;
 
 export type AppMessages = (typeof messages)[AppLanguage];
@@ -312,10 +411,19 @@ export function getBrowserDefaultLanguage(): AppLanguage {
 
   const browserLanguage = window.navigator.language.toLowerCase();
   if (browserLanguage.startsWith("ja")) return "ja";
-  if (browserLanguage.startsWith("zh")) return "zh";
+  if (browserLanguage === "zh-tw" || browserLanguage === "zh-hk" || browserLanguage === "zh-mo") {
+    return "zh-TW";
+  }
+  if (browserLanguage.startsWith("zh")) return "zh-CN";
   return DEFAULT_LANGUAGE;
 }
 
 export function isAppLanguage(value: unknown): value is AppLanguage {
-  return value === "en" || value === "ja" || value === "zh";
+  return value === "en" || value === "ja" || value === "zh-CN" || value === "zh-TW";
+}
+
+export function normalizeAppLanguage(value: unknown): AppLanguage {
+  if (isAppLanguage(value)) return value;
+  if (value === "zh") return "zh-CN";
+  return DEFAULT_LANGUAGE;
 }

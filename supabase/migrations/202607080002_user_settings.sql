@@ -1,6 +1,6 @@
 create table if not exists public.user_settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  language text not null default 'en' check (language in ('en', 'ja', 'zh')),
+  language text not null default 'en' check (language in ('en', 'ja', 'zh-CN', 'zh-TW')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

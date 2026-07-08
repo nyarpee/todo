@@ -130,7 +130,7 @@ const SAMPLE_TASKS_BY_LANGUAGE: Record<AppLanguage, SampleTaskSeed[]> = {
       order: 3,
     },
   ],
-  zh: [
+  "zh-CN": [
     {
       key: "addTask",
       title: "添加你的第一个任务",
@@ -181,6 +181,61 @@ const SAMPLE_TASKS_BY_LANGUAGE: Record<AppLanguage, SampleTaskSeed[]> = {
       title: "添加习惯",
       description:
         "打开 Habit 标签并点击 +，可以创建习惯卡片。选择 1 check 的单位，逐步积累进度。",
+      parentKey: null,
+      order: 3,
+    },
+  ],
+  "zh-TW": [
+    {
+      key: "addTask",
+      title: "新增你的第一個任務",
+      description:
+        "使用右下角的 + 按鈕建立新任務。輸入標題並儲存後，它會出現在 Inbox 中。",
+      parentKey: null,
+      order: 0,
+    },
+    {
+      key: "addSubtask",
+      title: "新增子任務",
+      description:
+        "點擊任務可以開啟詳情面板。使用 Add subtask 把工作拆成更小的步驟。",
+      parentKey: null,
+      order: 1,
+    },
+    {
+      key: "editTitle",
+      title: "編輯標題",
+      description: "點擊詳情面板中的標題即可直接編輯。",
+      parentKey: "addSubtask",
+      order: 0,
+    },
+    {
+      key: "addDate",
+      title: "新增日期",
+      description: "點擊詳情面板中的日期欄，可以設定日期和時間。",
+      parentKey: "addSubtask",
+      order: 1,
+    },
+    {
+      key: "addPriority",
+      title: "新增優先順序",
+      description: "在詳情面板中使用優先順序，選擇 High、Medium、Low 或 None。",
+      parentKey: "addSubtask",
+      order: 2,
+    },
+    {
+      key: "useTree",
+      title: "試試樹狀畫布",
+      description:
+        "點擊任務行中的樹狀圖示，可以把該任務作為畫布開啟。使用節點上的 + 來新增分支。",
+      parentKey: null,
+      order: 2,
+    },
+    {
+      key: "addHabit",
+      title: "新增習慣",
+      description:
+        "開啟 Habit 標籤並點擊 +，可以建立習慣卡片。選擇 1 check 的單位，逐步累積進度。",
       parentKey: null,
       order: 3,
     },

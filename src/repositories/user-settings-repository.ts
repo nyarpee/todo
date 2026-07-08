@@ -1,4 +1,4 @@
-import { DEFAULT_LANGUAGE, getBrowserDefaultLanguage, isAppLanguage } from "@/i18n/messages";
+import { DEFAULT_LANGUAGE, getBrowserDefaultLanguage, normalizeAppLanguage } from "@/i18n/messages";
 import type { UserSettings } from "@/types/user-settings";
 
 const USER_SETTINGS_STORAGE_KEY = "todoapp.user-settings";
@@ -17,7 +17,7 @@ export class LocalUserSettingsRepository {
     try {
       const parsedValue = JSON.parse(rawValue) as Partial<UserSettings>;
       return {
-        language: isAppLanguage(parsedValue.language) ? parsedValue.language : getBrowserDefaultLanguage(),
+        language: parsedValue.language ? normalizeAppLanguage(parsedValue.language) : getBrowserDefaultLanguage(),
       };
     } catch {
       return { language: getBrowserDefaultLanguage() };
