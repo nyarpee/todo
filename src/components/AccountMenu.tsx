@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogIn, LogOut, RefreshCw, UserCircle } from "lucide-react";
+import { ChevronDown, Lightbulb, LogIn, LogOut, RefreshCw, UserCircle } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { getBrowserSupabaseClient } from "@/lib/supabase-client";
 
@@ -149,9 +149,23 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
             </button>
           )}
 
+          <a
+            className="accountMenuItem"
+            href={FEEDBACK_FORM_URL}
+            target="_blank"
+            rel="noreferrer"
+            role="menuitem"
+          >
+            <Lightbulb size={16} aria-hidden="true" />
+            Message to creator
+          </a>
+
           {status ? <p className="accountStatus">{status}</p> : null}
         </div>
       ) : null}
     </div>
   );
 }
+
+const FEEDBACK_FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLSf1oAkk7EkN1Sfnx0KUn7xDnJC-YjH7p8GEoFeCYaJlj9JloA/viewform?usp=publish-editor";

@@ -242,6 +242,7 @@ h1 {
   font-size: 14px;
   font-weight: 720;
   text-align: left;
+  text-decoration: none;
 }
 
 .accountMenuItem:hover {

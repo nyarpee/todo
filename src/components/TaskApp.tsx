@@ -35,6 +35,7 @@ import {
   updateHabit,
 } from "@/lib/habit-actions";
 import { getTodayKey } from "@/lib/date-utils";
+import { createSampleHabits } from "@/lib/sample-habits";
 import {
   addTask,
   deleteTask,
@@ -291,7 +292,9 @@ export function TaskApp() {
         : createDefaultGroups(workspaceId);
       let nextTasksBeforeDateRollover =
         storedLocalData.tasks.length > 0 ? storedLocalData.tasks : createSampleTasks(workspaceId);
-      let nextHabits = storedLocalData.habits;
+      let nextHabits = storedLocalData.habits.length > 0
+        ? storedLocalData.habits
+        : createSampleHabits(workspaceId);
       let nextHabitEntries = storedLocalData.habitEntries;
       let nextActivityEvents = storedLocalData.activityEvents;
 
