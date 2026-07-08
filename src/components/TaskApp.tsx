@@ -671,6 +671,17 @@ export function TaskApp() {
   }
 
   function handleAddTask(draft?: QuickAddDraft) {
+    if (draft) {
+      setIsQuickAddOpen(false);
+      window.setTimeout(() => addRootTask(draft, true), QUICK_ADD_REFLECT_DELAY_MS);
+      return;
+    }
+
+    addRootTask(undefined, false);
+    setIsQuickAddOpen(false);
+  }
+
+  function addRootTask(draft: QuickAddDraft | undefined, hasDraft: boolean) {
     const taskId = crypto.randomUUID();
     const now = new Date().toISOString();
     const rootOrdersInGroup = tasks
@@ -705,9 +716,8 @@ export function TaskApp() {
     recordActivity("task_created", "task", taskId, {
       task: createdTask,
       groupId: activeGroupId,
-      hasDraft: Boolean(draft),
+      hasDraft,
     });
-    setIsQuickAddOpen(false);
   }
 
   function handleAddChild(parentId: TaskId, draft?: QuickAddDraft) {
@@ -1542,6 +1552,7 @@ const EDGE_SWITCH_ZONE_PX = 28;
 const GROUP_CHIPS_SCROLL_ZONE_PX = 34;
 const GROUP_CHIPS_SCROLL_STEP_PX = 7;
 const GROUP_CHIPS_SCROLL_INTERVAL_MS = 24;
+const QUICK_ADD_REFLECT_DELAY_MS = 500;
 
 function findParentNode(nodes: TaskNode[], task: TaskNode): TaskNode | null {
   if (!task.parentId) return null;

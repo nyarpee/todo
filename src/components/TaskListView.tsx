@@ -231,6 +231,7 @@ function TaskRow({
         <div
           className={[
             "simpleTaskRow",
+            root.children.length > 0 ? "hasProgress" : "",
             root.completed ? "isCompletedRow" : "",
             isHighlighted ? "isNewlyAdded" : "",
           ].filter(Boolean).join(" ")}
@@ -250,17 +251,13 @@ function TaskRow({
           onPointerCancel={canDelete ? () => onPointerUp(root.id) : undefined}
         >
           <input
-            className="check"
+            className={`check ${getPriorityClass(root.priority)}`}
             type="checkbox"
             checked={root.completed}
             onChange={() => onToggleComplete(root.id)}
             aria-label={text.taskDetail.complete.replace("{title}", root.title)}
           />
           <div className="simpleTaskContent">
-            <span
-              className={`priorityDot taskPriorityDot ${getPriorityClass(root.priority)}`}
-              aria-hidden="true"
-            />
             <EditableTitle
               value={root.title}
               className={root.completed ? "simpleTaskTitle isCompleted" : "simpleTaskTitle"}
@@ -272,7 +269,7 @@ function TaskRow({
               onSave={(title) => onRenameTask(root.id, title)}
             />
           </div>
-          <ProgressBar value={root.progress} />
+          {root.children.length > 0 ? <ProgressBar value={root.progress} /> : null}
           <button
             className="treeOpenButton"
             type="button"

@@ -119,18 +119,43 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
             <strong>{user?.email ?? text.account.notSignedIn}</strong>
           </div>
 
-          {!user ? (
-            <p className="accountCloudCopy">
-              {text.account.cloudCopy.split("\n").map((line, index) => (
-                <span key={`${line}-${index}`}>
-                  {line}
-                  {index === 0 ? <br /> : null}
-                </span>
-              ))}
-            </p>
-          ) : null}
+          {user ? (
+            <>
+              {syncStatus ? <p className="accountCloudCopy">{syncStatus}</p> : null}
+              <button
+                className="accountMenuItem"
+                type="button"
+                role="menuitem"
+                onClick={() => handleSignIn({ selectAccount: true })}
+              >
+                <RefreshCw size={16} aria-hidden="true" />
+                {text.account.switchAccount}
+              </button>
+              <button className="accountMenuItem" type="button" role="menuitem" onClick={handleSignOut}>
+                <LogOut size={16} aria-hidden="true" />
+                {text.account.signOut}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="accountCloudCopy">
+                {text.account.cloudCopy.split("\n").map((line, index) => (
+                  <span key={`${line}-${index}`}>
+                    {line}
+                    {index === 0 ? <br /> : null}
+                  </span>
+                ))}
+              </p>
+              <button className="accountMenuItem" type="button" role="menuitem" onClick={() => handleSignIn()}>
+                <LogIn size={16} aria-hidden="true" />
+                {text.account.signIn}
+              </button>
+            </>
+          )}
 
-          {user && syncStatus ? <p className="accountCloudCopy">{syncStatus}</p> : null}
+          {status ? <p className="accountStatus">{status}</p> : null}
+
+          <div className="accountMenuDivider" aria-hidden="true" />
 
           <label className="accountLanguageRow">
             <span>
@@ -165,31 +190,6 @@ export function AccountMenu({ syncStatus = null }: AccountMenuProps) {
             <Lightbulb size={16} aria-hidden="true" />
             {text.account.message}
           </a>
-
-          {user ? (
-            <>
-              <button
-                className="accountMenuItem"
-                type="button"
-                role="menuitem"
-                onClick={() => handleSignIn({ selectAccount: true })}
-              >
-                <RefreshCw size={16} aria-hidden="true" />
-                {text.account.switchAccount}
-              </button>
-              <button className="accountMenuItem" type="button" role="menuitem" onClick={handleSignOut}>
-                <LogOut size={16} aria-hidden="true" />
-                {text.account.signOut}
-              </button>
-            </>
-          ) : (
-            <button className="accountMenuItem" type="button" role="menuitem" onClick={() => handleSignIn()}>
-              <LogIn size={16} aria-hidden="true" />
-              {text.account.signIn}
-            </button>
-          )}
-
-          {status ? <p className="accountStatus">{status}</p> : null}
         </div>
       ) : null}
     </div>

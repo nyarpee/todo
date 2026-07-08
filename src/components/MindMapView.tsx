@@ -13,6 +13,7 @@ import {
 import type { MouseEvent } from "react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import type { AppMessages } from "@/i18n/messages";
+import { getPriorityClass } from "@/lib/priority";
 import type { TaskId, TaskNode } from "@/types/task";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
@@ -69,9 +70,9 @@ export function MindMapView({
   return (
     <section className="mindMapView">
       <div className="mindMapToolbar">
-        <div className="mindMapTitle">
+        <div className={root.children.length > 0 ? "mindMapTitle hasProgress" : "mindMapTitle"}>
           <h2>{root.title}</h2>
-          <ProgressBar value={root.progress} />
+          {root.children.length > 0 ? <ProgressBar value={root.progress} /> : null}
         </div>
       </div>
 
@@ -118,7 +119,7 @@ function TaskMindMapNode({ data }: NodeProps<Node<TaskMindMapNodeData>>) {
       <Handle className="mindMapHandle" type="target" position={Position.Left} />
       <div className="mindMapNodeMain">
         <input
-          className="check"
+          className={`check ${getPriorityClass(task.priority)}`}
           type="checkbox"
           checked={task.completed}
           onChange={() => onToggleComplete(task.id)}
@@ -135,7 +136,7 @@ function TaskMindMapNode({ data }: NodeProps<Node<TaskMindMapNodeData>>) {
           onSave={(title) => onRenameTask(task.id, title)}
         />
       </div>
-      <ProgressBar value={task.progress} />
+      {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
       <button
         className="mindMapAddHandle"
         type="button"

@@ -84,9 +84,9 @@ export function TaskDetailView({
         </div>
       ) : null}
 
-      <div className="detailHeader">
+      <div className={task.children.length > 0 ? "detailHeader hasProgress" : "detailHeader"}>
         <input
-          className="check"
+          className={`check ${getPriorityClass(task.priority)}`}
           type="checkbox"
           checked={task.completed}
           onChange={() => onToggleComplete(task.id)}
@@ -102,7 +102,7 @@ export function TaskDetailView({
           onAutoEditConsumed={onAutoEditConsumed}
           onSave={(title) => onRenameTask(task.id, title)}
         />
-        <ProgressBar value={task.progress} />
+        {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
       </div>
 
       <div className="detailFields">
@@ -159,7 +159,7 @@ export function TaskDetailView({
         <div className="subtaskList">
           {task.children.map((child) => (
               <div
-                className="subtaskRow"
+                className={child.children.length > 0 ? "subtaskRow hasProgress" : "subtaskRow"}
                 key={child.id}
                 onClick={(event) => {
                   const target = event.target as HTMLElement;
@@ -168,7 +168,7 @@ export function TaskDetailView({
                 }}
               >
                 <input
-                  className="check"
+                  className={`check ${getPriorityClass(child.priority)}`}
                   type="checkbox"
                   checked={child.completed}
                   onChange={() => onToggleComplete(child.id)}
@@ -184,7 +184,7 @@ export function TaskDetailView({
                   onClick={() => onSelectTask(child.id)}
                   onSave={(title) => onRenameTask(child.id, title)}
                 />
-                <ProgressBar value={child.progress} />
+                {child.children.length > 0 ? <ProgressBar value={child.progress} /> : null}
               </div>
           ))}
         </div>

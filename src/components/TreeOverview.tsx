@@ -1,6 +1,7 @@
 "use client";
 
 import type { TaskId, TaskNode } from "@/types/task";
+import { getPriorityClass } from "@/lib/priority";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
 
@@ -23,9 +24,9 @@ export function TreeOverview({
     <div className="treeCardGrid">
       {roots.map((root) => (
         <article className="treeCard" key={root.id}>
-          <div className="treeCardHeader">
+          <div className={root.children.length > 0 ? "treeCardHeader hasProgress" : "treeCardHeader"}>
             <input
-              className="check"
+              className={`check ${getPriorityClass(root.priority)}`}
               type="checkbox"
               checked={root.completed}
               onChange={() => onToggleComplete(root.id)}
@@ -37,7 +38,7 @@ export function TreeOverview({
               inputClassName="cardTitle titleInput"
               onSave={(title) => onRenameTask(root.id, title)}
             />
-            <ProgressBar value={root.progress} />
+            {root.children.length > 0 ? <ProgressBar value={root.progress} /> : null}
           </div>
           <button
             className="treeCardPreviewButton"

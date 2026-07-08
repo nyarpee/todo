@@ -1,6 +1,7 @@
 "use client";
 
 import type { TaskId, TaskNode } from "@/types/task";
+import { getPriorityClass } from "@/lib/priority";
 import { AddTaskForm } from "./AddTaskForm";
 import { ProgressBar } from "./ProgressBar";
 
@@ -27,9 +28,9 @@ export function TreeFocusView({
         <button className="backButton" type="button" onClick={onBack}>
           {"< Back"}
         </button>
-        <div className="focusTitle">
+        <div className={root.children.length > 0 ? "focusTitle hasProgress" : "focusTitle"}>
           <h2>{root.title}</h2>
-          <ProgressBar value={root.progress} />
+          {root.children.length > 0 ? <ProgressBar value={root.progress} /> : null}
         </div>
       </div>
 
@@ -61,10 +62,10 @@ function TreeFocusNode({
 }: Omit<TreeFocusViewProps, "root" | "onBack"> & { node: TaskNode }) {
   return (
     <div className="focusNode">
-      <div className="focusNodeCard">
+      <div className={node.children.length > 0 ? "focusNodeCard hasProgress" : "focusNodeCard"}>
         <div className="focusNodeMain">
           <input
-            className="check"
+            className={`check ${getPriorityClass(node.priority)}`}
             type="checkbox"
             checked={node.completed}
             onChange={() => onToggleComplete(node.id)}
@@ -83,7 +84,7 @@ function TreeFocusNode({
             +
           </button>
         </div>
-        <ProgressBar value={node.progress} />
+        {node.children.length > 0 ? <ProgressBar value={node.progress} /> : null}
       </div>
 
       {addingParentId === node.id ? (

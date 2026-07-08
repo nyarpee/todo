@@ -115,7 +115,7 @@ export function CalendarTabView({ tasks, onSelectTask }: CalendarTabViewProps) {
                 <div className="agendaGroupRows">
                   {group.tasks.map((task) => (
                     <button
-                      className="agendaRow"
+                      className={task.children.length > 0 ? "agendaRow hasProgress" : "agendaRow"}
                       key={task.id}
                       type="button"
                       onClick={() => onSelectTask(task.id)}
@@ -128,7 +128,7 @@ export function CalendarTabView({ tasks, onSelectTask }: CalendarTabViewProps) {
                         />
                         {task.title}
                       </span>
-                      <ProgressBar value={task.progress} />
+                      {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
                     </button>
                   ))}
                 </div>

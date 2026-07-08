@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Flag, Plus, Save } from "lucide-react";
+import { ArrowUp, CalendarDays, Flag, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import { getScheduleLabel } from "@/lib/date-utils";
@@ -83,6 +83,10 @@ export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
     event.preventDefault();
     if (!canSave) return;
 
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     onSave({
       title: title.trim(),
       dueDate,
@@ -90,6 +94,14 @@ export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
       priority,
     });
   }
+
+  const scheduleLabel = dueDate
+    ? getScheduleLabel(dueDate, dueTime, {
+        locale: text.common.locale,
+        noDateLabel: text.common.noDate,
+      })
+    : null;
+  const priorityLabel = priority !== "none" ? getPriorityLabel(priority, labels) : null;
 
   return (
     <div className="quickAddLayer" role="presentation">
@@ -101,38 +113,39 @@ export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
         aria-label={text.common.addTask}
         onSubmit={handleSubmit}
       >
-        <input
-          id="quick-add-task-title"
-          ref={titleInputRef}
-          className="quickAddTitleInput"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder={text.common.title}
-        />
+        <div className="quickAddTitleRow">
+          <input
+            id="quick-add-task-title"
+            ref={titleInputRef}
+            className="quickAddTitleInput"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={text.common.title}
+          />
+          <button className="quickAddInlineSaveButton" type="submit" disabled={!canSave} aria-label={text.common.save}>
+            <ArrowUp size={20} aria-hidden="true" />
+          </button>
+        </div>
 
         <div className="quickAddMetaRow">
           <button className="quickAddDateButton" type="button" onClick={() => setIsScheduleOpen(true)}>
             <CalendarDays size={18} aria-hidden="true" />
-            <span>{text.common.date}</span>
-            <strong>{getScheduleLabel(dueDate, dueTime, {
-              locale: text.common.locale,
-              noDateLabel: text.common.noDate,
-            })}</strong>
+            {scheduleLabel ? <strong>{scheduleLabel}</strong> : <span>{text.common.date}</span>}
           </button>
 
           <button className="quickAddDateButton" type="button" onClick={() => setIsPriorityOpen(true)}>
             <Flag size={18} aria-hidden="true" />
-            <span>{text.common.priority}</span>
-            <strong className="priorityValue">
-              <span className={`priorityDot ${getPriorityClass(priority)}`} aria-hidden="true" />
-              {getPriorityLabel(priority, labels)}
-            </strong>
+            {priorityLabel ? (
+              <strong className="priorityValue">
+                <span className={`priorityDot ${getPriorityClass(priority)}`} aria-hidden="true" />
+                {priorityLabel}
+              </strong>
+            ) : (
+              <span>{text.common.priority}</span>
+            )}
           </button>
         </div>
 
-        <button className="quickAddSaveButton" type="submit" disabled={!canSave} aria-label={text.common.save}>
-          <Save size={20} aria-hidden="true" />
-        </button>
       </form>
       {isScheduleOpen ? (
         <ScheduleEditorSheet
