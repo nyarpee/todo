@@ -464,7 +464,7 @@ export function TaskApp() {
 
     const timeoutId = window.setTimeout(() => {
       void syncLocalDataToCloud(fingerprint);
-    }, 900);
+    }, 300);
 
     return () => window.clearTimeout(timeoutId);
   }, [authUser, groups, habitEntries, habits, isLoaded, loadedWorkspaceId, supabase, tasks, workspaceId]);
@@ -491,7 +491,9 @@ export function TaskApp() {
           setSyncStatus("Updated from another device");
         },
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        console.log("Realtime status", status, error);
+      });
 
     function handleVisible() {
       if (document.visibilityState !== "visible") return;
