@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+} from "react";
 import { ArrowUp, CalendarDays, Flag } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
@@ -12,15 +19,16 @@ import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
-type SubtaskComposerProps = {
+type SubtaskInlineAddProps = {
   placeholder: string;
   onAdd: (draft: QuickAddDraft) => void;
+  onClose: () => void;
 };
 
-// An inline composer docked at the bottom of the detail view. It stays mounted
-// while adding (clears + refocuses after each save) so subtasks can be added in
-// a row, and its own layout never resizes with the keyboard.
-export function SubtaskComposer({ placeholder, onAdd }: SubtaskComposerProps) {
+// An editable row that lives at the end of the subtask list. Each add inserts
+// the new subtask above it, so this row is always right below the newest
+// subtask — no overlays and no scroll math needed.
+export function SubtaskInlineAdd({ placeholder, onAdd, onClose }: SubtaskInlineAddProps) {
   const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -46,12 +54,23 @@ export function SubtaskComposer({ placeholder, onAdd }: SubtaskComposerProps) {
 
     onAdd({ title: title.trim(), dueDate, dueTime, priority });
 
-    // Continuous add: reset the fields and keep the keyboard up for the next one.
+    // Continuous add: clear for the next one and keep the keyboard up.
     setTitle("");
     setDueDate(null);
     setDueTime(null);
     setPriority("none");
     inputRef.current?.focus({ preventScroll: true });
+  }
+
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    // Keep the row while a picker sheet is open (focus moves into its portal).
+    if (isScheduleOpen || isPriorityOpen) return;
+    // Ignore focus moves within the row (input -> date/priority/save buttons).
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    // Tapping elsewhere with nothing typed dismisses the row.
+    if (title.trim().length === 0) onClose();
   }
 
   const scheduleLabel = dueDate
@@ -63,23 +82,30 @@ export function SubtaskComposer({ placeholder, onAdd }: SubtaskComposerProps) {
   const priorityLabel = priority !== "none" ? getPriorityLabel(priority, labels) : null;
 
   return (
-    <div className="subtaskComposer">
-      <form className="createTaskForm" onSubmit={handleSubmit}>
-        <div className="quickAddTitleRow">
+    <div className="subtaskInlineAdd" onBlur={handleBlur}>
+      <form className="subtaskInlineAddForm" onSubmit={handleSubmit}>
+        <div className="subtaskInlineAddRow">
+          <input
+            className="check priority-none"
+            type="checkbox"
+            disabled
+            aria-hidden="true"
+            tabIndex={-1}
+          />
           <input
             ref={inputRef}
-            className="quickAddTitleInput"
+            className="subtaskInlineInput"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={placeholder}
           />
           <button
-            className="quickAddInlineSaveButton"
+            className="quickAddInlineSaveButton subtaskInlineSaveButton"
             type="submit"
             disabled={!canSave}
             aria-label={text.common.save}
           >
-            <ArrowUp size={20} aria-hidden="true" />
+            <ArrowUp size={18} aria-hidden="true" />
           </button>
         </div>
         <div className="quickAddMetaRow">

@@ -892,51 +892,9 @@ h1 {
 }
 
 .detailView {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  width: 100%;
-  position: relative;
-}
-
-/* Scrollable content of the detail view; the docked composer sits below it.
-   The full task (title, description, fields, all subtasks) stays visible and
-   scrolls freely so you can re-read context while adding subtasks. */
-.detailBody {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1 1 auto;
-  min-height: 0;
-  width: 100%;
-  overflow-y: auto;
-  padding: 28px 12px 24px;
-  touch-action: pan-y;
-}
-
-/* Docked subtask composer: a fixed-size footer, always above the keyboard. */
-.subtaskComposer {
-  position: relative;
-  z-index: 2;
-  flex: 0 0 auto;
   display: grid;
-  gap: 12px;
-  padding: 12px 12px max(14px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--line);
-  background: var(--surface);
-  box-shadow: 0 -10px 24px rgb(15 23 42 / 10%);
-}
-
-/* Visual dim only — must not block touches, so the list can still be scrolled
-   and tapped underneath (tap-to-close is handled on the body). */
-.composerScrim {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border: 0;
-  pointer-events: none;
-  background: rgb(15 23 42 / 32%);
+  gap: 8px;
+  width: 100%;
 }
 
 .breadcrumbBar {
@@ -1212,6 +1170,48 @@ h1 {
 .subtaskAddButton:hover {
   border-color: var(--focus);
   background: color-mix(in srgb, var(--focus) 8%, transparent);
+}
+
+/* Inline add row at the end of the subtask list: each add pushes it below the
+   newest subtask, so it always sits right under what was just added. */
+.subtaskInlineAdd {
+  border-top: 1px solid var(--line);
+  padding: 6px 8px 10px;
+}
+
+.subtaskInlineAddForm {
+  display: grid;
+  gap: 8px;
+}
+
+.subtaskInlineAddRow {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+}
+
+.subtaskInlineInput {
+  min-width: 0;
+  width: 100%;
+  height: 34px;
+  padding: 0 4px;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  outline: none;
+  /* 16px+ keeps iOS Safari from zooming into the field on focus. */
+  font-size: 16px;
+}
+
+.subtaskInlineInput::placeholder {
+  color: var(--soft);
+}
+
+.subtaskInlineSaveButton {
+  width: 34px;
+  height: 34px;
 }
 
 .detailDeleteButton {
@@ -1597,11 +1597,8 @@ h1 {
 }
 
 .detailSheet {
-  display: flex;
-  flex-direction: column;
   height: calc(var(--kb-view-height, 100dvh) - 8px);
-  padding: 0;
-  overflow: hidden;
+  padding: 28px 12px 84px;
   background: var(--bg);
 }
 

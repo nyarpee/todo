@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Flag, GitBranch, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
@@ -11,7 +11,7 @@ import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
-import { SubtaskComposer } from "./SubtaskComposer";
+import { SubtaskInlineAdd } from "./SubtaskInlineAdd";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
@@ -54,45 +54,22 @@ export function TaskDetailView({
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
-  const detailBodyRef = useRef<HTMLDivElement>(null);
-  // "Stick to bottom" while composing: follow new subtasks only while the user is
-  // already near the bottom, so scrolling up to re-read the task's description or
-  // fields is never yanked back down.
-  const stickToBottomRef = useRef(true);
+  const inlineAddRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // Start following the newest subtask each time the composer opens.
-    if (composerOpen) stickToBottomRef.current = true;
-  }, [composerOpen]);
-
+  // Keep the inline add row visible above the keyboard: on open, after each add
+  // (the row moves one line down), and when the keyboard changes the sheet size.
   useEffect(() => {
     if (!composerOpen) return;
-    const body = detailBodyRef.current;
-    if (!body) return;
 
-    const NEAR_BOTTOM_PX = 96;
-    const pin = () => {
-      if (stickToBottomRef.current) body.scrollTop = body.scrollHeight;
+    const scrollToRow = () => {
+      inlineAddRef.current?.scrollIntoView({ block: "nearest" });
     };
-    const handleScroll = () => {
-      stickToBottomRef.current =
-        body.scrollHeight - body.scrollTop - body.clientHeight <= NEAR_BOTTOM_PX;
-    };
-
-    // Runs on open and (via the deps) after each add. The sheet slide + keyboard
-    // also change the body height, so re-pin on resize/viewport changes too.
-    pin();
-    const observer = new ResizeObserver(pin);
-    observer.observe(body);
-    body.addEventListener("scroll", handleScroll, { passive: true });
-    window.visualViewport?.addEventListener("resize", pin);
-    window.visualViewport?.addEventListener("scroll", pin);
+    const openTimer = window.setTimeout(scrollToRow, 80);
+    window.visualViewport?.addEventListener("resize", scrollToRow);
 
     return () => {
-      observer.disconnect();
-      body.removeEventListener("scroll", handleScroll);
-      window.visualViewport?.removeEventListener("resize", pin);
-      window.visualViewport?.removeEventListener("scroll", pin);
+      window.clearTimeout(openTimer);
+      window.visualViewport?.removeEventListener("resize", scrollToRow);
     };
   }, [composerOpen, task.children.length]);
 
@@ -107,25 +84,8 @@ export function TaskDetailView({
     }
   }
 
-  function handleBodyClick(event: MouseEvent<HTMLDivElement>) {
-    if (!composerOpen) return;
-    // A click only fires on a genuine tap (swipes that scroll don't produce one),
-    // so tapping the content — outside the composer and off any control — closes
-    // the composer, while swiping scrolls freely.
-    const target = event.target as HTMLElement;
-    if (
-      target.closest(
-        "button, input, textarea, select, [contenteditable='true'], .subtaskRow",
-      )
-    ) {
-      return;
-    }
-    onComposerOpenChange(false);
-  }
-
   return (
     <section className="detailView">
-      <div ref={detailBodyRef} className="detailBody" onClick={handleBodyClick}>
       {path.length > 1 ? (
         <div className="breadcrumbBar">
           <nav className="breadcrumb" aria-label={text.taskDetail.path}>
@@ -249,29 +209,26 @@ export function TaskDetailView({
               </div>
           ))}
         </div>
-        {!composerOpen ? (
+        {composerOpen ? (
+          <div ref={inlineAddRef}>
+            <SubtaskInlineAdd
+              placeholder={text.taskDetail.subtaskTitle}
+              onAdd={(draft) => onAddChild(task.id, draft)}
+              onClose={() => onComposerOpenChange(false)}
+            />
+          </div>
+        ) : (
           <button className="subtaskAddButton" type="button" onClick={() => onComposerOpenChange(true)}>
             <Plus size={18} aria-hidden="true" />
             {text.taskDetail.addSubtask}
           </button>
-        ) : null}
+        )}
       </section>
 
-      {!composerOpen ? (
-        <button className="detailDeleteButton" type="button" onClick={handleDelete}>
-          <TrashIcon />
-          {text.taskDetail.deleteTask}
-        </button>
-      ) : null}
-      </div>
-
-      {composerOpen ? <div className="composerScrim" aria-hidden="true" /> : null}
-      {composerOpen ? (
-        <SubtaskComposer
-          placeholder={text.taskDetail.subtaskTitle}
-          onAdd={(draft) => onAddChild(task.id, draft)}
-        />
-      ) : null}
+      <button className="detailDeleteButton" type="button" onClick={handleDelete}>
+        <TrashIcon />
+        {text.taskDetail.deleteTask}
+      </button>
       {isPriorityOpen ? (
         <PriorityEditorSheet
           value={task.priority}
