@@ -16,6 +16,8 @@ const LONG_PRESS_DELAY_MS = 400;
 const LONG_PRESS_MOVE_TOLERANCE_PX = 8;
 const PRESS_SCALE = 1.08;
 const DROP_ANIM_MS = 160;
+const EDGE_SCROLL_ZONE_PX = 44;
+const EDGE_SCROLL_SPEED_PX = 10;
 
 type GroupBarProps = {
   groups: TaskGroup[];
@@ -58,12 +60,16 @@ export function GroupBar({
   orderRef.current = order;
 
   const chipElementsRef = useRef(new Map<TaskGroupId, HTMLButtonElement>());
+  const chipsContainerRef = useRef<HTMLDivElement | null>(null);
   const cloneRef = useRef<HTMLDivElement | null>(null);
   const gestureRef = useRef<GestureState | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const dropAnimTimerRef = useRef<number | null>(null);
   const flipBeforeRectsRef = useRef<Map<TaskGroupId, DOMRect> | null>(null);
   const justReorderedRef = useRef(false);
+  const latestPointerXRef = useRef<number | null>(null);
+  const autoScrollRafRef = useRef<number | null>(null);
+  const autoScrollDirRef = useRef<-1 | 0 | 1>(0);
 
   // Keep the local order in sync with incoming groups, except mid-drag where the
   // local swaps are the source of truth until the gesture finishes.
@@ -116,6 +122,7 @@ export function GroupBar({
   useEffect(() => {
     return () => {
       clearLongPressTimer();
+      stopAutoScroll();
       if (dropAnimTimerRef.current !== null) {
         window.clearTimeout(dropAnimTimerRef.current);
       }
@@ -202,6 +209,71 @@ export function GroupBar({
     }
   }
 
+  // Virtual center X of the dragged chip in viewport coordinates: where the
+  // finger has carried it, independent of how far the row has scrolled.
+  function draggedChipCenterX(gesture: GestureState): number | null {
+    const rect = gesture.initialRect;
+    const pointerX = latestPointerXRef.current;
+    if (!rect || pointerX === null) return null;
+    return pointerX - gesture.startClientX + rect.left + rect.width / 2;
+  }
+
+  function stopAutoScroll() {
+    if (autoScrollRafRef.current !== null) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+    }
+    autoScrollRafRef.current = null;
+    autoScrollDirRef.current = 0;
+  }
+
+  function updateAutoScroll(pointerX: number) {
+    const container = chipsContainerRef.current;
+    if (!container) {
+      stopAutoScroll();
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    let direction: -1 | 0 | 1 = 0;
+    if (pointerX <= rect.left + EDGE_SCROLL_ZONE_PX) direction = -1;
+    else if (pointerX >= rect.right - EDGE_SCROLL_ZONE_PX) direction = 1;
+
+    if (direction === 0) {
+      stopAutoScroll();
+      return;
+    }
+
+    autoScrollDirRef.current = direction;
+    if (autoScrollRafRef.current === null) {
+      autoScrollRafRef.current = requestAnimationFrame(autoScrollTick);
+    }
+  }
+
+  function autoScrollTick() {
+    const container = chipsContainerRef.current;
+    const gesture = gestureRef.current;
+    const direction = autoScrollDirRef.current;
+
+    if (!container || !gesture || !gesture.active || direction === 0) {
+      stopAutoScroll();
+      return;
+    }
+
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    const nextScrollLeft = Math.min(
+      maxScrollLeft,
+      Math.max(0, container.scrollLeft + direction * EDGE_SCROLL_SPEED_PX),
+    );
+    container.scrollLeft = nextScrollLeft;
+
+    // The finger is holding still at the edge while the row scrolls underneath,
+    // so re-evaluate swaps against the newly revealed chip positions each frame.
+    const centerX = draggedChipCenterX(gesture);
+    if (centerX !== null) maybeSwap(gesture.groupId, centerX);
+
+    autoScrollRafRef.current = requestAnimationFrame(autoScrollTick);
+  }
+
   function handleGlobalPointerMove(event: PointerEvent) {
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
@@ -221,12 +293,15 @@ export function GroupBar({
     const rect = gesture.initialRect;
     if (!clone || !rect) return;
 
+    latestPointerXRef.current = event.clientX;
+
     // Horizontal follow only — the clone's top stays pinned to the bar, so it can
     // never drift vertically out of view. Because the clone is position:fixed it
     // is never clipped by the chip row's overflow, even past the left/right edge.
     clone.style.transform = `translateX(${dx}px) scale(${PRESS_SCALE})`;
 
     maybeSwap(gesture.groupId, rect.left + dx + rect.width / 2);
+    updateAutoScroll(event.clientX);
   }
 
   function handleGlobalPointerUp(event: PointerEvent) {
@@ -266,6 +341,8 @@ export function GroupBar({
   function finishGesture() {
     const gesture = gestureRef.current;
     clearLongPressTimer();
+    stopAutoScroll();
+    latestPointerXRef.current = null;
     if (!gesture) return;
 
     if (gesture.active && gesture.initialRect) {
@@ -330,7 +407,13 @@ export function GroupBar({
 
   return (
     <section className="groupArea" aria-label={text.lists.area}>
-      <div ref={onRegisterGroupChipsContainer} className="groupChips">
+      <div
+        ref={(element) => {
+          chipsContainerRef.current = element;
+          onRegisterGroupChipsContainer?.(element);
+        }}
+        className="groupChips"
+      >
         {displayGroups.map((group) => (
           <GroupChip
             group={group}
