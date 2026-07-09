@@ -141,7 +141,21 @@ export function SubtaskQuickAddSheet({ placeholder, onAdd, onClose }: SubtaskQui
   const priorityLabel = priority !== "none" ? getPriorityLabel(priority, labels) : null;
 
   return createPortal(
-    <div className="subtaskAddLayer" role="presentation">
+    // React portals bubble synthetic events up the REACT tree, so without these
+    // stops, backdrop swipes would also reach the detail DraggableBottomSheet's
+    // drag handlers and pull the sheet closed. Blocking them here disables the
+    // sheet's swipe-to-dismiss entirely while the composer is open.
+    <div
+      className="subtaskAddLayer"
+      role="presentation"
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerMove={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      onPointerCancel={(event) => event.stopPropagation()}
+      onTouchStart={(event) => event.stopPropagation()}
+      onTouchMove={(event) => event.stopPropagation()}
+      onTouchEnd={(event) => event.stopPropagation()}
+    >
       <button
         className="subtaskAddBackdrop"
         type="button"
