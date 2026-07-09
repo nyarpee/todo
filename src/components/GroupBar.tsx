@@ -16,8 +16,8 @@ const LONG_PRESS_DELAY_MS = 400;
 const LONG_PRESS_MOVE_TOLERANCE_PX = 8;
 const PRESS_SCALE = 1.08;
 const DROP_ANIM_MS = 160;
-const EDGE_SCROLL_ZONE_PX = 44;
-const EDGE_SCROLL_SPEED_PX = 10;
+const EDGE_SCROLL_ZONE_PX = 60;
+const EDGE_SCROLL_MAX_SPEED_PX = 6.5;
 
 type GroupBarProps = {
   groups: TaskGroup[];
@@ -51,7 +51,6 @@ export function GroupBar({
   onReorderGroups,
 }: GroupBarProps) {
   const { messages: text } = useLanguage();
-  const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
 
   const [order, setOrder] = useState<TaskGroupId[]>(() => groups.map((group) => group.id));
   const [pressedGroupId, setPressedGroupId] = useState<TaskGroupId | null>(null);
@@ -70,6 +69,7 @@ export function GroupBar({
   const latestPointerXRef = useRef<number | null>(null);
   const autoScrollRafRef = useRef<number | null>(null);
   const autoScrollDirRef = useRef<-1 | 0 | 1>(0);
+  const autoScrollSpeedRef = useRef(0);
 
   // Keep the local order in sync with incoming groups, except mid-drag where the
   // local swaps are the source of truth until the gesture finishes.
@@ -224,6 +224,7 @@ export function GroupBar({
     }
     autoScrollRafRef.current = null;
     autoScrollDirRef.current = 0;
+    autoScrollSpeedRef.current = 0;
   }
 
   function updateAutoScroll(pointerX: number) {
@@ -235,15 +236,25 @@ export function GroupBar({
 
     const rect = container.getBoundingClientRect();
     let direction: -1 | 0 | 1 = 0;
-    if (pointerX <= rect.left + EDGE_SCROLL_ZONE_PX) direction = -1;
-    else if (pointerX >= rect.right - EDGE_SCROLL_ZONE_PX) direction = 1;
+    let depth = 0;
+    if (pointerX <= rect.left + EDGE_SCROLL_ZONE_PX) {
+      direction = -1;
+      depth = rect.left + EDGE_SCROLL_ZONE_PX - pointerX;
+    } else if (pointerX >= rect.right - EDGE_SCROLL_ZONE_PX) {
+      direction = 1;
+      depth = pointerX - (rect.right - EDGE_SCROLL_ZONE_PX);
+    }
 
     if (direction === 0) {
       stopAutoScroll();
       return;
     }
 
+    // Ramp the speed by how deep the finger is into the edge zone (eased), so it
+    // creeps near the boundary and only reaches full speed right at the edge.
+    const intensity = Math.min(1, Math.max(0, depth / EDGE_SCROLL_ZONE_PX));
     autoScrollDirRef.current = direction;
+    autoScrollSpeedRef.current = EDGE_SCROLL_MAX_SPEED_PX * intensity * intensity;
     if (autoScrollRafRef.current === null) {
       autoScrollRafRef.current = requestAnimationFrame(autoScrollTick);
     }
@@ -262,7 +273,7 @@ export function GroupBar({
     const maxScrollLeft = container.scrollWidth - container.clientWidth;
     const nextScrollLeft = Math.min(
       maxScrollLeft,
-      Math.max(0, container.scrollLeft + direction * EDGE_SCROLL_SPEED_PX),
+      Math.max(0, container.scrollLeft + direction * autoScrollSpeedRef.current),
     );
     container.scrollLeft = nextScrollLeft;
 
@@ -407,34 +418,42 @@ export function GroupBar({
 
   return (
     <section className="groupArea" aria-label={text.lists.area}>
-      <div
-        ref={(element) => {
-          chipsContainerRef.current = element;
-          onRegisterGroupChipsContainer?.(element);
-        }}
-        className="groupChips"
-      >
-        {displayGroups.map((group) => (
-          <GroupChip
-            group={group}
-            isActive={group.id === activeGroupId}
-            isPlaceholder={group.id === pressedGroupId}
-            key={group.id}
-            onClick={handleChipClick}
-            onPointerDown={handleChipPointerDown}
-            refCallback={(element) => {
-              if (element) {
-                chipElementsRef.current.set(group.id, element);
-              } else {
-                chipElementsRef.current.delete(group.id);
-              }
-              onRegisterGroupChip?.(group.id, element);
-            }}
-          />
-        ))}
-        <button className="groupAddChip" type="button" onClick={onAddGroup} aria-label={text.lists.add}>
-          <Plus size={16} aria-hidden="true" />
-        </button>
+      <div className="groupBarRow">
+        <div
+          ref={(element) => {
+            chipsContainerRef.current = element;
+            onRegisterGroupChipsContainer?.(element);
+          }}
+          className="groupChips"
+        >
+          {displayGroups.map((group) => (
+            <GroupChip
+              group={group}
+              isActive={group.id === activeGroupId}
+              isPlaceholder={group.id === pressedGroupId}
+              key={group.id}
+              onClick={handleChipClick}
+              onPointerDown={handleChipPointerDown}
+              refCallback={(element) => {
+                if (element) {
+                  chipElementsRef.current.set(group.id, element);
+                } else {
+                  chipElementsRef.current.delete(group.id);
+                }
+                onRegisterGroupChip?.(group.id, element);
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="groupBarActions">
+          <button className="groupAddChip" type="button" onClick={onAddGroup} aria-label={text.lists.add}>
+            <Plus size={16} aria-hidden="true" />
+          </button>
+          <button className="groupMenuButton" type="button" onClick={onOpenMenu} aria-label={text.lists.menu}>
+            <MoreVertical size={18} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {pressedGroup ? (
@@ -446,15 +465,6 @@ export function GroupBar({
           aria-hidden="true"
         >
           {pressedGroup.name}
-        </div>
-      ) : null}
-
-      {activeGroup ? (
-        <div className="groupHeader">
-          <h2>{activeGroup.name}</h2>
-          <button className="groupMenuButton" type="button" onClick={onOpenMenu} aria-label={text.lists.menu}>
-            <MoreVertical size={18} aria-hidden="true" />
-          </button>
         </div>
       ) : null}
     </section>

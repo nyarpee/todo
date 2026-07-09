@@ -69,6 +69,7 @@ import { DatePickerView } from "./DatePickerView";
 import { DraggableBottomSheet } from "./DraggableBottomSheet";
 import { GroupBar } from "./GroupBar";
 import { GroupEditorSheet } from "./GroupEditorSheet";
+import { GroupManagerSheet } from "./GroupManagerSheet";
 import { HabitEditorSheet } from "./HabitEditorSheet";
 import { HabitTabView } from "./HabitTabView";
 import { MindMapView } from "./MindMapView";
@@ -113,7 +114,7 @@ export function TaskApp() {
   const [detailReturnTarget, setDetailReturnTarget] = useState<"list" | "mindmap">("list");
   const [autoEditTaskId, setAutoEditTaskId] = useState<TaskId | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [groupEditorMode, setGroupEditorMode] = useState<"create" | "menu" | null>(null);
+  const [groupEditorMode, setGroupEditorMode] = useState<"create" | "manage" | null>(null);
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<TaskId | null>(null);
@@ -158,7 +159,13 @@ export function TaskApp() {
 
   const roots = useMemo(() => buildTaskTree(tasks), [tasks]);
   const allNodes = useMemo(() => flattenTaskTree(roots), [roots]);
-  const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0] ?? null;
+  const taskCountByGroup = useMemo(() => {
+    const counts: Record<TaskGroupId, number> = {};
+    for (const task of tasks) {
+      counts[task.groupId] = (counts[task.groupId] ?? 0) + 1;
+    }
+    return counts;
+  }, [tasks]);
   const activeGroupRoots = useMemo(
     () => roots.filter((root) => root.groupId === activeGroupId),
     [activeGroupId, roots],
@@ -772,19 +779,19 @@ export function TaskApp() {
     recordActivity("group_created", "task_group", group.id, { group });
   }
 
-  function handleRenameGroup(name: string) {
-    if (!activeGroup) return;
+  function handleRenameGroupById(groupId: TaskGroupId, name: string) {
+    const target = groups.find((group) => group.id === groupId);
+    if (!target || target.name === name) return;
     const now = new Date().toISOString();
 
     setGroups((currentGroups) =>
       currentGroups.map((group) =>
-        group.id === activeGroup.id
+        group.id === groupId
           ? { ...group, name, updatedAt: now }
           : group,
       ),
     );
-    setGroupEditorMode(null);
-    recordActivity("group_updated", "task_group", activeGroup.id, {
+    recordActivity("group_updated", "task_group", groupId, {
       patch: {
         name,
         updatedAt: now,
@@ -827,10 +834,9 @@ export function TaskApp() {
     });
   }
 
-  function handleDeleteGroup() {
-    if (!activeGroup || activeGroup.id === DEFAULT_MY_TASKS_GROUP_ID) return;
+  function handleDeleteGroupById(deletedGroupId: TaskGroupId) {
+    if (deletedGroupId === DEFAULT_MY_TASKS_GROUP_ID) return;
 
-    const deletedGroupId = activeGroup.id;
     const nextActiveGroup = groups.find((group) => group.id !== deletedGroupId);
     const deletedTaskIds = tasks
       .filter((task) => task.groupId === deletedGroupId)
@@ -844,8 +850,12 @@ export function TaskApp() {
     setTasks((currentTasks) =>
       currentTasks.filter((task) => task.groupId !== deletedGroupId),
     );
-    setActiveGroupId(nextActiveGroup?.id ?? DEFAULT_MY_TASKS_GROUP_ID);
-    setGroupEditorMode(null);
+    // Keep the manage sheet open; only move off the deleted group if it was active.
+    setActiveGroupId((currentActiveId) =>
+      currentActiveId === deletedGroupId
+        ? nextActiveGroup?.id ?? DEFAULT_MY_TASKS_GROUP_ID
+        : currentActiveId,
+    );
     recordActivity("group_deleted", "task_group", deletedGroupId);
     deletedTaskIds.forEach((deletedTaskId) => {
       recordActivity("task_deleted", "task", deletedTaskId, { groupId: deletedGroupId });
@@ -1414,7 +1424,7 @@ export function TaskApp() {
               onRegisterGroupChip={handleRegisterGroupChip}
               onSelectGroup={setActiveGroupId}
               onAddGroup={() => setGroupEditorMode("create")}
-              onOpenMenu={() => setGroupEditorMode("menu")}
+              onOpenMenu={() => setGroupEditorMode("manage")}
               onReorderGroups={handleReorderGroups}
             />
             {activeGroupRoots.length === 0 ? (
@@ -1526,14 +1536,13 @@ export function TaskApp() {
           onSave={handleAddGroup}
         />
       ) : null}
-      {groupEditorMode === "menu" && activeGroup ? (
-        <GroupEditorSheet
-          mode="menu"
-          group={activeGroup}
-          taskCount={tasks.filter((task) => task.groupId === activeGroup.id).length}
+      {groupEditorMode === "manage" ? (
+        <GroupManagerSheet
+          groups={groups}
+          taskCountByGroup={taskCountByGroup}
+          onRename={handleRenameGroupById}
+          onDelete={handleDeleteGroupById}
           onDismiss={() => setGroupEditorMode(null)}
-          onRename={handleRenameGroup}
-          onDelete={handleDeleteGroup}
         />
       ) : null}
       {habitEditorMode === "create" ? (
