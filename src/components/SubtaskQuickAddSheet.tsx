@@ -19,10 +19,13 @@ import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import type { TaskPriority } from "@/types/task";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
+import { TaskPathBreadcrumb, type PathCrumb } from "./TaskPathBreadcrumb";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
 type SubtaskQuickAddSheetProps = {
   placeholder: string;
+  crumbs: PathCrumb[];
+  onNavigate: (taskId: string) => void;
   onAdd: (draft: QuickAddDraft) => void;
   onClose: () => void;
 };
@@ -35,7 +38,7 @@ const BACKDROP_TAP_TOLERANCE_PX = 8;
 // backdrop). The detail view scrolls a nested sheet instead, which the browser
 // will never reach from the backdrop, so we forward pan/wheel gestures on the
 // backdrop to the detail sheet's scrollTop manually.
-export function SubtaskQuickAddSheet({ placeholder, onAdd, onClose }: SubtaskQuickAddSheetProps) {
+export function SubtaskQuickAddSheet({ placeholder, crumbs, onNavigate, onAdd, onClose }: SubtaskQuickAddSheetProps) {
   const { messages: text } = useLanguage();
   const [isMounted, setIsMounted] = useState(false);
   const [title, setTitle] = useState("");
@@ -172,6 +175,12 @@ export function SubtaskQuickAddSheet({ placeholder, onAdd, onClose }: SubtaskQui
         aria-label={text.taskDetail.addSubtask}
         onSubmit={handleSubmit}
       >
+        <TaskPathBreadcrumb
+          className="subtaskAddPath"
+          crumbs={crumbs}
+          ariaLabel={text.taskDetail.path}
+          onNavigate={onNavigate}
+        />
         <div className="quickAddTitleRow">
           <input
             ref={inputRef}

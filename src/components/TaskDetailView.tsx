@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarClock, Flag, GitBranch, Plus } from "lucide-react";
+import { CalendarClock, Flag, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import type { TaskId, TaskNode } from "@/types/task";
@@ -12,13 +12,14 @@ import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { SubtaskQuickAddSheet } from "./SubtaskQuickAddSheet";
+import { TaskPathBreadcrumb, type PathCrumb } from "./TaskPathBreadcrumb";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
 type TaskDetailViewProps = {
   task: TaskNode;
-  parent: TaskNode | null;
   path: TaskNode[];
+  groupName: string;
   onSelectTask: (taskId: TaskId) => void;
   onToggleComplete: (taskId: TaskId) => void;
   onRenameTask: (taskId: TaskId, title: string) => void;
@@ -35,8 +36,8 @@ type TaskDetailViewProps = {
 
 export function TaskDetailView({
   task,
-  parent,
   path,
+  groupName,
   onSelectTask,
   onToggleComplete,
   onRenameTask,
@@ -54,6 +55,23 @@ export function TaskDetailView({
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
+
+  // Path to the current task's *parent* (group + ancestors, current excluded);
+  // the trailing ">" leads into the title below it.
+  const detailCrumbs: PathCrumb[] = [
+    { id: null, label: groupName },
+    ...path.slice(0, -1).map((node) => ({ id: node.id, label: node.title })),
+    { id: null, label: task.title },
+  ];
+  // Path to the current task itself (group + full ancestors + current); the
+  // trailing ">" leads into the composer input — you're adding inside here.
+  // Ancestors are tappable (jump up); the current task (last) is a non-tappable
+  // emphasized "you are here" label.
+  const composerCrumbs: PathCrumb[] = [
+    { id: null, label: groupName },
+    ...path.slice(0, -1).map((node) => ({ id: node.id, label: node.title })),
+    { id: null, label: task.title },
+  ];
   const viewRef = useRef<HTMLElement>(null);
 
   // While the floating composer is open, keep the detail sheet scrolled to the
@@ -90,24 +108,12 @@ export function TaskDetailView({
 
   return (
     <section ref={viewRef} className="detailView">
-      {path.length > 1 ? (
-        <div className="breadcrumbBar">
-          <nav className="breadcrumb" aria-label={text.taskDetail.path}>
-            {path.slice(0, -1).map((node, index) => (
-              <span className="breadcrumbItem" key={node.id}>
-                {index > 0 ? <span className="breadcrumbSeparator">&gt;</span> : null}
-                <button
-                  className="breadcrumbButton"
-                  type="button"
-                  onClick={() => onSelectTask(node.id)}
-                >
-                  {node.title}
-                </button>
-              </span>
-            ))}
-          </nav>
-        </div>
-      ) : null}
+      <TaskPathBreadcrumb
+        className="detailPath"
+        crumbs={detailCrumbs}
+        ariaLabel={text.taskDetail.path}
+        onNavigate={onSelectTask}
+      />
 
       <div className={task.children.length > 0 ? "detailHeader hasProgress" : "detailHeader"}>
         <input
@@ -166,14 +172,6 @@ export function TaskDetailView({
             </span>
           </button>
         </section>
-        {parent ? (
-          <section className="detailSection">
-            <button className="detailActionRow" type="button" onClick={() => onSelectTask(parent.id)}>
-              <GitBranch size={18} aria-hidden="true" />
-              <span>{parent.title}</span>
-            </button>
-          </section>
-        ) : null}
       </div>
 
       <section className="subtasksSection">
@@ -229,6 +227,8 @@ export function TaskDetailView({
       {composerOpen ? (
         <SubtaskQuickAddSheet
           placeholder={text.taskDetail.subtaskTitle}
+          crumbs={composerCrumbs}
+          onNavigate={onSelectTask}
           onAdd={(draft) => onAddChild(task.id, draft)}
           onClose={() => onComposerOpenChange(false)}
         />

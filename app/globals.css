@@ -897,6 +897,86 @@ h1 {
   width: 100%;
 }
 
+/* "group > ancestor > ..." location trail. Every crumb is followed by ">",
+   including the last, so the trailing separator points at "the next level". */
+.taskPath {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.taskPathCrumb {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.taskPathButton,
+.taskPathLabel,
+.taskPathEllipsis {
+  max-width: 140px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskPathButton {
+  cursor: pointer;
+}
+
+.taskPathCrumb.isAncestor {
+  color: var(--muted);
+}
+
+.taskPathCrumb.isAncestor .taskPathButton {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.taskPathCrumb.isCurrent .taskPathLabel,
+.taskPathCrumb.isCurrent .taskPathButton {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--focus) 14%, transparent);
+  color: var(--focus);
+  font-weight: 700;
+}
+
+.taskPathSep {
+  margin: 0 5px;
+  color: var(--muted);
+}
+
+.taskPathButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Detail page + composer share the same quiet trail. Every ancestor crumb is a
+   tappable link; the current task (last crumb) is a non-tappable emphasized
+   "you are here" label. */
+.detailPath,
+.subtaskAddPath {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0 2px 2px;
+  font-size: 13px;
+}
+
+.taskPath .taskPathCrumb:last-child .taskPathLabel {
+  color: var(--text);
+  font-weight: 800;
+}
+
 .breadcrumbBar {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

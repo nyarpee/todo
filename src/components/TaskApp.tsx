@@ -193,7 +193,6 @@ export function TaskApp() {
   const datePickerTask = datePickerTaskId
     ? allNodes.find((node) => node.id === datePickerTaskId) ?? null
     : null;
-  const selectedParent = selectedTask ? findParentNode(allNodes, selectedTask) : null;
   const selectedPath = selectedTask ? buildNodePath(allNodes, selectedTask) : [];
   const mindMapRoot = mindMapRootId
     ? roots.find((root) => root.id === mindMapRootId) ?? null
@@ -1494,8 +1493,8 @@ export function TaskApp() {
         >
           <TaskDetailView
             task={selectedTask}
-            parent={selectedParent}
             path={selectedPath}
+            groupName={groups.find((group) => group.id === selectedTask.groupId)?.name ?? text.lists.area}
             onSelectTask={setSelectedTaskId}
             onToggleComplete={handleToggleComplete}
             onRenameTask={handleRenameTask}
