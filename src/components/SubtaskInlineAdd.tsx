@@ -84,28 +84,21 @@ export function SubtaskInlineAdd({ placeholder, onAdd, onClose }: SubtaskInlineA
   return (
     <div className="subtaskInlineAdd" onBlur={handleBlur}>
       <form className="subtaskInlineAddForm" onSubmit={handleSubmit}>
-        <div className="subtaskInlineAddRow">
-          <input
-            className="check priority-none"
-            type="checkbox"
-            disabled
-            aria-hidden="true"
-            tabIndex={-1}
-          />
+        <div className="quickAddTitleRow">
           <input
             ref={inputRef}
-            className="subtaskInlineInput"
+            className="quickAddTitleInput"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={placeholder}
           />
           <button
-            className="quickAddInlineSaveButton subtaskInlineSaveButton"
+            className="quickAddInlineSaveButton"
             type="submit"
             disabled={!canSave}
             aria-label={text.common.save}
           >
-            <ArrowUp size={18} aria-hidden="true" />
+            <ArrowUp size={20} aria-hidden="true" />
           </button>
         </div>
         <div className="quickAddMetaRow">
