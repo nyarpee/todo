@@ -55,30 +55,44 @@ export function TaskDetailView({
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
   const detailBodyRef = useRef<HTMLDivElement>(null);
+  // "Stick to bottom" while composing: follow new subtasks only while the user is
+  // already near the bottom, so scrolling up to re-read the task's description or
+  // fields is never yanked back down.
+  const stickToBottomRef = useRef(true);
 
-  // While composing, keep the list pinned to the bottom so the newest subtask
-  // stays just above the composer. The sheet slide + keyboard open keep changing
-  // the body height, so re-pin on every resize/viewport change (instant, not
-  // smooth, so it can't be interrupted mid-animation).
+  useEffect(() => {
+    // Start following the newest subtask each time the composer opens.
+    if (composerOpen) stickToBottomRef.current = true;
+  }, [composerOpen]);
+
   useEffect(() => {
     if (!composerOpen) return;
     const body = detailBodyRef.current;
     if (!body) return;
 
-    const pinToBottom = () => {
-      body.scrollTop = body.scrollHeight;
+    const NEAR_BOTTOM_PX = 96;
+    const pin = () => {
+      if (stickToBottomRef.current) body.scrollTop = body.scrollHeight;
     };
-    pinToBottom();
+    const handleScroll = () => {
+      stickToBottomRef.current =
+        body.scrollHeight - body.scrollTop - body.clientHeight <= NEAR_BOTTOM_PX;
+    };
 
-    const observer = new ResizeObserver(pinToBottom);
+    // Runs on open and (via the deps) after each add. The sheet slide + keyboard
+    // also change the body height, so re-pin on resize/viewport changes too.
+    pin();
+    const observer = new ResizeObserver(pin);
     observer.observe(body);
-    window.visualViewport?.addEventListener("resize", pinToBottom);
-    window.visualViewport?.addEventListener("scroll", pinToBottom);
+    body.addEventListener("scroll", handleScroll, { passive: true });
+    window.visualViewport?.addEventListener("resize", pin);
+    window.visualViewport?.addEventListener("scroll", pin);
 
     return () => {
       observer.disconnect();
-      window.visualViewport?.removeEventListener("resize", pinToBottom);
-      window.visualViewport?.removeEventListener("scroll", pinToBottom);
+      body.removeEventListener("scroll", handleScroll);
+      window.visualViewport?.removeEventListener("resize", pin);
+      window.visualViewport?.removeEventListener("scroll", pin);
     };
   }, [composerOpen, task.children.length]);
 
@@ -94,7 +108,7 @@ export function TaskDetailView({
   }
 
   return (
-    <section className={composerOpen ? "detailView isComposing" : "detailView"}>
+    <section className="detailView">
       <div ref={detailBodyRef} className="detailBody">
       {path.length > 1 ? (
         <div className="breadcrumbBar">
