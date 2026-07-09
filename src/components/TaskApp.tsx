@@ -109,6 +109,7 @@ export function TaskApp() {
   const [hasLoadedTheme, setHasLoadedTheme] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("inbox");
   const [selectedTaskId, setSelectedTaskId] = useState<TaskId | null>(null);
+  const [isDetailComposerOpen, setIsDetailComposerOpen] = useState(false);
   const [datePickerTaskId, setDatePickerTaskId] = useState<TaskId | null>(null);
   const [mindMapRootId, setMindMapRootId] = useState<TaskId | null>(null);
   const [detailReturnTarget, setDetailReturnTarget] = useState<"list" | "mindmap">("list");
@@ -185,6 +186,10 @@ export function TaskApp() {
   const selectedTask = selectedTaskId
     ? allNodes.find((node) => node.id === selectedTaskId) ?? null
     : null;
+  useEffect(() => {
+    // Reset the docked subtask composer whenever the open task changes/closes.
+    setIsDetailComposerOpen(false);
+  }, [selectedTaskId]);
   const datePickerTask = datePickerTaskId
     ? allNodes.find((node) => node.id === datePickerTaskId) ?? null
     : null;
@@ -1484,7 +1489,7 @@ export function TaskApp() {
           ariaLabel="Task detail"
           className="detailSheet"
           dismissOnBackdrop
-          initialOffset={88}
+          initialOffset={isDetailComposerOpen ? 0 : 88}
           onDismiss={() => setSelectedTaskId(null)}
         >
           <TaskDetailView
@@ -1501,6 +1506,8 @@ export function TaskApp() {
             autoEditTaskId={autoEditTaskId}
             onAutoEditConsumed={() => setAutoEditTaskId(null)}
             onAddChild={handleAddChild}
+            composerOpen={isDetailComposerOpen}
+            onComposerOpenChange={setIsDetailComposerOpen}
           />
         </DraggableBottomSheet>
       ) : null}

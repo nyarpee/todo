@@ -17,7 +17,6 @@ type DraggableBottomSheetProps = {
   dismissOnBackdrop?: boolean;
   initialOffset?: number;
   showHandle?: boolean;
-  bareLayer?: boolean;
   onDismiss: () => boolean | void;
 };
 
@@ -28,7 +27,6 @@ export function DraggableBottomSheet({
   dismissOnBackdrop = false,
   initialOffset = 0,
   showHandle = true,
-  bareLayer = false,
   onDismiss,
 }: DraggableBottomSheetProps) {
   const [isMounted, setIsMounted] = useState(false);
@@ -47,6 +45,15 @@ export function DraggableBottomSheet({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Let the parent slide the sheet between resting positions (e.g. peek vs full
+  // height while the docked composer is open). The transform transition animates
+  // the change. Ignore while the user is actively dragging.
+  useEffect(() => {
+    if (isDraggingRef.current || isClosing) return;
+    currentOffsetRef.current = initialOffset;
+    setTranslateY(initialOffset);
+  }, [initialOffset, isClosing]);
 
   useEffect(() => {
     if (!isMounted) return;
@@ -200,7 +207,7 @@ export function DraggableBottomSheet({
   if (!isMounted) return null;
 
   return createPortal(
-    <div className={bareLayer ? "sheetLayer sheetLayerBare" : "sheetLayer"} role="presentation">
+    <div className="sheetLayer" role="presentation">
       {dismissOnBackdrop ? (
         <button
           className="sheetBackdrop"

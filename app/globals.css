@@ -892,9 +892,46 @@ h1 {
 }
 
 .detailView {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+}
+
+/* Scrollable content of the detail view; the docked composer sits below it. */
+.detailBody {
   display: grid;
   gap: 8px;
+  align-content: start;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
+  overflow-y: auto;
+  padding: 28px 12px 24px;
+}
+
+/* Docked subtask composer: a fixed-size footer, always above the keyboard. */
+.subtaskComposer {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  display: grid;
+  gap: 12px;
+  padding: 12px 12px max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 -10px 24px rgb(15 23 42 / 10%);
+}
+
+/* Dims the list above the composer; tapping it closes the composer. */
+.composerScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  background: rgb(15 23 42 / 32%);
 }
 
 .breadcrumbBar {
@@ -1170,18 +1207,6 @@ h1 {
 .subtaskAddButton:hover {
   border-color: var(--focus);
   background: color-mix(in srgb, var(--focus) 8%, transparent);
-}
-
-/* Keeps the newest subtask visible just above the persistent add composer.
-   The detail sheet already shrinks by --keyboard-inset, so its visible bottom is
-   at the keyboard top; only the composer's own height needs to be cleared. */
-.subtaskListAnchor {
-  scroll-margin-bottom: calc(var(--subtask-composer-height, 0px) + 16px);
-}
-
-/* Reserves scroll room below the list so the anchor can clear the composer. */
-.subtaskComposerSpacer {
-  height: calc(var(--subtask-composer-height, 0px) + 16px);
 }
 
 .detailDeleteButton {
@@ -1530,11 +1555,6 @@ h1 {
   touch-action: none;
 }
 
-/* Composer mode: no dimming scrim so the subtask list behind stays readable. */
-.sheetLayer.sheetLayerBare {
-  background: transparent;
-}
-
 .draggableSheet {
   position: relative;
   display: grid;
@@ -1572,8 +1592,11 @@ h1 {
 }
 
 .detailSheet {
+  display: flex;
+  flex-direction: column;
   height: calc(var(--kb-view-height, 100dvh) - 8px);
-  padding: 28px 12px 84px;
+  padding: 0;
+  overflow: hidden;
   background: var(--bg);
 }
 

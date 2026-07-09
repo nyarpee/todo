@@ -8,30 +8,19 @@ import { getScheduleLabel } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import type { TaskPriority } from "@/types/task";
-import { DraggableBottomSheet } from "./DraggableBottomSheet";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
-type TaskCreateSheetProps = {
-  ariaLabel: string;
+type SubtaskComposerProps = {
   placeholder: string;
-  onDismiss: () => void;
-  onSave: (draft: QuickAddDraft) => void;
-  // When true, the sheet stays open after saving (clears + refocuses) so several
-  // subtasks can be added in a row while the list behind stays visible.
-  persist?: boolean;
-  onSaved?: () => void;
+  onAdd: (draft: QuickAddDraft) => void;
 };
 
-export function TaskCreateSheet({
-  ariaLabel,
-  placeholder,
-  onDismiss,
-  onSave,
-  persist = false,
-  onSaved,
-}: TaskCreateSheetProps) {
+// An inline composer docked at the bottom of the detail view. It stays mounted
+// while adding (clears + refocuses after each save) so subtasks can be added in
+// a row, and its own layout never resizes with the keyboard.
+export function SubtaskComposer({ placeholder, onAdd }: SubtaskComposerProps) {
   const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -42,7 +31,6 @@ export function TaskCreateSheet({
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
   const inputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
   const canSave = title.trim().length > 0;
 
   useEffect(() => {
@@ -52,54 +40,18 @@ export function TaskCreateSheet({
     return () => window.clearTimeout(focusTimer);
   }, []);
 
-  // Publish the composer's height so the detail view can reserve room below the
-  // subtask list and keep the newest subtask visible just above the composer.
-  useEffect(() => {
-    if (!persist) return;
-    const form = formRef.current;
-    const sheet = (form?.closest(".draggableSheet") as HTMLElement | null) ?? form;
-    if (!sheet) return;
-
-    const publishHeight = () => {
-      document.documentElement.style.setProperty(
-        "--subtask-composer-height",
-        `${Math.round(sheet.getBoundingClientRect().height)}px`,
-      );
-    };
-    publishHeight();
-    const observer = new ResizeObserver(publishHeight);
-    observer.observe(sheet);
-    return () => {
-      observer.disconnect();
-      document.documentElement.style.setProperty("--subtask-composer-height", "0px");
-    };
-  }, [persist]);
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSave) return;
 
-    onSave({
-      title: title.trim(),
-      dueDate,
-      dueTime,
-      priority,
-    });
+    onAdd({ title: title.trim(), dueDate, dueTime, priority });
 
-    if (persist) {
-      // Reset for the next subtask and keep the keyboard up by staying focused.
-      setTitle("");
-      setDueDate(null);
-      setDueTime(null);
-      setPriority("none");
-      inputRef.current?.focus({ preventScroll: true });
-      onSaved?.();
-      return;
-    }
-
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    // Continuous add: reset the fields and keep the keyboard up for the next one.
+    setTitle("");
+    setDueDate(null);
+    setDueTime(null);
+    setPriority("none");
+    inputRef.current?.focus({ preventScroll: true });
   }
 
   const scheduleLabel = dueDate
@@ -111,15 +63,8 @@ export function TaskCreateSheet({
   const priorityLabel = priority !== "none" ? getPriorityLabel(priority, labels) : null;
 
   return (
-    <DraggableBottomSheet
-      ariaLabel={ariaLabel}
-      className={persist ? "createTaskSheet createTaskSheetPersist" : "createTaskSheet"}
-      dismissOnBackdrop
-      showHandle={false}
-      bareLayer={persist}
-      onDismiss={onDismiss}
-    >
-      <form ref={formRef} className="createTaskForm" onSubmit={handleSubmit}>
+    <div className="subtaskComposer">
+      <form className="createTaskForm" onSubmit={handleSubmit}>
         <div className="quickAddTitleRow">
           <input
             ref={inputRef}
@@ -173,6 +118,6 @@ export function TaskCreateSheet({
           onDismiss={() => setIsPriorityOpen(false)}
         />
       ) : null}
-    </DraggableBottomSheet>
+    </div>
   );
 }

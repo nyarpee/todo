@@ -11,7 +11,7 @@ import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
-import { TaskCreateSheet } from "./TaskCreateSheet";
+import { SubtaskComposer } from "./SubtaskComposer";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
@@ -29,6 +29,8 @@ type TaskDetailViewProps = {
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
   onAddChild: (parentId: TaskId, draft?: QuickAddDraft) => void;
+  composerOpen: boolean;
+  onComposerOpenChange: (open: boolean) => void;
 };
 
 export function TaskDetailView({
@@ -45,23 +47,26 @@ export function TaskDetailView({
   autoEditTaskId,
   onAutoEditConsumed,
   onAddChild,
+  composerOpen,
+  onComposerOpenChange,
 }: TaskDetailViewProps) {
   const { messages: text } = useLanguage();
-  const [isSubtaskSheetOpen, setIsSubtaskSheetOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
-  const subtaskEndRef = useRef<HTMLDivElement>(null);
+  const detailBodyRef = useRef<HTMLDivElement>(null);
 
-  // While the composer is open, keep the newest subtask scrolled into view just
-  // above it, both when it opens and each time a subtask is added.
+  // The composer is docked at the bottom of the detail view and the subtask list
+  // scrolls in the same container, so simply scrolling to the bottom keeps the
+  // newest subtask visible right above the composer.
   useEffect(() => {
-    if (!isSubtaskSheetOpen) return;
+    if (!composerOpen) return;
     const scrollTimer = window.setTimeout(() => {
-      subtaskEndRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      const body = detailBodyRef.current;
+      if (body) body.scrollTo({ top: body.scrollHeight, behavior: "smooth" });
     }, 60);
     return () => window.clearTimeout(scrollTimer);
-  }, [isSubtaskSheetOpen, task.children.length]);
+  }, [composerOpen, task.children.length]);
 
   function handleDelete() {
     if (task.children.length === 0) {
@@ -75,7 +80,8 @@ export function TaskDetailView({
   }
 
   return (
-    <section className="detailView">
+    <section className={composerOpen ? "detailView isComposing" : "detailView"}>
+      <div ref={detailBodyRef} className="detailBody">
       {path.length > 1 ? (
         <div className="breadcrumbBar">
           <nav className="breadcrumb" aria-label={text.taskDetail.path}>
@@ -199,29 +205,34 @@ export function TaskDetailView({
               </div>
           ))}
         </div>
-        <div ref={subtaskEndRef} className="subtaskListAnchor" aria-hidden="true" />
-        <button className="subtaskAddButton" type="button" onClick={() => setIsSubtaskSheetOpen(true)}>
-          <Plus size={18} aria-hidden="true" />
-          {text.taskDetail.addSubtask}
-        </button>
+        {!composerOpen ? (
+          <button className="subtaskAddButton" type="button" onClick={() => onComposerOpenChange(true)}>
+            <Plus size={18} aria-hidden="true" />
+            {text.taskDetail.addSubtask}
+          </button>
+        ) : null}
       </section>
 
-      <button className="detailDeleteButton" type="button" onClick={handleDelete}>
-        <TrashIcon />
-        {text.taskDetail.deleteTask}
-      </button>
-      {isSubtaskSheetOpen ? (
-        <div className="subtaskComposerSpacer" aria-hidden="true" />
+      {!composerOpen ? (
+        <button className="detailDeleteButton" type="button" onClick={handleDelete}>
+          <TrashIcon />
+          {text.taskDetail.deleteTask}
+        </button>
       ) : null}
-      {isSubtaskSheetOpen ? (
-        <TaskCreateSheet
-          ariaLabel={text.taskDetail.addSubtask}
+      </div>
+
+      {composerOpen ? (
+        <button
+          className="composerScrim"
+          type="button"
+          aria-label={text.common.close}
+          onClick={() => onComposerOpenChange(false)}
+        />
+      ) : null}
+      {composerOpen ? (
+        <SubtaskComposer
           placeholder={text.taskDetail.subtaskTitle}
-          persist
-          onDismiss={() => setIsSubtaskSheetOpen(false)}
-          onSave={(draft) => {
-            onAddChild(task.id, draft);
-          }}
+          onAdd={(draft) => onAddChild(task.id, draft)}
         />
       ) : null}
       {isPriorityOpen ? (
