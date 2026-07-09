@@ -912,6 +912,7 @@ h1 {
   width: 100%;
   overflow-y: auto;
   padding: 28px 12px 24px;
+  touch-action: pan-y;
 }
 
 /* Docked subtask composer: a fixed-size footer, always above the keyboard. */
@@ -927,12 +928,14 @@ h1 {
   box-shadow: 0 -10px 24px rgb(15 23 42 / 10%);
 }
 
-/* Dims the list above the composer; tapping it closes the composer. */
+/* Visual dim only — must not block touches, so the list can still be scrolled
+   and tapped underneath (tap-to-close is handled on the body). */
 .composerScrim {
   position: absolute;
   inset: 0;
   z-index: 1;
   border: 0;
+  pointer-events: none;
   background: rgb(15 23 42 / 32%);
 }
 

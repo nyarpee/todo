@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { CalendarClock, Flag, GitBranch, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
@@ -107,9 +107,25 @@ export function TaskDetailView({
     }
   }
 
+  function handleBodyClick(event: MouseEvent<HTMLDivElement>) {
+    if (!composerOpen) return;
+    // A click only fires on a genuine tap (swipes that scroll don't produce one),
+    // so tapping the content — outside the composer and off any control — closes
+    // the composer, while swiping scrolls freely.
+    const target = event.target as HTMLElement;
+    if (
+      target.closest(
+        "button, input, textarea, select, [contenteditable='true'], .subtaskRow",
+      )
+    ) {
+      return;
+    }
+    onComposerOpenChange(false);
+  }
+
   return (
     <section className="detailView">
-      <div ref={detailBodyRef} className="detailBody">
+      <div ref={detailBodyRef} className="detailBody" onClick={handleBodyClick}>
       {path.length > 1 ? (
         <div className="breadcrumbBar">
           <nav className="breadcrumb" aria-label={text.taskDetail.path}>
@@ -249,14 +265,7 @@ export function TaskDetailView({
       ) : null}
       </div>
 
-      {composerOpen ? (
-        <button
-          className="composerScrim"
-          type="button"
-          aria-label={text.common.close}
-          onClick={() => onComposerOpenChange(false)}
-        />
-      ) : null}
+      {composerOpen ? <div className="composerScrim" aria-hidden="true" /> : null}
       {composerOpen ? (
         <SubtaskComposer
           placeholder={text.taskDetail.subtaskTitle}
