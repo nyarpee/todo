@@ -56,16 +56,30 @@ export function TaskDetailView({
   const { labels } = usePriorityLabels(translatedPriorityLabels);
   const detailBodyRef = useRef<HTMLDivElement>(null);
 
-  // The composer is docked at the bottom of the detail view and the subtask list
-  // scrolls in the same container, so simply scrolling to the bottom keeps the
-  // newest subtask visible right above the composer.
+  // While composing, keep the list pinned to the bottom so the newest subtask
+  // stays just above the composer. The sheet slide + keyboard open keep changing
+  // the body height, so re-pin on every resize/viewport change (instant, not
+  // smooth, so it can't be interrupted mid-animation).
   useEffect(() => {
     if (!composerOpen) return;
-    const scrollTimer = window.setTimeout(() => {
-      const body = detailBodyRef.current;
-      if (body) body.scrollTo({ top: body.scrollHeight, behavior: "smooth" });
-    }, 60);
-    return () => window.clearTimeout(scrollTimer);
+    const body = detailBodyRef.current;
+    if (!body) return;
+
+    const pinToBottom = () => {
+      body.scrollTop = body.scrollHeight;
+    };
+    pinToBottom();
+
+    const observer = new ResizeObserver(pinToBottom);
+    observer.observe(body);
+    window.visualViewport?.addEventListener("resize", pinToBottom);
+    window.visualViewport?.addEventListener("scroll", pinToBottom);
+
+    return () => {
+      observer.disconnect();
+      window.visualViewport?.removeEventListener("resize", pinToBottom);
+      window.visualViewport?.removeEventListener("scroll", pinToBottom);
+    };
   }, [composerOpen, task.children.length]);
 
   function handleDelete() {

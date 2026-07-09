@@ -902,14 +902,26 @@ h1 {
 
 /* Scrollable content of the detail view; the docked composer sits below it. */
 .detailBody {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-content: start;
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
   overflow-y: auto;
   padding: 28px 12px 24px;
+}
+
+/* While composing, focus on the subtask list: hide the task's own fields and
+   push the list to the bottom so it sits right above the composer. */
+.detailView.isComposing .breadcrumbBar,
+.detailView.isComposing .detailHeader,
+.detailView.isComposing .detailFields {
+  display: none;
+}
+
+.detailView.isComposing .subtasksSection {
+  margin-top: auto;
 }
 
 /* Docked subtask composer: a fixed-size footer, always above the keyboard. */
