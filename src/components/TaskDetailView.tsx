@@ -11,7 +11,7 @@ import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
-import { SubtaskInlineAdd } from "./SubtaskInlineAdd";
+import { SubtaskQuickAddSheet } from "./SubtaskQuickAddSheet";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
@@ -54,22 +54,26 @@ export function TaskDetailView({
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
-  const inlineAddRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<HTMLElement>(null);
 
-  // Keep the inline add row visible above the keyboard: on open, after each add
-  // (the row moves one line down), and when the keyboard changes the sheet size.
+  // While the floating composer is open, keep the detail sheet scrolled to the
+  // bottom (the spacer keeps that region clear of the composer), so the newest
+  // subtask always sits right above the composer: on open, after each add, and
+  // when the keyboard resizes the sheet.
   useEffect(() => {
     if (!composerOpen) return;
+    const sheet = viewRef.current?.closest(".draggableSheet");
+    if (!(sheet instanceof HTMLElement)) return;
 
-    const scrollToRow = () => {
-      inlineAddRef.current?.scrollIntoView({ block: "nearest" });
+    const pinToBottom = () => {
+      sheet.scrollTop = sheet.scrollHeight;
     };
-    const openTimer = window.setTimeout(scrollToRow, 80);
-    window.visualViewport?.addEventListener("resize", scrollToRow);
+    const openTimer = window.setTimeout(pinToBottom, 80);
+    window.visualViewport?.addEventListener("resize", pinToBottom);
 
     return () => {
       window.clearTimeout(openTimer);
-      window.visualViewport?.removeEventListener("resize", scrollToRow);
+      window.visualViewport?.removeEventListener("resize", pinToBottom);
     };
   }, [composerOpen, task.children.length]);
 
@@ -85,7 +89,7 @@ export function TaskDetailView({
   }
 
   return (
-    <section className="detailView">
+    <section ref={viewRef} className="detailView">
       {path.length > 1 ? (
         <div className="breadcrumbBar">
           <nav className="breadcrumb" aria-label={text.taskDetail.path}>
@@ -209,26 +213,26 @@ export function TaskDetailView({
               </div>
           ))}
         </div>
-        {composerOpen ? (
-          <div ref={inlineAddRef}>
-            <SubtaskInlineAdd
-              placeholder={text.taskDetail.subtaskTitle}
-              onAdd={(draft) => onAddChild(task.id, draft)}
-              onClose={() => onComposerOpenChange(false)}
-            />
-          </div>
-        ) : (
+        {!composerOpen ? (
           <button className="subtaskAddButton" type="button" onClick={() => onComposerOpenChange(true)}>
             <Plus size={18} aria-hidden="true" />
             {text.taskDetail.addSubtask}
           </button>
-        )}
+        ) : null}
       </section>
 
       <button className="detailDeleteButton" type="button" onClick={handleDelete}>
         <TrashIcon />
         {text.taskDetail.deleteTask}
       </button>
+      {composerOpen ? <div className="detailComposerSpacer" aria-hidden="true" /> : null}
+      {composerOpen ? (
+        <SubtaskQuickAddSheet
+          placeholder={text.taskDetail.subtaskTitle}
+          onAdd={(draft) => onAddChild(task.id, draft)}
+          onClose={() => onComposerOpenChange(false)}
+        />
+      ) : null}
       {isPriorityOpen ? (
         <PriorityEditorSheet
           value={task.priority}

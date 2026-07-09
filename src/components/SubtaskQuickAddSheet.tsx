@@ -6,8 +6,10 @@ import {
   useMemo,
   useRef,
   useState,
-  type FocusEvent,
+  type TouchEvent as ReactTouchEvent,
+  type WheelEvent as ReactWheelEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { ArrowUp, CalendarDays, Flag } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
@@ -19,17 +21,23 @@ import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
-type SubtaskInlineAddProps = {
+type SubtaskQuickAddSheetProps = {
   placeholder: string;
   onAdd: (draft: QuickAddDraft) => void;
   onClose: () => void;
 };
 
-// An editable row that lives at the end of the subtask list. Each add inserts
-// the new subtask above it, so this row is always right below the newest
-// subtask — no overlays and no scroll math needed.
-export function SubtaskInlineAdd({ placeholder, onAdd, onClose }: SubtaskInlineAddProps) {
+const BACKDROP_TAP_TOLERANCE_PX = 8;
+
+// Floating composer pinned above the keyboard, styled like the inbox QuickAdd
+// sheet. On the inbox the backdrop gets tap-to-close and swipe-to-scroll for
+// free because the list scrolls the document itself (an ancestor of the
+// backdrop). The detail view scrolls a nested sheet instead, which the browser
+// will never reach from the backdrop, so we forward pan/wheel gestures on the
+// backdrop to the detail sheet's scrollTop manually.
+export function SubtaskQuickAddSheet({ placeholder, onAdd, onClose }: SubtaskQuickAddSheetProps) {
   const { messages: text } = useLanguage();
+  const [isMounted, setIsMounted] = useState(false);
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueTime, setDueTime] = useState<string | null>(null);
@@ -39,14 +47,74 @@ export function SubtaskInlineAdd({ placeholder, onAdd, onClose }: SubtaskInlineA
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastTouchYRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const didDragRef = useRef(false);
   const canSave = title.trim().length > 0;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const focusTimer = window.setTimeout(() => {
       inputRef.current?.focus({ preventScroll: true });
     }, 80);
-    return () => window.clearTimeout(focusTimer);
-  }, []);
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  function getDetailSheet(): HTMLElement | null {
+    return document.querySelector(".draggableSheet.detailSheet");
+  }
+
+  function handleBackdropTouchStart(event: ReactTouchEvent<HTMLButtonElement>) {
+    const touch = event.touches[0];
+    if (!touch) return;
+    lastTouchYRef.current = touch.clientY;
+    touchStartYRef.current = touch.clientY;
+    didDragRef.current = false;
+  }
+
+  function handleBackdropTouchMove(event: ReactTouchEvent<HTMLButtonElement>) {
+    const touch = event.touches[0];
+    if (!touch || lastTouchYRef.current === null) return;
+
+    const delta = lastTouchYRef.current - touch.clientY;
+    lastTouchYRef.current = touch.clientY;
+
+    if (
+      touchStartYRef.current !== null &&
+      Math.abs(touch.clientY - touchStartYRef.current) > BACKDROP_TAP_TOLERANCE_PX
+    ) {
+      didDragRef.current = true;
+    }
+
+    const sheet = getDetailSheet();
+    if (sheet) sheet.scrollTop += delta;
+  }
+
+  function handleBackdropWheel(event: ReactWheelEvent<HTMLButtonElement>) {
+    const sheet = getDetailSheet();
+    if (sheet) sheet.scrollTop += event.deltaY;
+  }
+
+  function handleBackdropClick() {
+    // A swipe that scrolled the sheet must not also close the composer.
+    if (didDragRef.current) {
+      didDragRef.current = false;
+      return;
+    }
+    onClose();
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +122,7 @@ export function SubtaskInlineAdd({ placeholder, onAdd, onClose }: SubtaskInlineA
 
     onAdd({ title: title.trim(), dueDate, dueTime, priority });
 
-    // Continuous add: clear for the next one and keep the keyboard up.
+    // Continuous add: clear for the next subtask and keep the keyboard up.
     setTitle("");
     setDueDate(null);
     setDueTime(null);
@@ -62,16 +130,7 @@ export function SubtaskInlineAdd({ placeholder, onAdd, onClose }: SubtaskInlineA
     inputRef.current?.focus({ preventScroll: true });
   }
 
-  function handleBlur(event: FocusEvent<HTMLDivElement>) {
-    // Keep the row while a picker sheet is open (focus moves into its portal).
-    if (isScheduleOpen || isPriorityOpen) return;
-    // Ignore focus moves within the row (input -> date/priority/save buttons).
-    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
-      return;
-    }
-    // Tapping elsewhere with nothing typed dismisses the row.
-    if (title.trim().length === 0) onClose();
-  }
+  if (!isMounted) return null;
 
   const scheduleLabel = dueDate
     ? getScheduleLabel(dueDate, dueTime, {
@@ -81,9 +140,24 @@ export function SubtaskInlineAdd({ placeholder, onAdd, onClose }: SubtaskInlineA
     : null;
   const priorityLabel = priority !== "none" ? getPriorityLabel(priority, labels) : null;
 
-  return (
-    <div className="subtaskInlineAdd" onBlur={handleBlur}>
-      <form className="subtaskInlineAddForm" onSubmit={handleSubmit}>
+  return createPortal(
+    <div className="subtaskAddLayer" role="presentation">
+      <button
+        className="subtaskAddBackdrop"
+        type="button"
+        aria-label={text.common.close}
+        onClick={handleBackdropClick}
+        onTouchStart={handleBackdropTouchStart}
+        onTouchMove={handleBackdropTouchMove}
+        onWheel={handleBackdropWheel}
+      />
+      <form
+        className="quickAddSheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={text.taskDetail.addSubtask}
+        onSubmit={handleSubmit}
+      >
         <div className="quickAddTitleRow">
           <input
             ref={inputRef}
@@ -137,6 +211,7 @@ export function SubtaskInlineAdd({ placeholder, onAdd, onClose }: SubtaskInlineA
           onDismiss={() => setIsPriorityOpen(false)}
         />
       ) : null}
-    </div>
+    </div>,
+    document.body,
   );
 }
