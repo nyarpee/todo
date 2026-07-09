@@ -6,7 +6,8 @@ import {
   closestCenter,
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -117,7 +118,6 @@ export function TaskApp() {
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<TaskId | null>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
-  const [activeDragGroupId, setActiveDragGroupId] = useState<TaskGroupId | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
@@ -137,7 +137,17 @@ export function TaskApp() {
   const pendingActivityWritesRef = useRef<Promise<void>[]>([]);
   const resetAnonymousOnNextLoadRef = useRef(false);
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    // Desktop: mouse is unaffected by touch-action, so behaviour is unchanged.
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        delay: 180,
+        tolerance: 8,
+      },
+    }),
+    // Touch: TouchSensor listens to touch events non-passively and preventDefaults
+    // scrolling once the press-and-hold drag activates, so a vertical reorder drag
+    // isn't hijacked by the browser's pan-y scroll (which cancelled PointerSensor).
+    useSensor(TouchSensor, {
       activationConstraint: {
         delay: 180,
         tolerance: 8,
@@ -178,9 +188,6 @@ export function TaskApp() {
     : null;
   const activeDragTask = activeDragTaskId
     ? allNodes.find((node) => node.id === activeDragTaskId) ?? null
-    : null;
-  const activeDragGroup = activeDragGroupId
-    ? groups.find((group) => group.id === activeDragGroupId) ?? null
     : null;
   const habitsWithEntries = useMemo(
     () =>
@@ -786,25 +793,29 @@ export function TaskApp() {
     });
   }
 
-  function handleReorderGroups(activeId: TaskGroupId, overId: TaskGroupId) {
-    const orderedGroups = groups.slice().sort(sortGroupsByOrder);
-    const oldIndex = orderedGroups.findIndex((group) => group.id === activeId);
-    const newIndex = orderedGroups.findIndex((group) => group.id === overId);
-
-    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
-
+  function handleReorderGroups(orderedGroupIds: TaskGroupId[]) {
     const now = new Date().toISOString();
-    const nextGroups = arrayMove(orderedGroups, oldIndex, newIndex).map((group, index) =>
-      group.order === index
-        ? group
-        : { ...group, order: index, updatedAt: now },
+    const reorderedGroups: TaskGroup[] = [];
+
+    orderedGroupIds.forEach((groupId, index) => {
+      const group = groups.find((currentGroup) => currentGroup.id === groupId);
+      if (!group) return;
+      reorderedGroups.push(group.order === index ? group : { ...group, order: index, updatedAt: now });
+    });
+
+    const nextGroupsById = new Map<TaskGroupId, TaskGroup>(
+      reorderedGroups.map((group) => [group.id, group]),
     );
-    const changedGroups = nextGroups.filter((group) => {
+    const changedGroups = reorderedGroups.filter((group) => {
       const previousGroup = groups.find((currentGroup) => currentGroup.id === group.id);
       return previousGroup?.order !== group.order;
     });
 
-    setGroups(nextGroups);
+    if (changedGroups.length === 0) return;
+
+    setGroups((currentGroups) =>
+      currentGroups.map((group) => nextGroupsById.get(group.id) ?? group),
+    );
     changedGroups.forEach((group) => {
       recordActivity("group_updated", "task_group", group.id, {
         patch: {
@@ -1072,20 +1083,12 @@ export function TaskApp() {
   }
 
   function handleDragStart(event: DragStartEvent) {
-    const dragType = getDndItemType(event.active.data.current);
     const activeId = String(event.active.id);
-
-    if (dragType === "group") {
-      setActiveDragGroupId(activeId);
-      setActiveDragTaskId(null);
-      return;
-    }
 
     const pointerX = getPointerClientX(event.activatorEvent);
     const pointerY = getPointerClientY(event.activatorEvent);
 
     setActiveDragTaskId(activeId);
-    setActiveDragGroupId(null);
     dragStartXRef.current = pointerX;
     dragStartYRef.current = pointerY;
     latestPointerRef.current =
@@ -1095,35 +1098,23 @@ export function TaskApp() {
   }
 
   function handleDragMove(event: DragMoveEvent) {
-    if (getDndItemType(event.active.data.current) === "group") return;
-
     const pointer = getCurrentDragPointer(event);
     if (!pointer) return;
     handleDragPointerMove(pointer.x, pointer.y);
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    const dragType = getDndItemType(event.active.data.current);
-
     clearGroupHoverTimer();
     clearEdgeSwitchTimer();
     clearGroupChipsScrollTimer();
     stopPointerTracking();
     setActiveDragTaskId(null);
-    setActiveDragGroupId(null);
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     latestPointerRef.current = null;
 
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : null;
-
-    if (dragType === "group") {
-      if (overId && activeId !== overId) {
-        handleReorderGroups(activeId, overId);
-      }
-      return;
-    }
 
     const draggedTask = allNodes.find((node) => node.id === activeId);
     if (!draggedTask || draggedTask.parentId !== null || draggedTask.completed) return;
@@ -1160,7 +1151,6 @@ export function TaskApp() {
     clearGroupChipsScrollTimer();
     stopPointerTracking();
     setActiveDragTaskId(null);
-    setActiveDragGroupId(null);
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     latestPointerRef.current = null;
@@ -1425,6 +1415,7 @@ export function TaskApp() {
               onSelectGroup={setActiveGroupId}
               onAddGroup={() => setGroupEditorMode("create")}
               onOpenMenu={() => setGroupEditorMode("menu")}
+              onReorderGroups={handleReorderGroups}
             />
             {activeGroupRoots.length === 0 ? (
               <div className="emptyState compactEmpty">
@@ -1455,10 +1446,6 @@ export function TaskApp() {
                   aria-hidden="true"
                 />
                 <span>{activeDragTask.title}</span>
-              </div>
-            ) : activeDragGroup ? (
-              <div className="dragOverlayTask">
-                <span>{activeDragGroup.name}</span>
               </div>
             ) : null}
           </DragOverlay>
@@ -1695,12 +1682,6 @@ function hasTouchList(
 ): event is Event & Record<typeof key, TouchList> {
   const value = (event as unknown as Record<string, unknown>)[key];
   return value instanceof TouchList;
-}
-
-function getDndItemType(data: unknown): "task" | "group" | null {
-  if (!data || typeof data !== "object") return null;
-  const type = (data as { type?: unknown }).type;
-  return type === "task" || type === "group" ? type : null;
 }
 
 function getEdgeSwitchDirection(

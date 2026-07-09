@@ -327,6 +327,7 @@ h1 {
   gap: 8px;
   min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--line);
   scrollbar-width: none;
@@ -353,6 +354,30 @@ h1 {
   padding: 0 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The in-flow chip becomes an empty slot while its floating clone is dragged. */
+.groupChip.isPlaceholder {
+  opacity: 0.35;
+}
+
+/* Floating drag clone: position:fixed so it escapes the row's overflow clip and
+   can follow the finger anywhere, including past the left/right edges. */
+.groupChipDragClone {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transform-origin: center;
+  will-change: transform;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.26);
 }
 
 .groupChip.isActive {
