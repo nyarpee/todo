@@ -322,34 +322,19 @@ h1 {
     var(--bg);
 }
 
-.groupBarRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-}
-
 .groupChips {
   display: flex;
-  flex: 1 1 auto;
   gap: 8px;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
   scrollbar-width: none;
 }
 
 .groupChips::-webkit-scrollbar {
   display: none;
-}
-
-.groupBarActions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
 }
 
 .groupChip,
@@ -1187,6 +1172,18 @@ h1 {
   background: color-mix(in srgb, var(--focus) 8%, transparent);
 }
 
+/* Keeps the newest subtask visible just above the persistent add composer.
+   The detail sheet already shrinks by --keyboard-inset, so its visible bottom is
+   at the keyboard top; only the composer's own height needs to be cleared. */
+.subtaskListAnchor {
+  scroll-margin-bottom: calc(var(--subtask-composer-height, 0px) + 16px);
+}
+
+/* Reserves scroll room below the list so the anchor can clear the composer. */
+.subtaskComposerSpacer {
+  height: calc(var(--subtask-composer-height, 0px) + 16px);
+}
+
 .detailDeleteButton {
   display: inline-flex;
   align-items: center;
@@ -1527,6 +1524,11 @@ h1 {
   padding-bottom: var(--keyboard-inset);
   touch-action: none;
   transition: padding-bottom 160ms ease;
+}
+
+/* Composer mode: no dimming scrim so the subtask list behind stays readable. */
+.sheetLayer.sheetLayerBare {
+  background: transparent;
 }
 
 .draggableSheet {

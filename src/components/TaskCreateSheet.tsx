@@ -18,6 +18,10 @@ type TaskCreateSheetProps = {
   placeholder: string;
   onDismiss: () => void;
   onSave: (draft: QuickAddDraft) => void;
+  // When true, the sheet stays open after saving (clears + refocuses) so several
+  // subtasks can be added in a row while the list behind stays visible.
+  persist?: boolean;
+  onSaved?: () => void;
 };
 
 export function TaskCreateSheet({
@@ -25,6 +29,8 @@ export function TaskCreateSheet({
   placeholder,
   onDismiss,
   onSave,
+  persist = false,
+  onSaved,
 }: TaskCreateSheetProps) {
   const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
@@ -36,6 +42,7 @@ export function TaskCreateSheet({
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
   const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const canSave = title.trim().length > 0;
 
   useEffect(() => {
@@ -45,18 +52,54 @@ export function TaskCreateSheet({
     return () => window.clearTimeout(focusTimer);
   }, []);
 
+  // Publish the composer's height so the detail view can reserve room below the
+  // subtask list and keep the newest subtask visible just above the composer.
+  useEffect(() => {
+    if (!persist) return;
+    const form = formRef.current;
+    const sheet = (form?.closest(".draggableSheet") as HTMLElement | null) ?? form;
+    if (!sheet) return;
+
+    const publishHeight = () => {
+      document.documentElement.style.setProperty(
+        "--subtask-composer-height",
+        `${Math.round(sheet.getBoundingClientRect().height)}px`,
+      );
+    };
+    publishHeight();
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(sheet);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.setProperty("--subtask-composer-height", "0px");
+    };
+  }, [persist]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSave) return;
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+
     onSave({
       title: title.trim(),
       dueDate,
       dueTime,
       priority,
     });
+
+    if (persist) {
+      // Reset for the next subtask and keep the keyboard up by staying focused.
+      setTitle("");
+      setDueDate(null);
+      setDueTime(null);
+      setPriority("none");
+      inputRef.current?.focus({ preventScroll: true });
+      onSaved?.();
+      return;
+    }
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
   }
 
   const scheduleLabel = dueDate
@@ -70,12 +113,13 @@ export function TaskCreateSheet({
   return (
     <DraggableBottomSheet
       ariaLabel={ariaLabel}
-      className="createTaskSheet"
+      className={persist ? "createTaskSheet createTaskSheetPersist" : "createTaskSheet"}
       dismissOnBackdrop
       showHandle={false}
+      bareLayer={persist}
       onDismiss={onDismiss}
     >
-      <form className="createTaskForm" onSubmit={handleSubmit}>
+      <form ref={formRef} className="createTaskForm" onSubmit={handleSubmit}>
         <div className="quickAddTitleRow">
           <input
             ref={inputRef}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Flag, GitBranch, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
@@ -51,6 +51,17 @@ export function TaskDetailView({
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
+  const subtaskEndRef = useRef<HTMLDivElement>(null);
+
+  // While the composer is open, keep the newest subtask scrolled into view just
+  // above it, both when it opens and each time a subtask is added.
+  useEffect(() => {
+    if (!isSubtaskSheetOpen) return;
+    const scrollTimer = window.setTimeout(() => {
+      subtaskEndRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    }, 60);
+    return () => window.clearTimeout(scrollTimer);
+  }, [isSubtaskSheetOpen, task.children.length]);
 
   function handleDelete() {
     if (task.children.length === 0) {
@@ -188,6 +199,7 @@ export function TaskDetailView({
               </div>
           ))}
         </div>
+        <div ref={subtaskEndRef} className="subtaskListAnchor" aria-hidden="true" />
         <button className="subtaskAddButton" type="button" onClick={() => setIsSubtaskSheetOpen(true)}>
           <Plus size={18} aria-hidden="true" />
           {text.taskDetail.addSubtask}
@@ -199,13 +211,16 @@ export function TaskDetailView({
         {text.taskDetail.deleteTask}
       </button>
       {isSubtaskSheetOpen ? (
+        <div className="subtaskComposerSpacer" aria-hidden="true" />
+      ) : null}
+      {isSubtaskSheetOpen ? (
         <TaskCreateSheet
           ariaLabel={text.taskDetail.addSubtask}
           placeholder={text.taskDetail.subtaskTitle}
+          persist
           onDismiss={() => setIsSubtaskSheetOpen(false)}
           onSave={(draft) => {
             onAddChild(task.id, draft);
-            setIsSubtaskSheetOpen(false);
           }}
         />
       ) : null}

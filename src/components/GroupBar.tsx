@@ -418,42 +418,37 @@ export function GroupBar({
 
   return (
     <section className="groupArea" aria-label={text.lists.area}>
-      <div className="groupBarRow">
-        <div
-          ref={(element) => {
-            chipsContainerRef.current = element;
-            onRegisterGroupChipsContainer?.(element);
-          }}
-          className="groupChips"
-        >
-          {displayGroups.map((group) => (
-            <GroupChip
-              group={group}
-              isActive={group.id === activeGroupId}
-              isPlaceholder={group.id === pressedGroupId}
-              key={group.id}
-              onClick={handleChipClick}
-              onPointerDown={handleChipPointerDown}
-              refCallback={(element) => {
-                if (element) {
-                  chipElementsRef.current.set(group.id, element);
-                } else {
-                  chipElementsRef.current.delete(group.id);
-                }
-                onRegisterGroupChip?.(group.id, element);
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="groupBarActions">
-          <button className="groupAddChip" type="button" onClick={onAddGroup} aria-label={text.lists.add}>
-            <Plus size={16} aria-hidden="true" />
-          </button>
-          <button className="groupMenuButton" type="button" onClick={onOpenMenu} aria-label={text.lists.menu}>
-            <MoreVertical size={18} aria-hidden="true" />
-          </button>
-        </div>
+      <div
+        ref={(element) => {
+          chipsContainerRef.current = element;
+          onRegisterGroupChipsContainer?.(element);
+        }}
+        className="groupChips"
+      >
+        {displayGroups.map((group) => (
+          <GroupChip
+            group={group}
+            isActive={group.id === activeGroupId}
+            isPlaceholder={group.id === pressedGroupId}
+            key={group.id}
+            onClick={handleChipClick}
+            onPointerDown={handleChipPointerDown}
+            refCallback={(element) => {
+              if (element) {
+                chipElementsRef.current.set(group.id, element);
+              } else {
+                chipElementsRef.current.delete(group.id);
+              }
+              onRegisterGroupChip?.(group.id, element);
+            }}
+          />
+        ))}
+        <button className="groupAddChip" type="button" onClick={onAddGroup} aria-label={text.lists.add}>
+          <Plus size={16} aria-hidden="true" />
+        </button>
+        <button className="groupMenuButton" type="button" onClick={onOpenMenu} aria-label={text.lists.menu}>
+          <MoreVertical size={18} aria-hidden="true" />
+        </button>
       </div>
 
       {pressedGroup ? (

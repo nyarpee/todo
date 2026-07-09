@@ -17,6 +17,7 @@ type DraggableBottomSheetProps = {
   dismissOnBackdrop?: boolean;
   initialOffset?: number;
   showHandle?: boolean;
+  bareLayer?: boolean;
   onDismiss: () => boolean | void;
 };
 
@@ -27,6 +28,7 @@ export function DraggableBottomSheet({
   dismissOnBackdrop = false,
   initialOffset = 0,
   showHandle = true,
+  bareLayer = false,
   onDismiss,
 }: DraggableBottomSheetProps) {
   const [isMounted, setIsMounted] = useState(false);
@@ -198,7 +200,7 @@ export function DraggableBottomSheet({
   if (!isMounted) return null;
 
   return createPortal(
-    <div className="sheetLayer" role="presentation">
+    <div className={bareLayer ? "sheetLayer sheetLayerBare" : "sheetLayer"} role="presentation">
       {dismissOnBackdrop ? (
         <button
           className="sheetBackdrop"
