@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type CSSProperties,
   type PointerEvent,
   type ReactNode,
   useEffect,
@@ -225,9 +226,10 @@ export function DraggableBottomSheet({
           didDragRef.current = false;
         }}
         style={{
+          "--sheet-rest-offset": `${initialOffset}px`,
           transform: translateY > 0 ? `translateY(${translateY}px)` : undefined,
           transition: isDragging ? "none" : undefined,
-        }}
+        } as CSSProperties}
       >
         {showHandle ? (
           <div className="sheetDragZone">

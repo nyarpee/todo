@@ -354,7 +354,7 @@ h1 {
   padding: 0 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  touch-action: none;
+  touch-action: pan-x;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -1912,7 +1912,9 @@ h1 {
   }
 
   to {
-    transform: translateY(0);
+    /* End at the sheet's resting offset so it slides straight to its final
+       position instead of overshooting to the top and dropping back down. */
+    transform: translateY(var(--sheet-rest-offset, 0px));
   }
 }
 

@@ -245,13 +245,21 @@ export function GroupBar({
   useEffect(() => {
     const move = (event: PointerEvent) => globalMoveRef.current(event);
     const up = (event: PointerEvent) => globalUpRef.current(event);
+    // Chips use `touch-action: pan-x` so the row scrolls horizontally by default.
+    // While a reorder drag is active we block that native scroll so the chip
+    // follows the finger cleanly instead of the row scrolling underneath.
+    const preventScrollWhileDragging = (event: TouchEvent) => {
+      if (gestureRef.current?.active) event.preventDefault();
+    };
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
+    window.addEventListener("touchmove", preventScrollWhileDragging, { passive: false });
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
+      window.removeEventListener("touchmove", preventScrollWhileDragging);
     };
   }, []);
 
