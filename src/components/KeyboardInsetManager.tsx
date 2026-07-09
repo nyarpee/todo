@@ -19,10 +19,19 @@ export function KeyboardInsetManager() {
           : 0;
         const keyboardInset = shouldTrackKeyboard ? Math.max(0, Math.round(rawInset)) : 0;
 
-        document.documentElement.style.setProperty(
-          "--keyboard-inset",
-          `${keyboardInset}px`,
-        );
+        // Publish the visible (visual viewport) region so fixed overlays such as
+        // bottom sheets can be pinned exactly to the area above the keyboard on
+        // both iOS Safari and Android Chrome, regardless of how each browser
+        // resizes its viewport.
+        const viewHeight = viewport
+          ? Math.round(viewport.height)
+          : window.innerHeight;
+        const viewTop = viewport ? Math.round(viewport.offsetTop) : 0;
+
+        const root = document.documentElement.style;
+        root.setProperty("--keyboard-inset", `${keyboardInset}px`);
+        root.setProperty("--kb-view-height", `${viewHeight}px`);
+        root.setProperty("--kb-view-top", `${viewTop}px`);
       });
     }
 
@@ -43,6 +52,8 @@ export function KeyboardInsetManager() {
       window.removeEventListener("focusin", updateKeyboardInset);
       window.removeEventListener("focusout", updateKeyboardInset);
       document.documentElement.style.removeProperty("--keyboard-inset");
+      document.documentElement.style.removeProperty("--kb-view-height");
+      document.documentElement.style.removeProperty("--kb-view-top");
     };
   }, []);
 

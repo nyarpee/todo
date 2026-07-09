@@ -1515,15 +1515,19 @@ h1 {
 
 .sheetLayer {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  /* Pin to the visual viewport (area above the keyboard) rather than the layout
+     viewport, so the sheet sits directly on top of the keyboard on iOS Safari
+     and Android Chrome alike. Falls back to the full window before JS runs. */
+  top: var(--kb-view-top, 0px);
+  height: var(--kb-view-height, 100%);
   z-index: 60;
   display: grid;
   align-items: end;
   background: rgb(15 23 42 / 18%);
   overscroll-behavior: none;
-  padding-bottom: var(--keyboard-inset);
   touch-action: none;
-  transition: padding-bottom 160ms ease;
 }
 
 /* Composer mode: no dimming scrim so the subtask list behind stays readable. */
@@ -1536,7 +1540,7 @@ h1 {
   display: grid;
   gap: 10px;
   width: min(760px, 100%);
-  max-height: calc(100dvh - var(--keyboard-inset) - 8px);
+  max-height: calc(var(--kb-view-height, 100dvh) - 8px);
   margin: 0 auto;
   overflow-y: auto;
   padding: 24px 14px 18px;
@@ -1564,19 +1568,19 @@ h1 {
 }
 
 .scheduleSheet {
-  height: calc(100dvh - var(--keyboard-inset) - 8px);
+  height: calc(var(--kb-view-height, 100dvh) - 8px);
 }
 
 .detailSheet {
-  height: calc(100dvh - var(--keyboard-inset) - 8px);
+  height: calc(var(--kb-view-height, 100dvh) - 8px);
   padding: 28px 12px 84px;
   background: var(--bg);
 }
 
 .canvasSheet {
   width: 100%;
-  height: calc(100dvh - var(--keyboard-inset));
-  max-height: calc(100dvh - var(--keyboard-inset));
+  height: var(--kb-view-height, 100dvh);
+  max-height: var(--kb-view-height, 100dvh);
   padding: 0;
   overflow: hidden;
   border: 0;
