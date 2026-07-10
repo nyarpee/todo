@@ -81,6 +81,18 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
     return () => container.removeEventListener("touchmove", onTouchMove);
   }, []);
 
+  useEffect(() => {
+    if (!disabled) return;
+
+    gestureRef.current = null;
+    rawDeltaRef.current = 0;
+
+    if (!pendingCommitRef.current) {
+      setAnimating(false);
+      setOffset(0);
+    }
+  }, [disabled]);
+
   function resistedOffset(dx: number, width: number): number {
     const towardLeft = dx > 0;
     const hasNeighbor = towardLeft ? Boolean(leftGroup) : Boolean(rightGroup);
@@ -118,6 +130,18 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+        // D&D中は、指によるページスワイプを処理しない
+    if (disabled) {
+      gestureRef.current = null;
+      rawDeltaRef.current = 0;
+
+      if (!pendingCommitRef.current) {
+        setAnimating(false);
+        setOffset(0);
+      }
+
+      return;
+    }
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
 
@@ -152,6 +176,29 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
   }
 
   function endGesture(event: ReactPointerEvent<HTMLDivElement>) {
+    // D&D中にpointerupが来ても、ページ切り替えを確定させない
+    if (disabled) {
+      const gesture = gestureRef.current;
+
+      if (gesture?.pointerId === event.pointerId) {
+        try {
+          containerRef.current?.releasePointerCapture(event.pointerId);
+        } catch {
+          // already released
+        }
+      }
+
+      gestureRef.current = null;
+      rawDeltaRef.current = 0;
+
+      if (!pendingCommitRef.current) {
+        setAnimating(false);
+        setOffset(0);
+      }
+
+      return;
+    }
+
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     gestureRef.current = null;
