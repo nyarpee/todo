@@ -716,6 +716,11 @@ export function TaskApp() {
 
   function handleAddTask(draft?: QuickAddDraft) {
     if (draft) {
+      if (activeTab === "calendar") {
+        // Compose mode: add immediately and keep the sheet open for the next task.
+        addRootTask(draft, true);
+        return;
+      }
       setIsQuickAddOpen(false);
       window.setTimeout(() => addRootTask(draft, true), QUICK_ADD_REFLECT_DELAY_MS);
       return;
@@ -1486,6 +1491,7 @@ export function TaskApp() {
           focusedDate={calendarFocusedDate}
           onFocusDate={setCalendarFocusedDate}
           onAddTask={openCalendarQuickAdd}
+          composeDate={isQuickAddOpen ? quickAddInitialDate : null}
         />
       ) : activeTab === "habit" ? (
         <HabitTabView
@@ -1614,6 +1620,8 @@ export function TaskApp() {
         onClose={() => setIsQuickAddOpen(false)}
         onSave={handleAddTask}
         initialDueDate={quickAddInitialDate}
+        keepOpenOnSave={activeTab === "calendar"}
+        transparentBackdrop={activeTab === "calendar" && quickAddInitialDate !== null}
       />
       {groupEditorMode === "create" ? (
         <GroupEditorSheet

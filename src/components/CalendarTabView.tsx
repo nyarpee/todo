@@ -25,12 +25,13 @@ type CalendarTabViewProps = {
   focusedDate: string | null;
   onFocusDate: (dueDate: string | null) => void;
   onAddTask: (dueDate: string) => void;
+  composeDate: string | null;
 };
 
 const INITIAL_FORWARD_DAYS = 45;
 const FORWARD_CHUNK = 30;
 
-export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate, onAddTask }: CalendarTabViewProps) {
+export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate, onAddTask, composeDate }: CalendarTabViewProps) {
   const { messages: text } = useLanguage();
   const todayKey = getTodayKey();
 
@@ -176,6 +177,43 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
     setPendingScrollDate(null);
   }, [pendingScrollDate, forwardDays]);
 
+  // Compose mode: freeze the list and pin the composed day's tail just above the sheet.
+  useEffect(() => {
+    const list = scrollRef.current;
+    if (!list) return;
+
+    if (!composeDate) {
+      list.style.maxHeight = "";
+      list.style.scrollPaddingBottom = "";
+      list.style.paddingTop = "";
+      return;
+    }
+
+    function align() {
+      const listEl = scrollRef.current;
+      const dayEl = composeDate ? dayRefs.current.get(composeDate) : null;
+      if (!listEl || !dayEl) return;
+      const listTop = listEl.getBoundingClientRect().top;
+      const height = Math.max(0, window.innerHeight - listTop);
+      const sheet = document.querySelector(".quickAddSheet");
+      const occluded = sheet
+        ? window.innerHeight - sheet.getBoundingClientRect().top + 8
+        : 220;
+      listEl.style.maxHeight = `${height}px`;
+      listEl.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
+      // Spacer so even the top-most day can be pulled down to sit right above the sheet.
+      listEl.style.paddingTop = `${Math.max(0, Math.round(height - occluded))}px`;
+      dayEl.scrollIntoView({ block: "end", behavior: "smooth" });
+    }
+
+    const raf = window.requestAnimationFrame(align);
+    window.visualViewport?.addEventListener("resize", align);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.visualViewport?.removeEventListener("resize", align);
+    };
+  }, [composeDate, tasksByDate]);
+
   function moveGridMonth(offset: number) {
     setGridMonth((current) => {
       const next = new Date(current);
@@ -301,7 +339,11 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
         </section>
       ) : null}
 
-      <div className="calDayList" ref={scrollRef} onScroll={handleScroll}>
+      <div
+        className={composeDate ? "calDayList isCompose" : "calDayList"}
+        ref={scrollRef}
+        onScroll={handleScroll}
+      >
         {forwardDays.map((day) => (
           <DayGroup
             key={day.date}

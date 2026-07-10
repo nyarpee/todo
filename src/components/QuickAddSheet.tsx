@@ -23,6 +23,8 @@ type QuickAddSheetProps = {
   onClose: () => void;
   onSave: (draft: QuickAddDraft) => void;
   initialDueDate?: string | null;
+  keepOpenOnSave?: boolean;
+  transparentBackdrop?: boolean;
 };
 
 export function FloatingAddButton({ onClick }: { onClick: () => void }) {
@@ -35,7 +37,14 @@ export function FloatingAddButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function QuickAddSheet({ isOpen, onClose, onSave, initialDueDate = null }: QuickAddSheetProps) {
+export function QuickAddSheet({
+  isOpen,
+  onClose,
+  onSave,
+  initialDueDate = null,
+  keepOpenOnSave = false,
+  transparentBackdrop = false,
+}: QuickAddSheetProps) {
   const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -89,6 +98,16 @@ export function QuickAddSheet({ isOpen, onClose, onSave, initialDueDate = null }
     event.preventDefault();
     if (!canSave) return;
 
+    if (keepOpenOnSave) {
+      // Compose mode: add and stay open for the next task, keeping the keyboard up.
+      onSave({ title: title.trim(), dueDate, dueTime, priority });
+      setTitle("");
+      setDueTime(null);
+      setPriority("none");
+      titleInputRef.current?.focus({ preventScroll: true });
+      return;
+    }
+
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -111,7 +130,12 @@ export function QuickAddSheet({ isOpen, onClose, onSave, initialDueDate = null }
 
   return (
     <div className="quickAddLayer" role="presentation">
-      <button className="quickAddBackdrop" type="button" aria-label={text.common.close} onClick={onClose} />
+      <button
+        className={transparentBackdrop ? "sheetBackdrop" : "quickAddBackdrop"}
+        type="button"
+        aria-label={text.common.close}
+        onClick={onClose}
+      />
       <form
         className="quickAddSheet"
         role="dialog"

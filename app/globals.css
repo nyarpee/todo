@@ -2540,6 +2540,10 @@ h1 {
   scroll-behavior: smooth;
 }
 
+.calDayList.isCompose {
+  overflow-y: hidden;
+}
+
 .calDayGroup {
   display: grid;
   gap: 2px;
