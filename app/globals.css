@@ -2545,27 +2545,16 @@ h1 {
   padding: 4px 6px 6px;
   border: 1px solid transparent;
   border-top-color: color-mix(in srgb, var(--line) 60%, transparent);
-  transition: background 160ms ease, border-color 160ms ease;
+  transition: border-color 160ms ease;
 }
 
-.calDayGroup.isToday,
 .calDayGroup.isSelected {
   border-radius: 12px;
-  border-top-color: transparent;
-}
-
-.calDayGroup.isToday {
-  background: color-mix(in srgb, var(--focus) 8%, transparent);
-}
-
-.calDayGroup.isSelected {
   border-color: var(--focus);
-  background: color-mix(in srgb, var(--focus) 10%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus) 35%, transparent);
 }
 
 .calDayGroup.isEmpty {
-  opacity: 0.62;
+  opacity: 0.85;
 }
 
 .calDayGroupHead {
@@ -2597,7 +2586,7 @@ h1 {
   overflow: hidden;
   color: var(--text);
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 820;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2608,16 +2597,16 @@ h1 {
 
 .calDayWeekday {
   flex: 0 0 auto;
-  color: var(--muted);
+  color: var(--text);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: 720;
 }
 
 .calDayOffset {
-  color: var(--soft);
+  color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  font-weight: 720;
+  font-weight: 780;
 }
 
 .calDayOffset.isToday {
@@ -2632,6 +2621,28 @@ h1 {
   display: grid;
   gap: 2px;
   padding-left: 2px;
+}
+
+.calDayAddInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  min-height: 32px;
+  margin-top: 2px;
+  padding: 0 12px 0 8px;
+  border: 1px dashed color-mix(in srgb, var(--focus) 45%, var(--line));
+  border-radius: 8px;
+  color: var(--focus);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.calDayAddInline:hover {
+  border-style: solid;
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
 }
 
 .calSentinel {
@@ -2822,8 +2833,9 @@ h1 {
   gap: 7px;
   min-width: 0;
   overflow: hidden;
+  color: var(--text);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

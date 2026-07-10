@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskId, TaskNode } from "@/types/task";
 import {
@@ -22,14 +22,15 @@ import { ProgressBar } from "./ProgressBar";
 type CalendarTabViewProps = {
   tasks: TaskNode[];
   onSelectTask: (taskId: TaskId) => void;
-  focusedDate: string;
-  onFocusDate: (dueDate: string) => void;
+  focusedDate: string | null;
+  onFocusDate: (dueDate: string | null) => void;
+  onAddTask: (dueDate: string) => void;
 };
 
 const INITIAL_FORWARD_DAYS = 45;
 const FORWARD_CHUNK = 30;
 
-export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate }: CalendarTabViewProps) {
+export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate, onAddTask }: CalendarTabViewProps) {
   const { messages: text } = useLanguage();
   const todayKey = getTodayKey();
 
@@ -290,6 +291,8 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate 
                   onSelectTask={onSelectTask}
                   isSelected={group.date === focusedDate}
                   onFocusDate={onFocusDate}
+                  onAddTask={onAddTask}
+                  addLabel={text.common.addTask}
                   isOverdue
                 />
               ))}
@@ -312,6 +315,8 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate 
             onSelectTask={onSelectTask}
             isSelected={day.date === focusedDate}
             onFocusDate={onFocusDate}
+            onAddTask={onAddTask}
+            addLabel={text.common.addTask}
             registerRef={(element) => {
               if (element) {
                 dayRefs.current.set(day.date, element);
@@ -337,7 +342,9 @@ type DayGroupProps = {
   tomorrowLabel: string;
   onSelectTask: (taskId: TaskId) => void;
   isSelected: boolean;
-  onFocusDate: (dueDate: string) => void;
+  onFocusDate: (dueDate: string | null) => void;
+  onAddTask: (dueDate: string) => void;
+  addLabel: string;
   isOverdue?: boolean;
   registerRef?: (element: HTMLElement | null) => void;
 };
@@ -353,6 +360,8 @@ function DayGroup({
   onSelectTask,
   isSelected,
   onFocusDate,
+  onAddTask,
+  addLabel,
   isOverdue = false,
   registerRef,
 }: DayGroupProps) {
@@ -375,7 +384,7 @@ function DayGroup({
       <button
         type="button"
         className="calDayGroupHead"
-        onClick={() => onFocusDate(dateKey)}
+        onClick={() => onFocusDate(isSelected ? null : dateKey)}
         aria-pressed={isSelected}
       >
         <span className="calDayLabel">
@@ -409,6 +418,17 @@ function DayGroup({
             </button>
           ))}
         </div>
+      ) : null}
+      {isSelected ? (
+        <button
+          type="button"
+          className="calDayAddInline"
+          aria-label={addLabel}
+          onClick={() => onAddTask(dateKey)}
+        >
+          <Plus size={15} aria-hidden="true" />
+          <span>{addLabel}</span>
+        </button>
       ) : null}
     </section>
   );
