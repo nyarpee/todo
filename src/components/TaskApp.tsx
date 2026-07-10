@@ -12,6 +12,7 @@ import {
   useSensors,
   type DragEndEvent,
   type DragMoveEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
@@ -68,7 +69,8 @@ import { CalendarTabView } from "./CalendarTabView";
 import { DatePickerView } from "./DatePickerView";
 import { DraggableBottomSheet } from "./DraggableBottomSheet";
 import { GroupBar } from "./GroupBar";
-import { GroupSwipePager } from "./GroupSwipePager";
+import { GroupSwipePager, type GroupSwipePagerHandle } from "./GroupSwipePager";
+import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import { GroupEditorSheet } from "./GroupEditorSheet";
 import { GroupManagerSheet } from "./GroupManagerSheet";
 import { HabitEditorSheet } from "./HabitEditorSheet";
@@ -120,6 +122,8 @@ export function TaskApp() {
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<TaskId | null>(null);
+  const [isOverTrash, setIsOverTrash] = useState(false);
+  const pagerRef = useRef<GroupSwipePagerHandle>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
@@ -1112,12 +1116,17 @@ export function TaskApp() {
     handleDragPointerMove(pointer.x, pointer.y);
   }
 
+  function handleDragOver(event: DragOverEvent) {
+    setIsOverTrash(event.over?.id === TRASH_DROPPABLE_ID);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     clearGroupHoverTimer();
     clearEdgeSwitchTimer();
     clearGroupChipsScrollTimer();
     stopPointerTracking();
     setActiveDragTaskId(null);
+    setIsOverTrash(false);
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     latestPointerRef.current = null;
@@ -1127,6 +1136,14 @@ export function TaskApp() {
 
     const draggedTask = allNodes.find((node) => node.id === activeId);
     if (!draggedTask || draggedTask.parentId !== null || draggedTask.completed) return;
+
+    if (overId === TRASH_DROPPABLE_ID) {
+      dragTargetGroupIdRef.current = null;
+      if (draggedTask.children.length === 0 || window.confirm(text.taskDetail.deleteWithSubtasks)) {
+        handleDeleteTask(activeId);
+      }
+      return;
+    }
 
     if (!overId) {
       if (dragTargetGroupIdRef.current) {
@@ -1160,6 +1177,7 @@ export function TaskApp() {
     clearGroupChipsScrollTimer();
     stopPointerTracking();
     setActiveDragTaskId(null);
+    setIsOverTrash(false);
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     latestPointerRef.current = null;
@@ -1334,7 +1352,7 @@ export function TaskApp() {
       return;
     }
 
-    const nextGroupId = getAdjacentGroupId(groups, activeGroupId, direction);
+    const nextGroupId = getAdjacentGroupId(orderedGroups, activeGroupId, direction);
     if (!nextGroupId) {
       clearEdgeSwitchTimer();
       return;
@@ -1345,8 +1363,12 @@ export function TaskApp() {
     clearEdgeSwitchTimer();
     edgeSwitchDirectionRef.current = direction;
     edgeSwitchTimerRef.current = window.setTimeout(() => {
-      setActiveGroupId(nextGroupId);
-      dragTargetGroupIdRef.current = nextGroupId;
+      // Slide the pager to the neighbour with the same eased curve so the switch
+      // is visible; the pager commits the new active group when it settles.
+      const slid = pagerRef.current?.slideTo(direction === "previous" ? "prev" : "next");
+      if (slid) {
+        dragTargetGroupIdRef.current = nextGroupId;
+      }
       clearEdgeSwitchTimer();
     }, EDGE_SWITCH_DELAY_MS);
   }
@@ -1445,6 +1467,7 @@ export function TaskApp() {
           sensors={sensors}
           onDragStart={handleDragStart}
           onDragMove={handleDragMove}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
@@ -1460,6 +1483,7 @@ export function TaskApp() {
               onReorderGroups={handleReorderGroups}
             />
             <GroupSwipePager
+              ref={pagerRef}
               orderedGroups={orderedGroups}
               activeGroupId={activeGroupId}
               disabled={activeDragTaskId !== null}
@@ -1467,9 +1491,10 @@ export function TaskApp() {
               renderGroup={renderGroupList}
             />
           </section>
+          <TrashDropZone active={activeDragTaskId !== null} />
           <DragOverlay modifiers={[snapCenterToCursor]}>
             {activeDragTask ? (
-              <div className="dragOverlayTask">
+              <div className={isOverTrash ? "dragOverlayTask isOverTrash" : "dragOverlayTask"}>
                 <span
                   className={`priorityDot taskPriorityDot ${activeDragTask.priority === "none" ? "priority-none" : `priority-${activeDragTask.priority}`}`}
                   aria-hidden="true"

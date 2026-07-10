@@ -81,6 +81,8 @@ p {
 }
 
 .appShell {
+  display: flex;
+  flex-direction: column;
   width: min(1080px, calc(100% - 32px));
   min-height: 100vh;
   margin: 0 auto;
@@ -302,16 +304,27 @@ h1 {
   line-height: 1.4;
 }
 
-.workspace,
 .treeFocus {
   display: grid;
   gap: 12px;
+}
+
+/* Fill the space between the group bar and the bottom tabs so the whole list
+   region is a swipe target, even when a group has only a few tasks. flex-shrink
+   is 0 so a long list still grows the page (document scroll) instead of being
+   clipped. */
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 0 auto;
 }
 
 /* Horizontal group pager: the centre panel is in flow (defines height), the two
    neighbours sit absolutely off to each side and slide in on swipe. */
 .groupPager {
   position: relative;
+  flex: 1 0 auto;
   width: 100%;
   overflow: hidden;
   touch-action: pan-y;
@@ -323,12 +336,14 @@ h1 {
 
 .groupPagerPanel.isCenter {
   position: relative;
+  min-height: 100%;
 }
 
 .groupPagerPanel.isSide {
   position: absolute;
   top: 0;
   left: 0;
+  height: 100%;
   will-change: transform;
 }
 
@@ -641,6 +656,13 @@ h1 {
   box-shadow: 0 18px 44px rgb(22 29 39 / 18%);
   font-weight: 720;
   opacity: 0.72;
+  transition: scale 160ms ease, opacity 160ms ease;
+}
+
+/* Over the trash: the card shrinks toward the bin — "being sucked in". */
+.dragOverlayTask.isOverTrash {
+  opacity: 0.5;
+  scale: 0.42;
 }
 
 .dragOverlayTask span:last-child {
@@ -648,6 +670,46 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Floating trash target that rises from the bottom while dragging a task. */
+.trashDropZone {
+  position: fixed;
+  left: 50%;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  color: #b42318;
+  border: 1px solid color-mix(in srgb, #d04444 40%, var(--line));
+  background: color-mix(in srgb, #d04444 12%, var(--surface));
+  box-shadow: 0 12px 30px rgb(208 68 68 / 22%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(24px);
+  scale: 1;
+  transition:
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    scale 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.trashDropZone.isVisible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Sucks in: grows and turns solid red when a task is dropped near it. */
+.trashDropZone.isOver {
+  color: #ffffff;
+  background: #d04444;
+  border-color: #d04444;
+  scale: 1.28;
 }
 
 .habitTabView {
