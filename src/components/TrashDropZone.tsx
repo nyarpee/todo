@@ -14,7 +14,9 @@ type TrashDropZoneProps = {
 
 // A droppable that floats up from the bottom while dragging a task; dropping a
 // task on (or near) it deletes the task. Rendered via a portal so it sits above
-// the list and stays pinned to the viewport bottom.
+// the list and stays pinned to the viewport bottom. The droppable node is a
+// generously sized transparent catch area so the task doesn't have to land
+// precisely on the small bin; the visible bin is centred inside it.
 export function TrashDropZone({ active }: TrashDropZoneProps) {
   const { setNodeRef, isOver } = useDroppable({ id: TRASH_DROPPABLE_ID });
   const [mounted, setMounted] = useState(false);
@@ -31,7 +33,9 @@ export function TrashDropZone({ active }: TrashDropZoneProps) {
 
   return createPortal(
     <div ref={setNodeRef} className={className} aria-hidden={!active}>
-      <Trash2 size={24} aria-hidden="true" />
+      <span className="trashDropZoneIcon">
+        <Trash2 size={26} aria-hidden="true" />
+      </span>
     </div>,
     document.body,
   );

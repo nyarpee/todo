@@ -1,9 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import {
+  closestCenter,
+  pointerWithin,
+  DndContext,
+  DragOverlay,
+  MouseSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskId, TaskNode } from "@/types/task";
+import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import {
   buildCalendarDays,
   diffDaysFromKey,
@@ -25,13 +42,25 @@ type CalendarTabViewProps = {
   focusedDate: string | null;
   onFocusDate: (dueDate: string | null) => void;
   onAddTask: (dueDate: string) => void;
+  onMoveTask: (taskId: TaskId, dueDate: string) => void;
+  onDeleteTask: (taskId: TaskId) => void;
   composeDate: string | null;
 };
 
 const INITIAL_FORWARD_DAYS = 45;
 const FORWARD_CHUNK = 30;
+const DAY_DROPPABLE_PREFIX = "cal-day:";
 
-export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate, onAddTask, composeDate }: CalendarTabViewProps) {
+export function CalendarTabView({
+  tasks,
+  onSelectTask,
+  focusedDate,
+  onFocusDate,
+  onAddTask,
+  onMoveTask,
+  onDeleteTask,
+  composeDate,
+}: CalendarTabViewProps) {
   const { messages: text } = useLanguage();
   const todayKey = getTodayKey();
 
@@ -43,6 +72,28 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
     getMonthLabelFromKey(todayKey, text.common.locale),
   );
   const [pendingScrollDate, setPendingScrollDate] = useState<string | null>(null);
+  const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
+  const [isOverTrash, setIsOverTrash] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+  );
+
+  // Prefer the trash target when the pointer is over it; otherwise pick the
+  // nearest day droppable (mirrors the inbox behaviour).
+  const collisionDetection = useCallback<typeof closestCenter>((args) => {
+    const pointerCollisions = pointerWithin(args);
+    const trashCollision = pointerCollisions.find((c) => c.id === TRASH_DROPPABLE_ID);
+    if (trashCollision) return [trashCollision];
+
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (c) => c.id !== TRASH_DROPPABLE_ID,
+      ),
+    });
+  }, []);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -228,7 +279,54 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
     setPendingScrollDate(date);
   }
 
+  const activeDragTask = activeDragTaskId
+    ? tasks.find((task) => task.id === activeDragTaskId) ?? null
+    : null;
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveDragTaskId(String(event.active.id));
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    setIsOverTrash(event.over?.id === TRASH_DROPPABLE_ID);
+  }
+
+  function handleDragCancel() {
+    setActiveDragTaskId(null);
+    setIsOverTrash(false);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const activeId = String(event.active.id);
+    const overId = event.over?.id ? String(event.over.id) : null;
+    setActiveDragTaskId(null);
+    setIsOverTrash(false);
+
+    const draggedTask = tasks.find((task) => task.id === activeId);
+    if (!draggedTask) return;
+
+    if (overId === TRASH_DROPPABLE_ID) {
+      if (draggedTask.children.length === 0 || window.confirm(text.taskDetail.deleteWithSubtasks)) {
+        onDeleteTask(activeId);
+      }
+      return;
+    }
+
+    if (!overId || !overId.startsWith(DAY_DROPPABLE_PREFIX)) return;
+    const nextDate = overId.slice(DAY_DROPPABLE_PREFIX.length);
+    if (nextDate === draggedTask.dueDate) return;
+    onMoveTask(activeId, nextDate);
+  }
+
   return (
+    <DndContext
+      collisionDetection={collisionDetection}
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
     <section className="calendarTabView">
       <div className="calStickyHeader">
         <h2>{visibleMonthLabel}</h2>
@@ -370,6 +468,19 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
         <div ref={sentinelRef} className="calSentinel" aria-hidden="true" />
       </div>
     </section>
+    <TrashDropZone active={activeDragTaskId !== null} />
+    <DragOverlay modifiers={[snapCenterToCursor]}>
+      {activeDragTask ? (
+        <div className={isOverTrash ? "dragOverlayTask isOverTrash" : "dragOverlayTask"}>
+          <span
+            className={`priorityDot taskPriorityDot ${getPriorityClass(activeDragTask.priority)}`}
+            aria-hidden="true"
+          />
+          <span>{activeDragTask.title}</span>
+        </div>
+      ) : null}
+    </DragOverlay>
+    </DndContext>
   );
 }
 
@@ -414,6 +525,16 @@ function DayGroup({
   const isTomorrow = offset === 1;
   const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : getDisplayDate(dateKey, locale);
 
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: `${DAY_DROPPABLE_PREFIX}${dateKey}`,
+    data: { dateKey },
+  });
+
+  const setGroupRef = (element: HTMLElement | null) => {
+    setDroppableRef(element);
+    registerRef?.(element);
+  };
+
   const groupClassName = [
     "calDayGroup",
     isToday ? "isToday" : "",
@@ -421,10 +542,11 @@ function DayGroup({
     isSelected ? "isSelected" : "",
     isComposing ? "isComposing" : "",
     tasks.length === 0 ? "isEmpty" : "",
+    isOver ? "isDropTarget" : "",
   ].filter(Boolean).join(" ");
 
   return (
-    <section className={groupClassName} ref={registerRef}>
+    <section className={groupClassName} ref={setGroupRef}>
       <button
         type="button"
         className="calDayGroupHead"
@@ -440,26 +562,7 @@ function DayGroup({
       {tasks.length > 0 ? (
         <div className="calDayTasks">
           {tasks.map((task) => (
-            <button
-              className={task.children.length > 0 ? "agendaRow hasProgress" : "agendaRow"}
-              key={task.id}
-              type="button"
-              onClick={() => onSelectTask(task.id)}
-            >
-              {task.dueTime ? (
-                <span className="agendaTime">{task.dueTime}</span>
-              ) : (
-                <span className="agendaTime" aria-hidden="true" />
-              )}
-              <span className={task.completed ? "agendaTitle isCompleted" : "agendaTitle"}>
-                <span
-                  className={`priorityDot taskPriorityDot ${getPriorityClass(task.priority)}`}
-                  aria-hidden="true"
-                />
-                {task.title}
-              </span>
-              {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
-            </button>
+            <CalendarTaskRow key={task.id} task={task} onSelectTask={onSelectTask} />
           ))}
         </div>
       ) : null}
@@ -476,6 +579,48 @@ function DayGroup({
         </button>
       </div>
     </section>
+  );
+}
+
+type CalendarTaskRowProps = {
+  task: TaskNode;
+  onSelectTask: (taskId: TaskId) => void;
+};
+
+function CalendarTaskRow({ task, onSelectTask }: CalendarTaskRowProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: task.id,
+    data: { type: "calendar-task", dueDate: task.dueDate },
+  });
+
+  const className = [
+    task.children.length > 0 ? "agendaRow hasProgress" : "agendaRow",
+    isDragging ? "isDragging" : "",
+  ].filter(Boolean).join(" ");
+
+  return (
+    <button
+      ref={setNodeRef}
+      className={className}
+      type="button"
+      onClick={() => onSelectTask(task.id)}
+      {...attributes}
+      {...listeners}
+    >
+      {task.dueTime ? (
+        <span className="agendaTime">{task.dueTime}</span>
+      ) : (
+        <span className="agendaTime" aria-hidden="true" />
+      )}
+      <span className={task.completed ? "agendaTitle isCompleted" : "agendaTitle"}>
+        <span
+          className={`priorityDot taskPriorityDot ${getPriorityClass(task.priority)}`}
+          aria-hidden="true"
+        />
+        {task.title}
+      </span>
+      {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
+    </button>
   );
 }
 

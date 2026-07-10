@@ -699,12 +699,27 @@ h1 {
   white-space: nowrap;
 }
 
-/* Floating trash target that rises from the bottom while dragging a task. */
+/* Floating trash target that rises from the bottom while dragging a task.
+   The outer element is an oversized, transparent catch area (its rect is what
+   dnd-kit hit-tests) so the drop target is forgiving; the visible bin sits
+   centred at the bottom of it. */
 .trashDropZone {
   position: fixed;
   left: 50%;
-  bottom: calc(88px + env(safe-area-inset-bottom));
+  bottom: calc(64px + env(safe-area-inset-bottom));
   z-index: 55;
+  display: grid;
+  place-items: end center;
+  width: min(240px, 82vw);
+  height: 150px;
+  padding-bottom: 24px;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.trashDropZoneIcon {
   display: grid;
   place-items: center;
   width: 60px;
@@ -714,12 +729,9 @@ h1 {
   border: 1px solid color-mix(in srgb, #d04444 40%, var(--line));
   background: color-mix(in srgb, #d04444 12%, var(--surface));
   box-shadow: 0 12px 30px rgb(208 68 68 / 22%);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-50%) translateY(24px);
+  transform: translateY(24px);
   scale: 1;
   transition:
-    opacity 200ms ease,
     transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
     scale 160ms cubic-bezier(0.22, 1, 0.36, 1),
     background 160ms ease,
@@ -728,11 +740,14 @@ h1 {
 
 .trashDropZone.isVisible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+}
+
+.trashDropZone.isVisible .trashDropZoneIcon {
+  transform: translateY(0);
 }
 
 /* Sucks in: grows and turns solid red when a task is dropped near it. */
-.trashDropZone.isOver {
+.trashDropZone.isOver .trashDropZoneIcon {
   color: #ffffff;
   background: #d04444;
   border-color: #d04444;
@@ -2562,6 +2577,13 @@ h1 {
   opacity: 0.85;
 }
 
+/* Day highlighted as the drop target while dragging a task across dates. */
+.calDayGroup.isDropTarget {
+  border-radius: 12px;
+  border-color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 8%, transparent);
+}
+
 .calDayGroupHead {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2853,6 +2875,10 @@ h1 {
 
 .agendaRow:hover {
   background: color-mix(in srgb, var(--focus) 5%, var(--surface));
+}
+
+.agendaRow.isDragging {
+  opacity: 0.4;
 }
 
 .agendaTime {

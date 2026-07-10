@@ -981,6 +981,26 @@ export function TaskApp() {
     });
   }
 
+  function handleMoveTaskToDate(taskId: TaskId, dueDate: string) {
+    const task = allNodes.find((node) => node.id === taskId);
+    if (!task || task.dueDate === dueDate) return;
+    const now = new Date().toISOString();
+    const dueTime = task.dueTime ?? null;
+    setTasks((currentTasks) =>
+      updateTaskSchedule(currentTasks, taskId, dueDate, dueTime, { now: () => now }),
+    );
+    recordActivity("task_scheduled", "task", taskId, {
+      patch: {
+        dueDate,
+        dueTime,
+        updatedAt: now,
+      },
+      dueDate,
+      dueTime,
+      fields: ["dueDate", "dueTime"],
+    });
+  }
+
   function handleDeleteTask(taskId: TaskId) {
     const deletedTask = allNodes.find((node) => node.id === taskId) ?? null;
     const deletedTaskIds = deletedTask ? collectTaskNodeIds(deletedTask) : [taskId];
@@ -1493,6 +1513,8 @@ export function TaskApp() {
           focusedDate={calendarFocusedDate}
           onFocusDate={setCalendarFocusedDate}
           onAddTask={openCalendarQuickAdd}
+          onMoveTask={handleMoveTaskToDate}
+          onDeleteTask={handleDeleteTask}
           composeDate={isQuickAddOpen ? quickAddInitialDate : null}
         />
       ) : activeTab === "habit" ? (
