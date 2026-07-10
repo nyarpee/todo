@@ -1537,10 +1537,6 @@ h1 {
   transition: padding-bottom 160ms ease;
 }
 
-.quickAddLayer.isAnchored {
-  align-items: start;
-  padding-bottom: 0;
-}
 
 .quickAddBackdrop {
   position: absolute;
@@ -2630,13 +2626,31 @@ h1 {
   padding-left: 2px;
 }
 
+.calDayAddSlot {
+  display: grid;
+  justify-items: start;
+  overflow: hidden;
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: max-height 260ms ease, opacity 200ms ease, margin-top 260ms ease, transform 260ms ease;
+}
+
+.calDayGroup.isSelected .calDayAddSlot {
+  max-height: 44px;
+  margin-top: 4px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
 .calDayAddInline {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  justify-self: start;
   min-height: 32px;
-  margin-top: 2px;
   padding: 0 12px 0 8px;
   border: 1px dashed color-mix(in srgb, var(--focus) 45%, var(--line));
   border-radius: 8px;
@@ -2647,9 +2661,11 @@ h1 {
   cursor: pointer;
 }
 
-.calDayAddInline:hover {
-  border-style: solid;
-  background: color-mix(in srgb, var(--focus) 10%, transparent);
+@media (hover: hover) {
+  .calDayAddInline:hover {
+    border-style: solid;
+    background: color-mix(in srgb, var(--focus) 10%, transparent);
+  }
 }
 
 .calSentinel {

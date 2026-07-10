@@ -23,7 +23,6 @@ type QuickAddSheetProps = {
   onClose: () => void;
   onSave: (draft: QuickAddDraft) => void;
   initialDueDate?: string | null;
-  anchorTop?: number | null;
 };
 
 export function FloatingAddButton({ onClick }: { onClick: () => void }) {
@@ -36,7 +35,7 @@ export function FloatingAddButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function QuickAddSheet({ isOpen, onClose, onSave, initialDueDate = null, anchorTop = null }: QuickAddSheetProps) {
+export function QuickAddSheet({ isOpen, onClose, onSave, initialDueDate = null }: QuickAddSheetProps) {
   const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -110,14 +109,8 @@ export function QuickAddSheet({ isOpen, onClose, onSave, initialDueDate = null, 
     : null;
   const priorityLabel = priority !== "none" ? getPriorityLabel(priority, labels) : null;
 
-  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
-  const anchoredTop =
-    anchorTop !== null && viewportHeight > 0
-      ? Math.max(12, Math.min(anchorTop + 6, viewportHeight * 0.5))
-      : null;
-
   return (
-    <div className={anchoredTop !== null ? "quickAddLayer isAnchored" : "quickAddLayer"} role="presentation">
+    <div className="quickAddLayer" role="presentation">
       <button className="quickAddBackdrop" type="button" aria-label={text.common.close} onClick={onClose} />
       <form
         className="quickAddSheet"
@@ -125,7 +118,6 @@ export function QuickAddSheet({ isOpen, onClose, onSave, initialDueDate = null, 
         aria-modal="true"
         aria-label={text.common.addTask}
         onSubmit={handleSubmit}
-        style={anchoredTop !== null ? { marginTop: `${Math.round(anchoredTop)}px` } : undefined}
       >
         <div className="quickAddTitleRow">
           <input
