@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskId, TaskNode } from "@/types/task";
 import {
@@ -22,13 +22,14 @@ import { ProgressBar } from "./ProgressBar";
 type CalendarTabViewProps = {
   tasks: TaskNode[];
   onSelectTask: (taskId: TaskId) => void;
-  onAddTask: (dueDate: string) => void;
+  focusedDate: string;
+  onFocusDate: (dueDate: string) => void;
 };
 
 const INITIAL_FORWARD_DAYS = 45;
 const FORWARD_CHUNK = 30;
 
-export function CalendarTabView({ tasks, onSelectTask, onAddTask }: CalendarTabViewProps) {
+export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate }: CalendarTabViewProps) {
   const { messages: text } = useLanguage();
   const todayKey = getTodayKey();
 
@@ -187,6 +188,7 @@ export function CalendarTabView({ tasks, onSelectTask, onAddTask }: CalendarTabV
     if (offset < 0) return;
     setEndOffset((current) => Math.max(current, offset + 7));
     setIsMonthGridOpen(false);
+    onFocusDate(date);
     setPendingScrollDate(date);
   }
 
@@ -286,8 +288,8 @@ export function CalendarTabView({ tasks, onSelectTask, onAddTask }: CalendarTabV
                   todayLabel={text.common.today}
                   tomorrowLabel={text.common.tomorrow}
                   onSelectTask={onSelectTask}
-                  onAddTask={onAddTask}
-                  addLabel={text.common.addTask}
+                  isSelected={group.date === focusedDate}
+                  onFocusDate={onFocusDate}
                   isOverdue
                 />
               ))}
@@ -308,8 +310,8 @@ export function CalendarTabView({ tasks, onSelectTask, onAddTask }: CalendarTabV
             todayLabel={text.common.today}
             tomorrowLabel={text.common.tomorrow}
             onSelectTask={onSelectTask}
-            onAddTask={onAddTask}
-            addLabel={text.common.addTask}
+            isSelected={day.date === focusedDate}
+            onFocusDate={onFocusDate}
             registerRef={(element) => {
               if (element) {
                 dayRefs.current.set(day.date, element);
@@ -334,8 +336,8 @@ type DayGroupProps = {
   todayLabel: string;
   tomorrowLabel: string;
   onSelectTask: (taskId: TaskId) => void;
-  onAddTask: (dueDate: string) => void;
-  addLabel: string;
+  isSelected: boolean;
+  onFocusDate: (dueDate: string) => void;
   isOverdue?: boolean;
   registerRef?: (element: HTMLElement | null) => void;
 };
@@ -349,8 +351,8 @@ function DayGroup({
   todayLabel,
   tomorrowLabel,
   onSelectTask,
-  onAddTask,
-  addLabel,
+  isSelected,
+  onFocusDate,
   isOverdue = false,
   registerRef,
 }: DayGroupProps) {
@@ -364,28 +366,24 @@ function DayGroup({
     "calDayGroup",
     isToday ? "isToday" : "",
     isOverdue ? "isOverdue" : "",
+    isSelected ? "isSelected" : "",
     tasks.length === 0 ? "isEmpty" : "",
   ].filter(Boolean).join(" ");
 
   return (
     <section className={groupClassName} ref={registerRef}>
-      <div className="calDayGroupHead">
+      <button
+        type="button"
+        className="calDayGroupHead"
+        onClick={() => onFocusDate(dateKey)}
+        aria-pressed={isSelected}
+      >
         <span className="calDayLabel">
           <span className="calDayDate">{dateLabel}</span>
           <span className="calDayWeekday">{weekday}</span>
         </span>
         <span className={offsetClassName(offset)}>{formatOffset(offset)}</span>
-        {isOverdue ? null : (
-          <button
-            type="button"
-            className="calDayAdd"
-            aria-label={addLabel}
-            onClick={() => onAddTask(dateKey)}
-          >
-            <Plus size={16} aria-hidden="true" />
-          </button>
-        )}
-      </div>
+      </button>
       {tasks.length > 0 ? (
         <div className="calDayTasks">
           {tasks.map((task) => (

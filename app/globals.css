@@ -2542,14 +2542,26 @@ h1 {
 .calDayGroup {
   display: grid;
   gap: 2px;
-  padding: 4px 0 6px;
-  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  padding: 4px 6px 6px;
+  border: 1px solid transparent;
+  border-top-color: color-mix(in srgb, var(--line) 60%, transparent);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.calDayGroup.isToday,
+.calDayGroup.isSelected {
+  border-radius: 12px;
+  border-top-color: transparent;
 }
 
 .calDayGroup.isToday {
-  border-radius: 10px;
-  border-top-color: transparent;
   background: color-mix(in srgb, var(--focus) 8%, transparent);
+}
+
+.calDayGroup.isSelected {
+  border-color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus) 35%, transparent);
 }
 
 .calDayGroup.isEmpty {
@@ -2558,10 +2570,20 @@ h1 {
 
 .calDayGroupHead {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 2px 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calDayGroupHead:hover {
+  background: color-mix(in srgb, var(--focus) 6%, transparent);
 }
 
 .calDayLabel {
@@ -2604,23 +2626,6 @@ h1 {
 
 .calDayOffset.isPast {
   color: var(--danger);
-}
-
-.calDayAdd {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  color: var(--soft);
-  background: transparent;
-}
-
-.calDayAdd:hover {
-  border-color: var(--focus);
-  color: var(--focus);
-  background: color-mix(in srgb, var(--focus) 8%, transparent);
 }
 
 .calDayTasks {

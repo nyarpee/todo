@@ -120,6 +120,7 @@ export function TaskApp() {
   const [autoEditTaskId, setAutoEditTaskId] = useState<TaskId | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddInitialDate, setQuickAddInitialDate] = useState<string | null>(null);
+  const [calendarFocusedDate, setCalendarFocusedDate] = useState<string>(() => getTodayKey());
   const [groupEditorMode, setGroupEditorMode] = useState<"create" | "manage" | null>(null);
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
@@ -1479,7 +1480,12 @@ export function TaskApp() {
       {!isLoaded ? (
         <div className="loadingState">{text.loading}</div>
       ) : activeTab === "calendar" ? (
-        <CalendarTabView tasks={allNodes} onSelectTask={openCalendarDetail} onAddTask={openCalendarQuickAdd} />
+        <CalendarTabView
+          tasks={allNodes}
+          onSelectTask={openCalendarDetail}
+          focusedDate={calendarFocusedDate}
+          onFocusDate={setCalendarFocusedDate}
+        />
       ) : activeTab === "habit" ? (
         <HabitTabView
           habits={habitsWithEntries}
@@ -1595,6 +1601,10 @@ export function TaskApp() {
           onClick={() => {
             if (activeTab === "habit") {
               setHabitEditorMode("create");
+              return;
+            }
+            if (activeTab === "calendar") {
+              openCalendarQuickAdd(calendarFocusedDate);
               return;
             }
             setQuickAddInitialDate(null);
