@@ -120,6 +120,7 @@ export function TaskApp() {
   const [autoEditTaskId, setAutoEditTaskId] = useState<TaskId | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddInitialDate, setQuickAddInitialDate] = useState<string | null>(null);
+  const [quickAddAnchorTop, setQuickAddAnchorTop] = useState<number | null>(null);
   const [calendarFocusedDate, setCalendarFocusedDate] = useState<string | null>(() => getTodayKey());
   const [groupEditorMode, setGroupEditorMode] = useState<"create" | "manage" | null>(null);
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
@@ -1454,8 +1455,9 @@ export function TaskApp() {
     setSelectedTaskId(taskId);
   }
 
-  function openCalendarQuickAdd(dueDate: string) {
+  function openCalendarQuickAdd(dueDate: string, anchorTop?: number) {
     setQuickAddInitialDate(dueDate);
+    setQuickAddAnchorTop(anchorTop ?? null);
     setIsQuickAddOpen(true);
   }
 
@@ -1605,6 +1607,7 @@ export function TaskApp() {
               return;
             }
             setQuickAddInitialDate(null);
+            setQuickAddAnchorTop(null);
             setIsQuickAddOpen(true);
           }}
         />
@@ -1614,6 +1617,7 @@ export function TaskApp() {
         onClose={() => setIsQuickAddOpen(false)}
         onSave={handleAddTask}
         initialDueDate={quickAddInitialDate}
+        anchorTop={quickAddAnchorTop}
       />
       {groupEditorMode === "create" ? (
         <GroupEditorSheet

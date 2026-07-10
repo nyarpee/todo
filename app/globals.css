@@ -1537,6 +1537,11 @@ h1 {
   transition: padding-bottom 160ms ease;
 }
 
+.quickAddLayer.isAnchored {
+  align-items: start;
+  padding-bottom: 0;
+}
+
 .quickAddBackdrop {
   position: absolute;
   inset: 0;
@@ -2571,8 +2576,10 @@ h1 {
   cursor: pointer;
 }
 
-.calDayGroupHead:hover {
-  background: color-mix(in srgb, var(--focus) 6%, transparent);
+@media (hover: hover) {
+  .calDayGroupHead:hover {
+    background: color-mix(in srgb, var(--focus) 6%, transparent);
+  }
 }
 
 .calDayLabel {

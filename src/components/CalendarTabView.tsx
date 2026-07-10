@@ -24,7 +24,7 @@ type CalendarTabViewProps = {
   onSelectTask: (taskId: TaskId) => void;
   focusedDate: string | null;
   onFocusDate: (dueDate: string | null) => void;
-  onAddTask: (dueDate: string) => void;
+  onAddTask: (dueDate: string, anchorTop?: number) => void;
 };
 
 const INITIAL_FORWARD_DAYS = 45;
@@ -343,7 +343,7 @@ type DayGroupProps = {
   onSelectTask: (taskId: TaskId) => void;
   isSelected: boolean;
   onFocusDate: (dueDate: string | null) => void;
-  onAddTask: (dueDate: string) => void;
+  onAddTask: (dueDate: string, anchorTop?: number) => void;
   addLabel: string;
   isOverdue?: boolean;
   registerRef?: (element: HTMLElement | null) => void;
@@ -424,7 +424,7 @@ function DayGroup({
           type="button"
           className="calDayAddInline"
           aria-label={addLabel}
-          onClick={() => onAddTask(dateKey)}
+          onClick={(event) => onAddTask(dateKey, event.currentTarget.getBoundingClientRect().bottom)}
         >
           <Plus size={15} aria-hidden="true" />
           <span>{addLabel}</span>
