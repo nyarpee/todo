@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
@@ -18,6 +20,20 @@ const PRESS_SCALE = 1.08;
 const DROP_ANIM_MS = 160;
 const EDGE_SCROLL_ZONE_PX = 60;
 const EDGE_SCROLL_MAX_SPEED_PX = 6.5;
+const SYNC_SNAP_MS = 340; // matches the pager's snap duration
+
+// Continuous swipe-sync from the pager: the selection pill interpolates between
+// the active chip (fromId) and the neighbour it's heading to (toId) by t∈[0,1].
+export type GroupBarSyncHandle = {
+  setProgress: (
+    fromId: TaskGroupId,
+    toId: TaskGroupId | null,
+    t: number,
+    animate: boolean,
+  ) => void;
+};
+
+type IndicatorPixels = { left: number; top: number; width: number; height: number; scrollLeft: number };
 
 type GroupBarProps = {
   groups: TaskGroup[];
@@ -30,6 +46,23 @@ type GroupBarProps = {
   onReorderGroups: (orderedGroupIds: TaskGroupId[]) => void;
 };
 
+function easeOutCubic(x: number): number {
+  return 1 - Math.pow(1 - x, 3);
+}
+
+function easeInCubic(x: number): number {
+  return x * x * x;
+}
+
+// How strongly the pill stretches mid-transition. 0 = plain linear slide, 1 =
+// the leading edge fully races ahead while the trailing edge lags, so the pill
+// bulges hardest around the mid/threshold point and snaps back at the ends.
+const INDICATOR_STRETCH = 0.85;
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 type GestureState = {
   groupId: TaskGroupId;
   pointerId: number;
@@ -40,7 +73,7 @@ type GestureState = {
   initialRect: DOMRect | null;
 };
 
-export function GroupBar({
+export const GroupBar = forwardRef<GroupBarSyncHandle, GroupBarProps>(function GroupBar({
   groups,
   activeGroupId,
   onSelectGroup,
@@ -49,11 +82,16 @@ export function GroupBar({
   onAddGroup,
   onOpenMenu,
   onReorderGroups,
-}: GroupBarProps) {
+}: GroupBarProps, ref) {
   const { messages: text } = useLanguage();
 
   const [order, setOrder] = useState<TaskGroupId[]>(() => groups.map((group) => group.id));
   const [pressedGroupId, setPressedGroupId] = useState<TaskGroupId | null>(null);
+
+  const indicatorRef = useRef<HTMLSpanElement | null>(null);
+  const appliedPixelsRef = useRef<IndicatorPixels | null>(null);
+  const syncRafRef = useRef<number | null>(null);
+  const firstSyncRef = useRef(true);
 
   const orderRef = useRef(order);
   orderRef.current = order;
@@ -79,6 +117,119 @@ export function GroupBar({
     setOrder(nextOrder);
     orderRef.current = nextOrder;
   }, [groups]);
+
+  function cancelSyncTween() {
+    if (syncRafRef.current !== null) {
+      cancelAnimationFrame(syncRafRef.current);
+      syncRafRef.current = null;
+    }
+  }
+
+  function computeIndicatorTarget(
+    fromId: TaskGroupId,
+    toId: TaskGroupId | null,
+    t: number,
+  ): IndicatorPixels | null {
+    const container = chipsContainerRef.current;
+    const fromChip = chipElementsRef.current.get(fromId);
+    if (!container || !fromChip) return null;
+
+    let left = fromChip.offsetLeft;
+    let width = fromChip.offsetWidth;
+    const toChip = toId ? chipElementsRef.current.get(toId) : null;
+    if (toChip) {
+      const fromLeft = fromChip.offsetLeft;
+      const fromRight = fromLeft + fromChip.offsetWidth;
+      const toLeft = toChip.offsetLeft;
+      const toRight = toLeft + toChip.offsetWidth;
+
+      // Split the pill into a leading and a trailing edge. The edge facing the
+      // travel direction eases out (races ahead), the other eases in (lags and
+      // catches up), so the gap between them — the stretch — peaks mid-swipe and
+      // collapses back to the chip's real width at t=0 and t=1.
+      const lead = lerp(t, easeOutCubic(t), INDICATOR_STRETCH);
+      const trail = lerp(t, easeInCubic(t), INDICATOR_STRETCH);
+      const movingRight = toLeft >= fromLeft;
+
+      const leftEdge = movingRight
+        ? lerp(fromLeft, toLeft, trail)
+        : lerp(fromLeft, toLeft, lead);
+      const rightEdge = movingRight
+        ? lerp(fromRight, toRight, lead)
+        : lerp(fromRight, toRight, trail);
+
+      left = leftEdge;
+      width = rightEdge - leftEdge;
+    }
+
+    const center = left + width / 2;
+    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+    const scrollLeft = Math.max(0, Math.min(maxScroll, center - container.clientWidth / 2));
+    return { left, top: fromChip.offsetTop, width, height: fromChip.offsetHeight, scrollLeft };
+  }
+
+  function applyIndicator(pixels: IndicatorPixels) {
+    const indicator = indicatorRef.current;
+    if (indicator) {
+      indicator.style.opacity = "1";
+      indicator.style.width = `${pixels.width}px`;
+      indicator.style.height = `${pixels.height}px`;
+      indicator.style.transform = `translate(${pixels.left}px, ${pixels.top}px)`;
+    }
+    const container = chipsContainerRef.current;
+    if (container) container.scrollLeft = pixels.scrollLeft;
+    appliedPixelsRef.current = pixels;
+  }
+
+  function setIndicator(
+    fromId: TaskGroupId,
+    toId: TaskGroupId | null,
+    t: number,
+    animate: boolean,
+  ) {
+    const target = computeIndicatorTarget(fromId, toId, t);
+    if (!target) return;
+
+    cancelSyncTween();
+    const from = appliedPixelsRef.current;
+    if (!animate || !from) {
+      applyIndicator(target);
+      return;
+    }
+
+    const start = performance.now();
+    const step = (now: number) => {
+      const x = Math.min(1, (now - start) / SYNC_SNAP_MS);
+      const e = easeOutCubic(x);
+      applyIndicator({
+        left: from.left + (target.left - from.left) * e,
+        top: from.top + (target.top - from.top) * e,
+        width: from.width + (target.width - from.width) * e,
+        height: from.height + (target.height - from.height) * e,
+        scrollLeft: from.scrollLeft + (target.scrollLeft - from.scrollLeft) * e,
+      });
+      syncRafRef.current = x < 1 ? requestAnimationFrame(step) : null;
+    };
+    syncRafRef.current = requestAnimationFrame(step);
+  }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      setProgress: (fromId, toId, t, animate) => setIndicator(fromId, toId, t, animate),
+    }),
+    [],
+  );
+
+  // Rest position: keep the pill on the active chip (slides on tab taps and after
+  // a swipe commits; instant on first paint).
+  useLayoutEffect(() => {
+    setIndicator(activeGroupId, null, 0, !firstSyncRef.current);
+    firstSyncRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroupId, groups]);
+
+  useEffect(() => cancelSyncTween, []);
 
   // FLIP: after each swap, animate every in-flow chip from its previous slot to
   // its new one so the row slides smoothly.
@@ -425,6 +576,7 @@ export function GroupBar({
         }}
         className="groupChips"
       >
+        <span className="groupChipsIndicator" ref={indicatorRef} aria-hidden="true" />
         {displayGroups.map((group) => (
           <GroupChip
             group={group}
@@ -464,7 +616,7 @@ export function GroupBar({
       ) : null}
     </section>
   );
-}
+});
 
 type GroupChipProps = {
   group: TaskGroup;

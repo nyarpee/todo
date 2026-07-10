@@ -113,6 +113,7 @@ export function TaskDetailView({
         crumbs={detailCrumbs}
         ariaLabel={text.taskDetail.path}
         onNavigate={onSelectTask}
+        trailingSeparator={false}
       />
 
       <div className={task.children.length > 0 ? "detailHeader hasProgress" : "detailHeader"}>

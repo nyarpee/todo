@@ -68,7 +68,7 @@ import { AccountMenu } from "./AccountMenu";
 import { CalendarTabView } from "./CalendarTabView";
 import { DatePickerView } from "./DatePickerView";
 import { DraggableBottomSheet } from "./DraggableBottomSheet";
-import { GroupBar } from "./GroupBar";
+import { GroupBar, type GroupBarSyncHandle } from "./GroupBar";
 import { GroupSwipePager, type GroupSwipePagerHandle } from "./GroupSwipePager";
 import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import { GroupEditorSheet } from "./GroupEditorSheet";
@@ -124,6 +124,7 @@ export function TaskApp() {
   const [highlightedTaskId, setHighlightedTaskId] = useState<TaskId | null>(null);
   const [isOverTrash, setIsOverTrash] = useState(false);
   const pagerRef = useRef<GroupSwipePagerHandle>(null);
+  const groupBarRef = useRef<GroupBarSyncHandle>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
@@ -1473,7 +1474,8 @@ export function TaskApp() {
         >
           <section className="workspace">
             <GroupBar
-              groups={groups}
+              ref={groupBarRef}
+              groups={orderedGroups}
               activeGroupId={activeGroupId}
               onRegisterGroupChipsContainer={handleRegisterGroupChipsContainer}
               onRegisterGroupChip={handleRegisterGroupChip}
@@ -1489,6 +1491,9 @@ export function TaskApp() {
               disabled={activeDragTaskId !== null}
               onChangeActiveGroup={setActiveGroupId}
               renderGroup={renderGroupList}
+              onSwipeProgress={(fromId, toId, t, animate) =>
+                groupBarRef.current?.setProgress(fromId, toId, t, animate)
+              }
             />
           </section>
           <TrashDropZone active={activeDragTaskId !== null} />

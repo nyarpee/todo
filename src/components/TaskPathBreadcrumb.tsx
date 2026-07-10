@@ -11,6 +11,10 @@ type TaskPathBreadcrumbProps = {
   className?: string;
   ariaLabel?: string;
   onNavigate?: (id: string) => void;
+  // When false, the last crumb has no trailing ">" — the path stops at the
+  // current level (used on the detail page). Defaults to true so the composer
+  // keeps its "next level lives here" trailing separator.
+  trailingSeparator?: boolean;
 };
 
 type DisplayItem = PathCrumb | { ellipsis: true };
@@ -21,7 +25,7 @@ type DisplayItem = PathCrumb | { ellipsis: true };
 // root and the last two levels visible at a glance.
 const MAX_VISIBLE = 3;
 
-export function TaskPathBreadcrumb({ crumbs, className, ariaLabel, onNavigate }: TaskPathBreadcrumbProps) {
+export function TaskPathBreadcrumb({ crumbs, className, ariaLabel, onNavigate, trailingSeparator = true }: TaskPathBreadcrumbProps) {
   if (crumbs.length === 0) return null;
 
   let items: DisplayItem[];
@@ -67,7 +71,9 @@ export function TaskPathBreadcrumb({ crumbs, className, ariaLabel, onNavigate }:
               <span className="taskPathLabel">{item.label}</span>
             )}
 
-            <span className="taskPathSep" aria-hidden="true">&gt;</span>
+            {isLast && !trailingSeparator ? null : (
+              <span className="taskPathSep" aria-hidden="true">&gt;</span>
+            )}
           </span>
         );
       })}

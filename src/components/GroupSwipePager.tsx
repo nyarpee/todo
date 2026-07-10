@@ -35,6 +35,13 @@ type GroupSwipePagerProps = {
   disabled?: boolean;
   onChangeActiveGroup: (groupId: TaskGroupId) => void;
   renderGroup: (groupId: TaskGroupId, isActive: boolean) => ReactNode;
+  // Continuous swipe position, for driving the group-bar selection pill.
+  onSwipeProgress?: (
+    fromId: TaskGroupId,
+    toId: TaskGroupId | null,
+    t: number,
+    animate: boolean,
+  ) => void;
 };
 
 type Gesture = {
@@ -55,6 +62,7 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
   disabled = false,
   onChangeActiveGroup,
   renderGroup,
+  onSwipeProgress,
 }: GroupSwipePagerProps, ref) {
   const activeIndex = orderedGroups.findIndex((group) => group.id === activeGroupId);
   const centerGroup = activeIndex >= 0 ? orderedGroups[activeIndex] : undefined;
@@ -92,6 +100,14 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
       setOffset(0);
     }
   }, [disabled]);
+
+  function reportProgress(off: number, width: number, animate: boolean) {
+    if (!onSwipeProgress || !centerGroup) return;
+    const denom = width + PAGE_GAP_PX;
+    const f = denom > 0 ? off / denom : 0;
+    const toId = f > 0.0001 ? leftGroup?.id ?? null : f < -0.0001 ? rightGroup?.id ?? null : null;
+    onSwipeProgress(centerGroup.id, toId, Math.min(1, Math.abs(f)), animate);
+  }
 
   function resistedOffset(dx: number, width: number): number {
     const towardLeft = dx > 0;
@@ -172,7 +188,9 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
     gesture.lastT = event.timeStamp;
 
     rawDeltaRef.current = dx;
-    setOffset(resistedOffset(dx, gesture.width));
+    const off = resistedOffset(dx, gesture.width);
+    setOffset(off);
+    reportProgress(off, gesture.width, false);
   }
 
   function endGesture(event: ReactPointerEvent<HTMLDivElement>) {
@@ -222,12 +240,15 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
     if (commitLeft && leftGroup) {
       pendingCommitRef.current = leftGroup.id;
       setOffset(width + PAGE_GAP_PX);
+      reportProgress(width + PAGE_GAP_PX, width, true);
     } else if (commitRight && rightGroup) {
       pendingCommitRef.current = rightGroup.id;
       setOffset(-(width + PAGE_GAP_PX));
+      reportProgress(-(width + PAGE_GAP_PX), width, true);
     } else {
       pendingCommitRef.current = null;
       setOffset(0);
+      reportProgress(0, width, true);
     }
   }
 
@@ -258,8 +279,10 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
         if (!target) return false;
 
         pendingCommitRef.current = target.id;
+        const targetOffset = direction === "prev" ? width + PAGE_GAP_PX : -(width + PAGE_GAP_PX);
         setAnimating(true);
-        setOffset(direction === "prev" ? width + PAGE_GAP_PX : -(width + PAGE_GAP_PX));
+        setOffset(targetOffset);
+        reportProgress(targetOffset, width, true);
         return true;
       },
     }),

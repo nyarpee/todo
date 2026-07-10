@@ -362,6 +362,7 @@ h1 {
 }
 
 .groupChips {
+  position: relative;
   display: flex;
   gap: 8px;
   min-width: 0;
@@ -376,6 +377,22 @@ h1 {
   display: none;
 }
 
+/* The sliding selection fill; JS positions/sizes it (translate + width/height)
+   continuously as you swipe between groups, so it carries the pager's easing
+   and threshold "weight". */
+.groupChipsIndicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--focus) 36%, var(--line));
+  background: var(--surface-muted);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, width, height;
+}
+
 .groupChip,
 .groupAddChip {
   flex: 0 0 auto;
@@ -388,9 +405,14 @@ h1 {
 }
 
 .groupChip {
+  position: relative;
+  z-index: 1;
   max-width: 200px;
   overflow: hidden;
   padding: 0 16px;
+  /* Selection fill is provided by the sliding .groupChipsIndicator behind it. */
+  background: transparent;
+  border-color: transparent;
   text-overflow: ellipsis;
   white-space: nowrap;
   touch-action: pan-x;
@@ -413,6 +435,9 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: var(--text);
+  background: var(--surface-muted);
+  border-color: color-mix(in srgb, var(--focus) 36%, var(--line));
   pointer-events: none;
   transform-origin: center;
   will-change: transform;
@@ -421,8 +446,6 @@ h1 {
 
 .groupChip.isActive {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--focus) 36%, var(--line));
-  background: var(--surface-muted);
 }
 
 .groupChip.isDropTarget {
