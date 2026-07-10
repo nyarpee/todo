@@ -17,6 +17,8 @@
   --bar-half: #3aa66b;
   --bar-done: #1b8a4b;
   --focus: #2f6fed;
+  --danger: #d64545;
+  --danger-soft: #fbeaea;
   --shadow: 0 16px 40px rgb(22 29 39 / 8%);
   --canvas-bg: #fbfcfe;
   --canvas-grid: #d9dee7;
@@ -38,6 +40,8 @@
   --bar-half: #8b9dff;
   --bar-done: #4ade80;
   --focus: #67e8f9;
+  --danger: #f8807a;
+  --danger-soft: #3a2226;
   --shadow: 0 16px 42px rgb(0 0 0 / 24%);
   --canvas-bg: #101827;
   --canvas-grid: #28364d;
@@ -2411,6 +2415,222 @@ h1 {
   color: var(--focus);
   border-color: var(--focus);
   background: transparent;
+}
+
+.calStickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 4px;
+  background: linear-gradient(180deg, var(--bg) 72%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.calStickyHeader h2 {
+  overflow: hidden;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calMonthToggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.calMonthToggle:hover {
+  border-color: var(--focus);
+  color: var(--text);
+}
+
+.calMonthToggle.isActive {
+  color: var(--focus);
+  border-color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, var(--surface));
+}
+
+.calMonthJump {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.calOverdue {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));
+  border-radius: 14px;
+  background: var(--danger-soft);
+}
+
+.calOverdueHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+}
+
+.calOverdueTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 780;
+}
+
+.calOverdueCount {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.calChevron {
+  transition: transform 180ms ease;
+}
+
+.calChevron.isOpen {
+  transform: rotate(180deg);
+}
+
+.calOverdueBody {
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.calDayList {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  max-height: 64dvh;
+  overflow-y: auto;
+  padding-right: 2px;
+  scroll-behavior: smooth;
+}
+
+.calDayGroup {
+  display: grid;
+  gap: 2px;
+  padding: 4px 0 6px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+
+.calDayGroup.isToday {
+  border-radius: 10px;
+  border-top-color: transparent;
+  background: color-mix(in srgb, var(--focus) 8%, transparent);
+}
+
+.calDayGroup.isEmpty {
+  opacity: 0.62;
+}
+
+.calDayGroupHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+}
+
+.calDayLabel {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.calDayDate {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calDayGroup.isToday .calDayDate {
+  color: var(--focus);
+}
+
+.calDayWeekday {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.calDayOffset {
+  color: var(--soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+}
+
+.calDayOffset.isToday {
+  color: var(--focus);
+}
+
+.calDayOffset.isPast {
+  color: var(--danger);
+}
+
+.calDayAdd {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--soft);
+  background: transparent;
+}
+
+.calDayAdd:hover {
+  border-color: var(--focus);
+  color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 8%, transparent);
+}
+
+.calDayTasks {
+  display: grid;
+  gap: 2px;
+  padding-left: 2px;
+}
+
+.calSentinel {
+  height: 1px;
 }
 
 .timePanel {

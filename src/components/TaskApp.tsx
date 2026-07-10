@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   closestCenter,
+  pointerWithin,
   DndContext,
   DragOverlay,
   MouseSensor,
@@ -118,6 +119,7 @@ export function TaskApp() {
   const [detailReturnTarget, setDetailReturnTarget] = useState<"list" | "mindmap">("list");
   const [autoEditTaskId, setAutoEditTaskId] = useState<TaskId | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [quickAddInitialDate, setQuickAddInitialDate] = useState<string | null>(null);
   const [groupEditorMode, setGroupEditorMode] = useState<"create" | "manage" | null>(null);
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
@@ -162,6 +164,25 @@ export function TaskApp() {
       },
     }),
   );
+
+  // Custom collision detection: the trash drop zone should only win when the
+  // pointer is actually over it (pointerWithin). Otherwise the built-in
+  // closestCenter would snap a task into the trash whenever the current group
+  // has no task droppables nearby (e.g. an empty group), making it look like
+  // the delete button "sucks in" the task. All other droppables keep using
+  // closestCenter for smooth reordering.
+  const collisionDetection = useCallback<typeof closestCenter>((args) => {
+    const pointerCollisions = pointerWithin(args);
+    const trashCollision = pointerCollisions.find((c) => c.id === TRASH_DROPPABLE_ID);
+    if (trashCollision) return [trashCollision];
+
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (c) => c.id !== TRASH_DROPPABLE_ID,
+      ),
+    });
+  }, []);
   const workspaceId = authUser ? getAuthenticatedWorkspaceId(authUser.id) : ANONYMOUS_USER_ID;
 
   const roots = useMemo(() => buildTaskTree(tasks), [tasks]);
@@ -1432,6 +1453,11 @@ export function TaskApp() {
     setSelectedTaskId(taskId);
   }
 
+  function openCalendarQuickAdd(dueDate: string) {
+    setQuickAddInitialDate(dueDate);
+    setIsQuickAddOpen(true);
+  }
+
   return (
     <main className="appShell">
       <header className="appHeader">
@@ -1453,7 +1479,7 @@ export function TaskApp() {
       {!isLoaded ? (
         <div className="loadingState">{text.loading}</div>
       ) : activeTab === "calendar" ? (
-        <CalendarTabView tasks={allNodes} onSelectTask={openCalendarDetail} />
+        <CalendarTabView tasks={allNodes} onSelectTask={openCalendarDetail} onAddTask={openCalendarQuickAdd} />
       ) : activeTab === "habit" ? (
         <HabitTabView
           habits={habitsWithEntries}
@@ -1464,7 +1490,7 @@ export function TaskApp() {
         />
       ) : (
         <DndContext
-          collisionDetection={closestCenter}
+          collisionDetection={collisionDetection}
           sensors={sensors}
           onDragStart={handleDragStart}
           onDragMove={handleDragMove}
@@ -1571,6 +1597,7 @@ export function TaskApp() {
               setHabitEditorMode("create");
               return;
             }
+            setQuickAddInitialDate(null);
             setIsQuickAddOpen(true);
           }}
         />
@@ -1579,6 +1606,7 @@ export function TaskApp() {
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
         onSave={handleAddTask}
+        initialDueDate={quickAddInitialDate}
       />
       {groupEditorMode === "create" ? (
         <GroupEditorSheet

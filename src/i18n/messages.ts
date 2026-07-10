@@ -71,6 +71,8 @@ export const messages = {
       scheduled: "Scheduled",
       empty: "No dated tasks yet.",
       scheduledTasks: "{count} scheduled tasks",
+      overdue: "Overdue",
+      monthView: "Month",
     },
     habitEditor: {
       addHabit: "Add habit",
@@ -169,6 +171,8 @@ export const messages = {
       scheduled: "予定",
       empty: "日付付きのタスクはまだありません。",
       scheduledTasks: "{count} 件の予定",
+      overdue: "期限切れ",
+      monthView: "月表示",
     },
     habitEditor: {
       addHabit: "習慣を追加",
@@ -267,6 +271,8 @@ export const messages = {
       scheduled: "日程",
       empty: "还没有带日期的任务。",
       scheduledTasks: "{count} 个日程任务",
+      overdue: "已逾期",
+      monthView: "月视图",
     },
     habitEditor: {
       addHabit: "添加习惯",
@@ -365,6 +371,8 @@ export const messages = {
       scheduled: "排程",
       empty: "還沒有設定日期的任務。",
       scheduledTasks: "{count} 個排程任務",
+      overdue: "已逾期",
+      monthView: "月檢視",
     },
     habitEditor: {
       addHabit: "新增習慣",

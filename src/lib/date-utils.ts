@@ -88,6 +88,20 @@ export function buildCalendarDays(monthDate: Date): CalendarDay[] {
   });
 }
 
+export function diffDaysFromKey(dateKey: string, fromKey: string): number {
+  const target = fromDateKey(dateKey).getTime();
+  const base = fromDateKey(fromKey).getTime();
+  return Math.round((target - base) / 86_400_000);
+}
+
+export function getWeekdayIndexFromKey(dateKey: string): number {
+  return fromDateKey(dateKey).getDay();
+}
+
+export function getMonthLabelFromKey(dateKey: string, locale = "en"): string {
+  return getMonthLabel(fromDateKey(dateKey), locale);
+}
+
 export function sortScheduleValues(
   firstDate: string | null,
   firstTime: string | null,

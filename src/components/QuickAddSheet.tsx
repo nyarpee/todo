@@ -22,6 +22,7 @@ type QuickAddSheetProps = {
   isOpen: boolean;
   onClose: () => void;
   onSave: (draft: QuickAddDraft) => void;
+  initialDueDate?: string | null;
 };
 
 export function FloatingAddButton({ onClick }: { onClick: () => void }) {
@@ -34,7 +35,7 @@ export function FloatingAddButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
+export function QuickAddSheet({ isOpen, onClose, onSave, initialDueDate = null }: QuickAddSheetProps) {
   const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -76,6 +77,11 @@ export function QuickAddSheet({ isOpen, onClose, onSave }: QuickAddSheetProps) {
     setIsScheduleOpen(false);
     setIsPriorityOpen(false);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setDueDate(initialDueDate ?? null);
+  }, [isOpen, initialDueDate]);
 
   if (!isOpen) return null;
 
