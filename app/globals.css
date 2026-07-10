@@ -2650,6 +2650,14 @@ h1 {
   pointer-events: auto;
 }
 
+.calDayGroup.isComposing .calDayAddSlot {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+
 .calDayAddInline {
   display: inline-flex;
   align-items: center;

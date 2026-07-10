@@ -185,7 +185,6 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
     if (!composeDate) {
       list.style.maxHeight = "";
       list.style.scrollPaddingBottom = "";
-      list.style.paddingTop = "";
       return;
     }
 
@@ -194,15 +193,13 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
       const dayEl = composeDate ? dayRefs.current.get(composeDate) : null;
       if (!listEl || !dayEl) return;
       const listTop = listEl.getBoundingClientRect().top;
-      const height = Math.max(0, window.innerHeight - listTop);
       const sheet = document.querySelector(".quickAddSheet");
       const occluded = sheet
         ? window.innerHeight - sheet.getBoundingClientRect().top + 8
         : 220;
-      listEl.style.maxHeight = `${height}px`;
+      // Extend the scroll area down to the sheet's top edge so the day can pin just above it.
+      listEl.style.maxHeight = `${Math.max(0, window.innerHeight - listTop)}px`;
       listEl.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
-      // Spacer so even the top-most day can be pulled down to sit right above the sheet.
-      listEl.style.paddingTop = `${Math.max(0, Math.round(height - occluded))}px`;
       dayEl.scrollIntoView({ block: "end", behavior: "smooth" });
     }
 
@@ -328,6 +325,7 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
                   tomorrowLabel={text.common.tomorrow}
                   onSelectTask={onSelectTask}
                   isSelected={group.date === focusedDate}
+                  isComposing={group.date === composeDate}
                   onFocusDate={onFocusDate}
                   onAddTask={onAddTask}
                   addLabel={text.common.addTask}
@@ -356,6 +354,7 @@ export function CalendarTabView({ tasks, onSelectTask, focusedDate, onFocusDate,
             tomorrowLabel={text.common.tomorrow}
             onSelectTask={onSelectTask}
             isSelected={day.date === focusedDate}
+            isComposing={day.date === composeDate}
             onFocusDate={onFocusDate}
             onAddTask={onAddTask}
             addLabel={text.common.addTask}
@@ -384,6 +383,7 @@ type DayGroupProps = {
   tomorrowLabel: string;
   onSelectTask: (taskId: TaskId) => void;
   isSelected: boolean;
+  isComposing: boolean;
   onFocusDate: (dueDate: string | null) => void;
   onAddTask: (dueDate: string) => void;
   addLabel: string;
@@ -401,6 +401,7 @@ function DayGroup({
   tomorrowLabel,
   onSelectTask,
   isSelected,
+  isComposing,
   onFocusDate,
   onAddTask,
   addLabel,
@@ -418,6 +419,7 @@ function DayGroup({
     isToday ? "isToday" : "",
     isOverdue ? "isOverdue" : "",
     isSelected ? "isSelected" : "",
+    isComposing ? "isComposing" : "",
     tasks.length === 0 ? "isEmpty" : "",
   ].filter(Boolean).join(" ");
 
