@@ -38,6 +38,7 @@ import {
   updateHabit,
 } from "@/lib/habit-actions";
 import { getTodayKey } from "@/lib/date-utils";
+import { primeKeyboard } from "@/lib/ios-keyboard";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { createSampleHabits } from "@/lib/sample-habits";
 import {
@@ -1460,6 +1461,7 @@ export function TaskApp() {
   }
 
   function openCalendarQuickAdd(dueDate: string) {
+    primeKeyboard();
     setQuickAddInitialDate(dueDate);
     setIsQuickAddOpen(true);
   }
@@ -1610,6 +1612,7 @@ export function TaskApp() {
               setHabitEditorMode("create");
               return;
             }
+            primeKeyboard();
             setQuickAddInitialDate(null);
             setIsQuickAddOpen(true);
           }}

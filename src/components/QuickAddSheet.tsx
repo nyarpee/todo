@@ -60,9 +60,10 @@ export function QuickAddSheet({
   useEffect(() => {
     if (!isOpen) return;
 
-    const focusTimer = window.setTimeout(() => {
-      titleInputRef.current?.focus({ preventScroll: true });
-    }, 80);
+    // Focus synchronously on mount. iOS keeps the keyboard up because the
+    // opening tap already primed it via primeKeyboard(); this just transfers
+    // focus from the hidden proxy input to the real one.
+    titleInputRef.current?.focus({ preventScroll: true });
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
@@ -71,7 +72,6 @@ export function QuickAddSheet({
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
