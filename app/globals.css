@@ -308,6 +308,30 @@ h1 {
   gap: 12px;
 }
 
+/* Horizontal group pager: the centre panel is in flow (defines height), the two
+   neighbours sit absolutely off to each side and slide in on swipe. */
+.groupPager {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.groupPagerPanel {
+  width: 100%;
+}
+
+.groupPagerPanel.isCenter {
+  position: relative;
+}
+
+.groupPagerPanel.isSide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
 .groupArea {
   position: sticky;
   top: 0;

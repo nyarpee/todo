@@ -68,6 +68,7 @@ import { CalendarTabView } from "./CalendarTabView";
 import { DatePickerView } from "./DatePickerView";
 import { DraggableBottomSheet } from "./DraggableBottomSheet";
 import { GroupBar } from "./GroupBar";
+import { GroupSwipePager } from "./GroupSwipePager";
 import { GroupEditorSheet } from "./GroupEditorSheet";
 import { GroupManagerSheet } from "./GroupManagerSheet";
 import { HabitEditorSheet } from "./HabitEditorSheet";
@@ -167,22 +168,16 @@ export function TaskApp() {
     }
     return counts;
   }, [tasks]);
-  const activeGroupRoots = useMemo(
-    () => roots.filter((root) => root.groupId === activeGroupId),
-    [activeGroupId, roots],
-  );
-  const activeRoots = useMemo(
-    () => activeGroupRoots.filter((root) => !root.completed),
-    [activeGroupRoots],
-  );
-  const completedRoots = useMemo(
-    () =>
-      activeGroupRoots
-        .filter((root) => root.completed)
-        .slice()
-        .sort(sortCompletedTasks),
-    [activeGroupRoots],
-  );
+  const orderedGroups = useMemo(() => groups.slice().sort(sortGroupsByOrder), [groups]);
+  const rootsByGroup = useMemo(() => {
+    const map = new Map<TaskGroupId, TaskNode[]>();
+    for (const root of roots) {
+      const list = map.get(root.groupId);
+      if (list) list.push(root);
+      else map.set(root.groupId, [root]);
+    }
+    return map;
+  }, [roots]);
   const selectedTask = selectedTaskId
     ? allNodes.find((node) => node.id === selectedTaskId) ?? null
     : null;
@@ -1364,6 +1359,39 @@ export function TaskApp() {
     edgeSwitchDirectionRef.current = null;
   }
 
+  function renderGroupList(groupId: TaskGroupId, isActive: boolean) {
+    const groupRoots = rootsByGroup.get(groupId) ?? [];
+    if (groupRoots.length === 0) {
+      return (
+        <div className="emptyState compactEmpty">
+          <p>{text.emptyTasks}</p>
+        </div>
+      );
+    }
+
+    const activeRoots = groupRoots.filter((root) => !root.completed);
+    const completedRoots = groupRoots
+      .filter((root) => root.completed)
+      .slice()
+      .sort(sortCompletedTasks);
+
+    return (
+      <TaskListView
+        roots={activeRoots}
+        completedRoots={completedRoots}
+        interactive={isActive}
+        onSelectTask={openListDetail}
+        onOpenMindMap={setMindMapRootId}
+        onToggleComplete={handleToggleComplete}
+        onRenameTask={handleRenameTask}
+        autoEditTaskId={autoEditTaskId}
+        onAutoEditConsumed={() => setAutoEditTaskId(null)}
+        highlightedTaskId={highlightedTaskId}
+        isSortingTask={isActive && activeDragTaskId !== null}
+      />
+    );
+  }
+
   function openListDetail(taskId: TaskId) {
     setActiveTab("inbox");
     setDetailReturnTarget("list");
@@ -1431,26 +1459,13 @@ export function TaskApp() {
               onOpenMenu={() => setGroupEditorMode("manage")}
               onReorderGroups={handleReorderGroups}
             />
-            {activeGroupRoots.length === 0 ? (
-              <div className="emptyState compactEmpty">
-                <p>{text.emptyTasks}</p>
-              </div>
-            ) : null}
-            {activeGroupRoots.length > 0 ? (
-              <TaskListView
-                roots={activeRoots}
-                completedRoots={completedRoots}
-                onSelectTask={openListDetail}
-                onOpenMindMap={setMindMapRootId}
-                onToggleComplete={handleToggleComplete}
-                onRenameTask={handleRenameTask}
-                onDeleteTask={handleDeleteTask}
-                autoEditTaskId={autoEditTaskId}
-                onAutoEditConsumed={() => setAutoEditTaskId(null)}
-                highlightedTaskId={highlightedTaskId}
-                isSortingTask={activeDragTaskId !== null}
-              />
-            ) : null}
+            <GroupSwipePager
+              orderedGroups={orderedGroups}
+              activeGroupId={activeGroupId}
+              disabled={activeDragTaskId !== null}
+              onChangeActiveGroup={setActiveGroupId}
+              renderGroup={renderGroupList}
+            />
           </section>
           <DragOverlay modifiers={[snapCenterToCursor]}>
             {activeDragTask ? (
