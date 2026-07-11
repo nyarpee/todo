@@ -52,6 +52,20 @@ const INITIAL_FORWARD_DAYS = 45;
 const FORWARD_CHUNK = 30;
 const DAY_DROPPABLE_PREFIX = "cal-day:";
 
+// Timed tasks first (by time), then untimed tasks in creation order so a task
+// just composed lands at the BOTTOM of its day group — right above the compose
+// sheet — instead of inheriting the inbox's newest-first order.
+function compareDayTasks(first: TaskNode, second: TaskNode): number {
+  const scheduleCompare = sortScheduleValues(
+    first.dueDate,
+    first.dueTime,
+    second.dueDate,
+    second.dueTime,
+  );
+  if (scheduleCompare !== 0) return scheduleCompare;
+  return first.createdAt.localeCompare(second.createdAt);
+}
+
 export function CalendarTabView({
   tasks,
   onSelectTask,
@@ -109,14 +123,7 @@ export function CalendarTabView({
       map.set(task.dueDate, [...(map.get(task.dueDate) ?? []), task]);
     }
     for (const [date, dateTasks] of map) {
-      map.set(
-        date,
-        dateTasks
-          .slice()
-          .sort((first, second) =>
-            sortScheduleValues(first.dueDate, first.dueTime, second.dueDate, second.dueTime),
-          ),
-      );
+      map.set(date, dateTasks.slice().sort(compareDayTasks));
     }
     return map;
   }, [tasks]);
@@ -130,11 +137,7 @@ export function CalendarTabView({
     }
     return Array.from(map, ([date, dateTasks]) => ({
       date,
-      tasks: dateTasks
-        .slice()
-        .sort((first, second) =>
-          sortScheduleValues(first.dueDate, first.dueTime, second.dueDate, second.dueTime),
-        ),
+      tasks: dateTasks.slice().sort(compareDayTasks),
     })).sort((first, second) => first.date.localeCompare(second.date));
   }, [tasks, todayKey]);
 
