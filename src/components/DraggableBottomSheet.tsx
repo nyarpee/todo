@@ -257,7 +257,7 @@ function shouldIgnoreSheetDrag(target: EventTarget): boolean {
 
   return Boolean(
     target.closest(
-      "input,select,a,[contenteditable='true'],.react-flow,.subtaskDragHandle",
+      "input,select,a,[contenteditable='true'],.react-flow,.sortableSubtaskItem",
     ),
   );
 }

@@ -55,8 +55,6 @@ export const messages = {
       openTree: "Open tree",
       treeCanvas: "{title} tree canvas",
       addChildTask: "Add child task",
-      reorderSubtask: "Reorder subtask",
-      deleteSubtask: "Delete subtask",
     },
     lists: {
       area: "Lists",
@@ -157,8 +155,6 @@ export const messages = {
       openTree: "ツリーを開く",
       treeCanvas: "{title} のツリー",
       addChildTask: "子タスクを追加",
-      reorderSubtask: "サブタスクを並べ替え",
-      deleteSubtask: "サブタスクを削除",
     },
     lists: {
       area: "リスト",
@@ -259,8 +255,6 @@ export const messages = {
       openTree: "打开树",
       treeCanvas: "{title} 的树视图",
       addChildTask: "添加子任务",
-      reorderSubtask: "重新排序子任务",
-      deleteSubtask: "删除子任务",
     },
     lists: {
       area: "列表",
@@ -361,8 +355,6 @@ export const messages = {
       openTree: "開啟樹狀圖",
       treeCanvas: "{title} 的樹狀視圖",
       addChildTask: "新增子任務",
-      reorderSubtask: "重新排序子任務",
-      deleteSubtask: "刪除子任務",
     },
     lists: {
       area: "清單",

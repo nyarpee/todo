@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarClock, Flag, GripVertical, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CalendarClock, Flag, Plus } from "lucide-react";
 import {
   closestCenter,
+  pointerWithin,
   DndContext,
+  DragOverlay,
   MouseSensor,
   TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
+import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import {
   SortableContext,
   useSortable,
@@ -27,6 +32,7 @@ import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { SubtaskQuickAddSheet } from "./SubtaskQuickAddSheet";
+import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import { TaskPathBreadcrumb, type PathCrumb } from "./TaskPathBreadcrumb";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
@@ -70,12 +76,30 @@ export function TaskDetailView({
 }: TaskDetailViewProps) {
   const { messages: text } = useLanguage();
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
-  // Press-and-hold to start a reorder drag; a quick tap on the handle still lets
-  // taps elsewhere on the row navigate/edit. Mirrors the inbox list sensors.
+  const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
+  const [isOverTrash, setIsOverTrash] = useState(false);
+  // Press-and-hold to start a drag (same feel as inbox/calendar): a quick tap
+  // still toggles/opens the subtask, a hold drags the whole row to reorder or
+  // onto the trash to delete.
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 160, tolerance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
   );
+
+  // Prefer the trash target when the pointer is over it; otherwise reorder among
+  // the subtask rows (mirrors the calendar behaviour).
+  const collisionDetection = useCallback<typeof closestCenter>((args) => {
+    const pointerCollisions = pointerWithin(args);
+    const trashCollision = pointerCollisions.find((c) => c.id === TRASH_DROPPABLE_ID);
+    if (trashCollision) return [trashCollision];
+
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (c) => c.id !== TRASH_DROPPABLE_ID,
+      ),
+    });
+  }, []);
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
 
@@ -160,18 +184,42 @@ export function TaskDetailView({
     }
   }
 
-  function handleSubtaskDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    onReorderChild(String(active.id), String(over.id));
+  function handleSubtaskDragStart(event: DragStartEvent) {
+    setActiveDragTaskId(String(event.active.id));
   }
 
-  function handleDeleteSubtask(child: TaskNode) {
-    if (child.children.length > 0 && !window.confirm(text.taskDetail.deleteWithSubtasks)) {
+  function handleSubtaskDragOver(event: DragOverEvent) {
+    setIsOverTrash(event.over?.id === TRASH_DROPPABLE_ID);
+  }
+
+  function handleSubtaskDragCancel() {
+    setActiveDragTaskId(null);
+    setIsOverTrash(false);
+  }
+
+  function handleSubtaskDragEnd(event: DragEndEvent) {
+    const activeId = String(event.active.id);
+    const overId = event.over?.id ? String(event.over.id) : null;
+    setActiveDragTaskId(null);
+    setIsOverTrash(false);
+
+    const dragged = task.children.find((child) => child.id === activeId);
+    if (!dragged) return;
+
+    if (overId === TRASH_DROPPABLE_ID) {
+      if (dragged.children.length === 0 || window.confirm(text.taskDetail.deleteWithSubtasks)) {
+        onDeleteTask(activeId);
+      }
       return;
     }
-    onDeleteTask(child.id);
+
+    if (!overId || overId === activeId) return;
+    onReorderChild(activeId, overId);
   }
+
+  const activeDragTask = activeDragTaskId
+    ? task.children.find((child) => child.id === activeDragTaskId) ?? null
+    : null;
 
   return (
     <section ref={viewRef} className="detailView">
@@ -249,8 +297,11 @@ export function TaskDetailView({
         </div>
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={collisionDetection}
+          onDragStart={handleSubtaskDragStart}
+          onDragOver={handleSubtaskDragOver}
           onDragEnd={handleSubtaskDragEnd}
+          onDragCancel={handleSubtaskDragCancel}
         >
           <SortableContext
             items={task.children.map((child) => child.id)}
@@ -266,14 +317,23 @@ export function TaskDetailView({
                   onSelectTask={onSelectTask}
                   onToggleComplete={onToggleComplete}
                   onRenameTask={onRenameTask}
-                  onDelete={handleDeleteSubtask}
                   completeLabel={text.taskDetail.complete}
-                  reorderLabel={text.taskDetail.reorderSubtask}
-                  deleteLabel={text.taskDetail.deleteSubtask}
                 />
               ))}
             </div>
           </SortableContext>
+          <TrashDropZone active={activeDragTaskId !== null} />
+          <DragOverlay modifiers={[snapCenterToCursor]}>
+            {activeDragTask ? (
+              <div className={isOverTrash ? "dragOverlayTask isOverTrash" : "dragOverlayTask"}>
+                <span
+                  className={`priorityDot taskPriorityDot ${getPriorityClass(activeDragTask.priority)}`}
+                  aria-hidden="true"
+                />
+                <span>{activeDragTask.title}</span>
+              </div>
+            ) : null}
+          </DragOverlay>
         </DndContext>
         {!composerOpen ? (
           <button className="subtaskAddButton" type="button" onClick={() => onComposerOpenChange(true)}>
@@ -315,10 +375,7 @@ type SortableSubtaskRowProps = {
   onSelectTask: (taskId: TaskId) => void;
   onToggleComplete: (taskId: TaskId) => void;
   onRenameTask: (taskId: TaskId, title: string) => void;
-  onDelete: (child: TaskNode) => void;
   completeLabel: string;
-  reorderLabel: string;
-  deleteLabel: string;
 };
 
 function SortableSubtaskRow({
@@ -328,10 +385,7 @@ function SortableSubtaskRow({
   onSelectTask,
   onToggleComplete,
   onRenameTask,
-  onDelete,
   completeLabel,
-  reorderLabel,
-  deleteLabel,
 }: SortableSubtaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: child.id, data: { type: "subtask" } });
@@ -341,6 +395,8 @@ function SortableSubtaskRow({
       ref={setNodeRef}
       className={isDragging ? "sortableSubtaskItem isDragging" : "sortableSubtaskItem"}
       style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
     >
       <div
         className={child.children.length > 0 ? "subtaskRow hasProgress" : "subtaskRow"}
@@ -350,15 +406,6 @@ function SortableSubtaskRow({
           onSelectTask(child.id);
         }}
       >
-        <button
-          type="button"
-          className="subtaskDragHandle"
-          aria-label={reorderLabel}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={16} aria-hidden="true" />
-        </button>
         <input
           className={`check ${getPriorityClass(child.priority)}`}
           type="checkbox"
@@ -377,17 +424,6 @@ function SortableSubtaskRow({
           onSave={(title) => onRenameTask(child.id, title)}
         />
         {child.children.length > 0 ? <ProgressBar value={child.progress} /> : null}
-        <button
-          type="button"
-          className="subtaskDeleteButton"
-          aria-label={deleteLabel}
-          onClick={(event) => {
-            event.stopPropagation();
-            onDelete(child);
-          }}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-        </button>
       </div>
     </div>
   );
