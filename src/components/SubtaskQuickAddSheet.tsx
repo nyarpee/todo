@@ -188,6 +188,10 @@ export function SubtaskQuickAddSheet({ placeholder, crumbs, onNavigate, onAdd, o
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={placeholder}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
           <button
             className="quickAddInlineSaveButton"

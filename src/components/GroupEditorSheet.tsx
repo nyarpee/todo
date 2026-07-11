@@ -76,6 +76,10 @@ export function GroupEditorSheet(props: GroupEditorSheetProps) {
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder={text.lists.name}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
         />
         <button className="groupEditorSaveButton" type="submit" disabled={!canSave}>
           {props.mode === "create" ? text.lists.add : text.lists.rename}

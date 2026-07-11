@@ -151,6 +151,10 @@ export function QuickAddSheet({
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={text.common.title}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
           <button className="quickAddInlineSaveButton" type="submit" disabled={!canSave} aria-label={text.common.save}>
             <ArrowUp size={20} aria-hidden="true" />

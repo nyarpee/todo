@@ -73,6 +73,10 @@ export function PriorityEditorSheet({
                 />
                 <input
                   value={draftLabels[option.id]}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   aria-label={text.priority.labelInput.replace("{label}", getPriorityLabel(option.id, labels))}
                   onChange={(event) =>
                     setDraftLabels((currentLabels) => ({

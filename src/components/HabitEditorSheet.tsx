@@ -83,6 +83,10 @@ export function HabitEditorSheet(props: HabitEditorSheetProps) {
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={text.habitEditor.title}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
         </label>
 

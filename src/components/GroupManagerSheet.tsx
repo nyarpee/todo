@@ -77,6 +77,10 @@ export function GroupManagerSheet({
                 className="groupManagerInput"
                 value={draftFor(group)}
                 placeholder={text.lists.name}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 onChange={(event) =>
                   setDrafts((current) => ({ ...current, [group.id]: event.target.value }))
                 }
