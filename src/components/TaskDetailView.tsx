@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Flag, Plus } from "lucide-react";
+import { createPortal } from "react-dom";
 import {
   closestCenter,
   pointerWithin,
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   MouseSensor,
   TouchSensor,
   useSensor,
@@ -298,6 +300,7 @@ export function TaskDetailView({
         <DndContext
           sensors={sensors}
           collisionDetection={collisionDetection}
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragStart={handleSubtaskDragStart}
           onDragOver={handleSubtaskDragOver}
           onDragEnd={handleSubtaskDragEnd}
@@ -323,17 +326,24 @@ export function TaskDetailView({
             </div>
           </SortableContext>
           <TrashDropZone active={activeDragTaskId !== null} />
-          <DragOverlay modifiers={[snapCenterToCursor]}>
-            {activeDragTask ? (
-              <div className={isOverTrash ? "dragOverlayTask isOverTrash" : "dragOverlayTask"}>
-                <span
-                  className={`priorityDot taskPriorityDot ${getPriorityClass(activeDragTask.priority)}`}
-                  aria-hidden="true"
-                />
-                <span>{activeDragTask.title}</span>
-              </div>
-            ) : null}
-          </DragOverlay>
+          {/* Portal the overlay to <body> so its position:fixed is relative to
+              the viewport, not the transformed detail sheet (a transformed
+              ancestor becomes the containing block for fixed descendants, which
+              otherwise offsets the drag preview from the pointer). */}
+          {createPortal(
+            <DragOverlay modifiers={[snapCenterToCursor]}>
+              {activeDragTask ? (
+                <div className={isOverTrash ? "dragOverlayTask isOverTrash" : "dragOverlayTask"}>
+                  <span
+                    className={`priorityDot taskPriorityDot ${getPriorityClass(activeDragTask.priority)}`}
+                    aria-hidden="true"
+                  />
+                  <span>{activeDragTask.title}</span>
+                </div>
+              ) : null}
+            </DragOverlay>,
+            document.body,
+          )}
         </DndContext>
         {!composerOpen ? (
           <button className="subtaskAddButton" type="button" onClick={() => onComposerOpenChange(true)}>

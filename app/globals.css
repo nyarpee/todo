@@ -737,7 +737,9 @@ h1 {
   position: fixed;
   left: 50%;
   bottom: calc(64px + env(safe-area-inset-bottom));
-  z-index: 55;
+  /* Above the detail sheet layer (60) so the bin is visible when reordering
+     subtasks inside the sheet; still below the docked composer (70). */
+  z-index: 65;
   display: grid;
   place-items: end center;
   width: min(240px, 82vw);
