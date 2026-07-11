@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/core";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
+import { RefreshCw } from "lucide-react";
 import {
   applyGroupActivityEvent,
   applyHabitActivityEvent,
@@ -40,6 +41,7 @@ import {
 } from "@/lib/habit-actions";
 import { getTodayKey } from "@/lib/date-utils";
 import { primeKeyboard } from "@/lib/ios-keyboard";
+import { usePullToRefresh, PULL_TRIGGER_THRESHOLD } from "@/hooks/usePullToRefresh";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { createSampleHabits } from "@/lib/sample-habits";
 import {
@@ -149,6 +151,12 @@ export function TaskApp() {
   const lastSyncedFingerprintRef = useRef<string | null>(null);
   const pendingActivityWritesRef = useRef<Promise<void>[]>([]);
   const resetAnonymousOnNextLoadRef = useRef(false);
+  const appScrollRef = useRef<HTMLDivElement>(null);
+  const handlePullRefresh = useCallback(() => window.location.reload(), []);
+  const { pull: pullDistance, refreshing: isRefreshing } = usePullToRefresh(
+    appScrollRef,
+    handlePullRefresh,
+  );
   const sensors = useSensors(
     // Desktop: mouse is unaffected by touch-action, so behaviour is unchanged.
     useSensor(MouseSensor, {
@@ -1513,7 +1521,29 @@ export function TaskApp() {
 
   return (
     <main className="appShell">
-      <div className="appScroll">
+      <div
+        className="ptrIndicator"
+        data-refreshing={isRefreshing ? "true" : undefined}
+        aria-hidden="true"
+        style={{
+          transform: `translate(-50%, ${pullDistance - 44}px)`,
+          opacity: pullDistance > 4 || isRefreshing ? 1 : 0,
+          // Follow the finger 1:1 while pulling; animate the snap-back on release.
+          transition: pullDistance > 0 && !isRefreshing ? "opacity 160ms ease" : undefined,
+        }}
+      >
+        <span
+          className="ptrSpinner"
+          style={
+            isRefreshing
+              ? undefined
+              : { transform: `rotate(${(pullDistance / PULL_TRIGGER_THRESHOLD) * 270}deg)` }
+          }
+        >
+          <RefreshCw size={20} aria-hidden="true" />
+        </span>
+      </div>
+      <div className="appScroll" ref={appScrollRef}>
       <header className="appHeader">
         <div className="brand">
           <span className="brandMark" aria-hidden="true" />

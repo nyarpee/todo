@@ -122,6 +122,43 @@ p {
   padding: 24px 0 calc(96px + env(safe-area-inset-bottom));
 }
 
+/* Custom pull-to-refresh spinner. The fixed-shell layout disables the browser's
+   native pull-to-refresh, so this descends from the top of the app scroller
+   (Chrome-style) while pulling and spins until the page reloads. */
+.ptrIndicator {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 4px);
+  left: 50%;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: var(--focus);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 18%);
+  pointer-events: none;
+  /* Snap-back easing when released; overridden inline to follow the finger. */
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease;
+}
+
+.ptrSpinner {
+  display: grid;
+  place-items: center;
+}
+
+.ptrIndicator[data-refreshing="true"] .ptrSpinner {
+  animation: ptrSpin 720ms linear infinite;
+}
+
+@keyframes ptrSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .appHeader {
   display: flex;
   align-items: center;
