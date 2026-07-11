@@ -717,7 +717,7 @@ export function TaskApp() {
 
   function handleAddTask(draft?: QuickAddDraft) {
     if (draft) {
-      if (activeTab === "calendar") {
+      if (activeTab === "calendar" || activeTab === "inbox") {
         // Compose mode: add immediately and keep the sheet open for the next task.
         addRootTask(draft, true);
         return;
@@ -1659,7 +1659,7 @@ export function TaskApp() {
         onClose={() => setIsQuickAddOpen(false)}
         onSave={handleAddTask}
         initialDueDate={quickAddInitialDate}
-        keepOpenOnSave={activeTab === "calendar"}
+        keepOpenOnSave={activeTab === "calendar" || activeTab === "inbox"}
         transparentBackdrop={activeTab === "calendar" && quickAddInitialDate !== null}
       />
       {groupEditorMode === "create" ? (

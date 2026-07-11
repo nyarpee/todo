@@ -74,24 +74,42 @@ export function TaskDetailView({
   ];
   const viewRef = useRef<HTMLElement>(null);
 
-  // While the floating composer is open, keep the detail sheet scrolled to the
-  // bottom (the spacer keeps that region clear of the composer), so the newest
-  // subtask always sits right above the composer: on open, after each add, and
-  // when the keyboard resizes the sheet.
+  // While the floating composer is open, pin the BOTTOM of the subtask list just
+  // above the composer (mirrors the calendar's compose behaviour), so the newest
+  // subtask lands right above the sheet — on open, after each add, and when the
+  // keyboard resizes the sheet. The spacer below is sized to the composer's
+  // occluded height so there's always room to scroll the list's tail up to it.
   useEffect(() => {
     if (!composerOpen) return;
-    const sheet = viewRef.current?.closest(".draggableSheet");
+    const view = viewRef.current;
+    const sheet = view?.closest(".draggableSheet");
     if (!(sheet instanceof HTMLElement)) return;
+    const subtaskList = view?.querySelector<HTMLElement>(".subtaskList");
+    const spacer = view?.querySelector<HTMLElement>(".detailComposerSpacer");
 
-    const pinToBottom = () => {
-      sheet.scrollTop = sheet.scrollHeight;
+    const align = () => {
+      const composer = document.querySelector(".subtaskAddLayer .quickAddSheet");
+      const occluded = composer
+        ? window.innerHeight - composer.getBoundingClientRect().top + 8
+        : 220;
+      // Reserve room below the list and inset the scrollport so the tail can pin
+      // to the composer's top edge instead of the viewport bottom.
+      if (spacer) spacer.style.height = `${Math.round(occluded)}px`;
+      sheet.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
+      if (subtaskList) {
+        subtaskList.scrollIntoView({ block: "end", behavior: "smooth" });
+      } else {
+        sheet.scrollTop = sheet.scrollHeight;
+      }
     };
-    const openTimer = window.setTimeout(pinToBottom, 80);
-    window.visualViewport?.addEventListener("resize", pinToBottom);
+
+    const openTimer = window.setTimeout(align, 80);
+    window.visualViewport?.addEventListener("resize", align);
 
     return () => {
       window.clearTimeout(openTimer);
-      window.visualViewport?.removeEventListener("resize", pinToBottom);
+      window.visualViewport?.removeEventListener("resize", align);
+      sheet.style.scrollPaddingBottom = "";
     };
   }, [composerOpen, task.children.length]);
 
