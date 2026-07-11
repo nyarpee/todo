@@ -1560,11 +1560,15 @@ h1 {
 }
 
 
+/* touch-action:none stops the browser from natively scrolling the page from the
+   backdrop; pans/wheel are forwarded to the scroller in JS instead. Native
+   scroll here is what made iOS re-position the fixed sheet and wobble. */
 .quickAddBackdrop {
   position: absolute;
   inset: 0;
   border: 0;
   background: rgb(15 23 42 / 34%);
+  touch-action: none;
 }
 
 .sheetBackdrop {
@@ -1572,6 +1576,7 @@ h1 {
   inset: 0;
   border: 0;
   background: transparent;
+  touch-action: none;
 }
 
 .quickAddSheet {

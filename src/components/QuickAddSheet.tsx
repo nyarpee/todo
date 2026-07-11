@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type TouchEvent as ReactTouchEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
 import { ArrowUp, CalendarDays, Flag, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
@@ -25,7 +33,17 @@ type QuickAddSheetProps = {
   initialDueDate?: string | null;
   keepOpenOnSave?: boolean;
   transparentBackdrop?: boolean;
+  /**
+   * CSS selector for the element that scrolls behind the sheet (e.g. the
+   * calendar day list). When omitted the document itself is scrolled. Backdrop
+   * pans/wheel are forwarded to it in JS so the background never scrolls
+   * natively — that native scroll is what makes iOS re-lay-out the fixed sheet
+   * and wobble. See SubtaskQuickAddSheet for the same technique.
+   */
+  scrollSelector?: string;
 };
+
+const BACKDROP_TAP_TOLERANCE_PX = 8;
 
 export function FloatingAddButton({ onClick }: { onClick: () => void }) {
   const { messages: text } = useLanguage();
@@ -44,6 +62,7 @@ export function QuickAddSheet({
   initialDueDate = null,
   keepOpenOnSave = false,
   transparentBackdrop = false,
+  scrollSelector,
 }: QuickAddSheetProps) {
   const { messages: text } = useLanguage();
   const [title, setTitle] = useState("");
@@ -55,7 +74,58 @@ export function QuickAddSheet({
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const lastTouchYRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const didDragRef = useRef(false);
   const canSave = title.trim().length > 0;
+
+  function getScroller(): HTMLElement | null {
+    if (scrollSelector) {
+      const el = document.querySelector<HTMLElement>(scrollSelector);
+      if (el) return el;
+    }
+    return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+  }
+
+  function handleBackdropTouchStart(event: ReactTouchEvent<HTMLButtonElement>) {
+    const touch = event.touches[0];
+    if (!touch) return;
+    lastTouchYRef.current = touch.clientY;
+    touchStartYRef.current = touch.clientY;
+    didDragRef.current = false;
+  }
+
+  function handleBackdropTouchMove(event: ReactTouchEvent<HTMLButtonElement>) {
+    const touch = event.touches[0];
+    if (!touch || lastTouchYRef.current === null) return;
+
+    const delta = lastTouchYRef.current - touch.clientY;
+    lastTouchYRef.current = touch.clientY;
+
+    if (
+      touchStartYRef.current !== null &&
+      Math.abs(touch.clientY - touchStartYRef.current) > BACKDROP_TAP_TOLERANCE_PX
+    ) {
+      didDragRef.current = true;
+    }
+
+    const scroller = getScroller();
+    if (scroller) scroller.scrollTop += delta;
+  }
+
+  function handleBackdropWheel(event: ReactWheelEvent<HTMLButtonElement>) {
+    const scroller = getScroller();
+    if (scroller) scroller.scrollTop += event.deltaY;
+  }
+
+  function handleBackdropClick() {
+    // A swipe that scrolled the background must not also close the sheet.
+    if (didDragRef.current) {
+      didDragRef.current = false;
+      return;
+    }
+    onClose();
+  }
 
   useEffect(() => {
     if (!isOpen) return;
@@ -134,7 +204,10 @@ export function QuickAddSheet({
         className={transparentBackdrop ? "sheetBackdrop" : "quickAddBackdrop"}
         type="button"
         aria-label={text.common.close}
-        onClick={onClose}
+        onClick={handleBackdropClick}
+        onTouchStart={handleBackdropTouchStart}
+        onTouchMove={handleBackdropTouchMove}
+        onWheel={handleBackdropWheel}
       />
       <form
         className="quickAddSheet"

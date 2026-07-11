@@ -1647,6 +1647,7 @@ export function TaskApp() {
         initialDueDate={quickAddInitialDate}
         keepOpenOnSave={activeTab === "calendar"}
         transparentBackdrop={activeTab === "calendar" && quickAddInitialDate !== null}
+        scrollSelector={activeTab === "calendar" ? ".calDayList" : undefined}
       />
       {groupEditorMode === "create" ? (
         <GroupEditorSheet
