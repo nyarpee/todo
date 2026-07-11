@@ -759,6 +759,17 @@ export function TaskApp() {
       setHighlightedTaskId((currentTaskId) => (currentTaskId === taskId ? null : currentTaskId));
     }, 1400);
 
+    if (activeTab !== "calendar") {
+      // Show the user exactly where the task landed: once React has committed
+      // the new row, bring it into view in the app scroller. The calendar tab
+      // handles this itself by re-pinning the composed day above the sheet.
+      window.setTimeout(() => {
+        document
+          .querySelector(`[data-task-id="${taskId}"]`)
+          ?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }, 80);
+    }
+
     if (!draft) {
       setAutoEditTaskId(taskId);
     }
@@ -1488,6 +1499,7 @@ export function TaskApp() {
 
   return (
     <main className="appShell">
+      <div className="appScroll">
       <header className="appHeader">
         <div className="brand">
           <span className="brandMark" aria-hidden="true" />
@@ -1516,6 +1528,7 @@ export function TaskApp() {
           onMoveTask={handleMoveTaskToDate}
           onDeleteTask={handleDeleteTask}
           composeDate={isQuickAddOpen ? quickAddInitialDate : null}
+          highlightedTaskId={highlightedTaskId}
         />
       ) : activeTab === "habit" ? (
         <HabitTabView
@@ -1573,6 +1586,7 @@ export function TaskApp() {
           </DragOverlay>
         </DndContext>
       )}
+      </div>
       {mindMapRoot ? (
         <DraggableBottomSheet
           ariaLabel="Task tree canvas"
@@ -1647,7 +1661,6 @@ export function TaskApp() {
         initialDueDate={quickAddInitialDate}
         keepOpenOnSave={activeTab === "calendar"}
         transparentBackdrop={activeTab === "calendar" && quickAddInitialDate !== null}
-        scrollSelector={activeTab === "calendar" ? ".calDayList" : undefined}
       />
       {groupEditorMode === "create" ? (
         <GroupEditorSheet

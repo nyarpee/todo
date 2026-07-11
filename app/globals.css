@@ -52,6 +52,19 @@
   box-sizing: border-box;
 }
 
+/* Fixed-shell layout: the document itself never scrolls. All scrolling happens
+   inside .appScroll (or nested scrollers like .calDayList). iOS Safari
+   re-positions position:fixed overlays while the DOCUMENT scrolls with the
+   keyboard open — the cause of bottom sheets wobbling — but leaves them alone
+   when only an inner container scrolls, so we keep native momentum scrolling
+   AND rock-solid sheets. */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   min-width: 320px;
   margin: 0;
@@ -88,9 +101,25 @@ p {
   display: flex;
   flex-direction: column;
   width: min(1080px, calc(100% - 32px));
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   margin: 0 auto;
-  padding: 24px 0 96px;
+}
+
+/* The single scroll container of the app (header included, so it scrolls away
+   on mobile just like the old document scroll did). Bottom padding clears the
+   fixed tab bar + floating add button. */
+.appScroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Top padding lives here (not on .appShell) so sticky children can reach the
+     very top of the scrollport; bottom padding clears the fixed tab bar. */
+  padding: 24px 0 calc(96px + env(safe-area-inset-bottom));
 }
 
 .appHeader {
@@ -593,7 +622,8 @@ h1 {
   grid-template-columns: 24px minmax(0, 1fr) minmax(108px, 176px) 38px;
 }
 
-.simpleTaskRow.isNewlyAdded {
+.simpleTaskRow.isNewlyAdded,
+.agendaRow.isNewlyAdded {
   animation: newlyAddedTaskIn 900ms ease-out;
   border-color: color-mix(in srgb, var(--focus) 42%, var(--line));
   background: color-mix(in srgb, var(--focus) 8%, var(--surface));
@@ -1560,15 +1590,11 @@ h1 {
 }
 
 
-/* touch-action:none stops the browser from natively scrolling the page from the
-   backdrop; pans/wheel are forwarded to the scroller in JS instead. Native
-   scroll here is what made iOS re-position the fixed sheet and wobble. */
 .quickAddBackdrop {
   position: absolute;
   inset: 0;
   border: 0;
   background: rgb(15 23 42 / 34%);
-  touch-action: none;
 }
 
 .sheetBackdrop {
@@ -1576,7 +1602,6 @@ h1 {
   inset: 0;
   border: 0;
   background: transparent;
-  touch-action: none;
 }
 
 .quickAddSheet {
@@ -3615,6 +3640,9 @@ h1 {
 @media (max-width: 720px) {
   .appShell {
     width: min(100% - 20px, 1080px);
+  }
+
+  .appScroll {
     padding-top: 14px;
   }
 

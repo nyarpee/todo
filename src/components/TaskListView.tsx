@@ -174,6 +174,7 @@ function TaskRow({
           root.completed ? "isCompletedRow" : "",
           isHighlighted ? "isNewlyAdded" : "",
         ].filter(Boolean).join(" ")}
+        data-task-id={root.id}
         onClick={(event) => onRowClick(event, root.id)}
       >
         <input

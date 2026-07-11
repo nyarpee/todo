@@ -45,6 +45,7 @@ type CalendarTabViewProps = {
   onMoveTask: (taskId: TaskId, dueDate: string) => void;
   onDeleteTask: (taskId: TaskId) => void;
   composeDate: string | null;
+  highlightedTaskId?: TaskId | null;
 };
 
 const INITIAL_FORWARD_DAYS = 45;
@@ -60,6 +61,7 @@ export function CalendarTabView({
   onMoveTask,
   onDeleteTask,
   composeDate,
+  highlightedTaskId = null,
 }: CalendarTabViewProps) {
   const { messages: text } = useLanguage();
   const todayKey = getTodayKey();
@@ -456,6 +458,7 @@ export function CalendarTabView({
             onFocusDate={onFocusDate}
             onAddTask={onAddTask}
             addLabel={text.common.addTask}
+            highlightedTaskId={highlightedTaskId}
             registerRef={(element) => {
               if (element) {
                 dayRefs.current.set(day.date, element);
@@ -500,6 +503,7 @@ type DayGroupProps = {
   addLabel: string;
   isOverdue?: boolean;
   registerRef?: (element: HTMLElement | null) => void;
+  highlightedTaskId?: TaskId | null;
 };
 
 function DayGroup({
@@ -518,6 +522,7 @@ function DayGroup({
   addLabel,
   isOverdue = false,
   registerRef,
+  highlightedTaskId = null,
 }: DayGroupProps) {
   const offset = diffDaysFromKey(dateKey, todayKey);
   const weekday = weekdays[getWeekdayIndexFromKey(dateKey)] ?? "";
@@ -562,7 +567,12 @@ function DayGroup({
       {tasks.length > 0 ? (
         <div className="calDayTasks">
           {tasks.map((task) => (
-            <CalendarTaskRow key={task.id} task={task} onSelectTask={onSelectTask} />
+            <CalendarTaskRow
+              key={task.id}
+              task={task}
+              onSelectTask={onSelectTask}
+              isHighlighted={task.id === highlightedTaskId}
+            />
           ))}
         </div>
       ) : null}
@@ -585,9 +595,10 @@ function DayGroup({
 type CalendarTaskRowProps = {
   task: TaskNode;
   onSelectTask: (taskId: TaskId) => void;
+  isHighlighted?: boolean;
 };
 
-function CalendarTaskRow({ task, onSelectTask }: CalendarTaskRowProps) {
+function CalendarTaskRow({ task, onSelectTask, isHighlighted = false }: CalendarTaskRowProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
     data: { type: "calendar-task", dueDate: task.dueDate },
@@ -596,6 +607,7 @@ function CalendarTaskRow({ task, onSelectTask }: CalendarTaskRowProps) {
   const className = [
     task.children.length > 0 ? "agendaRow hasProgress" : "agendaRow",
     isDragging ? "isDragging" : "",
+    isHighlighted ? "isNewlyAdded" : "",
   ].filter(Boolean).join(" ");
 
   return (
