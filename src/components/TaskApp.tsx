@@ -23,6 +23,7 @@ import {
   applyHabitActivityEvent,
   applyHabitEntryActivityEvent,
   applyTaskActivityEvent,
+  buildChildTaskBefore,
   buildRootTaskBefore,
   buildRootTaskToGroupEnd,
   getChangedTasks,
@@ -804,6 +805,19 @@ export function TaskApp() {
       setAutoEditTaskId(taskId);
     }
     recordActivity("task_created", "task", taskId, { task: createdTask, parentId });
+  }
+
+  function handleReorderChild(activeId: TaskId, overId: TaskId) {
+    if (activeId === overId) return;
+    const nextTasks = buildChildTaskBefore(tasks, activeId, overId);
+    if (nextTasks === tasks) return;
+
+    setTasks(nextTasks);
+    recordActivity("task_moved", "task", activeId, {
+      tasks: getChangedTasks(tasks, nextTasks),
+      beforeTaskId: overId,
+      fields: ["order"],
+    });
   }
 
   function handleAddGroup(name: string) {
@@ -1627,6 +1641,7 @@ export function TaskApp() {
             autoEditTaskId={autoEditTaskId}
             onAutoEditConsumed={() => setAutoEditTaskId(null)}
             onAddChild={handleAddChild}
+            onReorderChild={handleReorderChild}
             composerOpen={isDetailComposerOpen}
             onComposerOpenChange={setIsDetailComposerOpen}
           />

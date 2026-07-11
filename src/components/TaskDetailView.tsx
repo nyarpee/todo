@@ -1,7 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarClock, Flag, Plus } from "lucide-react";
+import { CalendarClock, Flag, GripVertical, Plus, Trash2 } from "lucide-react";
+import {
+  closestCenter,
+  DndContext,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import type { TaskId, TaskNode } from "@/types/task";
@@ -30,6 +45,7 @@ type TaskDetailViewProps = {
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
   onAddChild: (parentId: TaskId, draft?: QuickAddDraft) => void;
+  onReorderChild: (activeId: TaskId, overId: TaskId) => void;
   composerOpen: boolean;
   onComposerOpenChange: (open: boolean) => void;
 };
@@ -48,11 +64,18 @@ export function TaskDetailView({
   autoEditTaskId,
   onAutoEditConsumed,
   onAddChild,
+  onReorderChild,
   composerOpen,
   onComposerOpenChange,
 }: TaskDetailViewProps) {
   const { messages: text } = useLanguage();
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
+  // Press-and-hold to start a reorder drag; a quick tap on the handle still lets
+  // taps elsewhere on the row navigate/edit. Mirrors the inbox list sensors.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 160, tolerance: 8 } }),
+  );
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
 
@@ -76,42 +99,55 @@ export function TaskDetailView({
 
   // While the floating composer is open, pin the BOTTOM of the subtask list just
   // above the composer (mirrors the calendar's compose behaviour), so the newest
-  // subtask lands right above the sheet — on open, after each add, and when the
-  // keyboard resizes the sheet. The spacer below is sized to the composer's
-  // occluded height so there's always room to scroll the list's tail up to it.
-  useEffect(() => {
-    if (!composerOpen) return;
+  // subtask lands right above the sheet. The spacer below is sized to the
+  // composer's occluded height so there's always room to scroll the list's tail
+  // up to it. On open (and keyboard resize) we jump instantly ("auto") so the
+  // sheet appears already docked under the last subtask, with no visible scroll.
+  const alignSubtaskTail = (behavior: ScrollBehavior) => {
     const view = viewRef.current;
     const sheet = view?.closest(".draggableSheet");
     if (!(sheet instanceof HTMLElement)) return;
     const subtaskList = view?.querySelector<HTMLElement>(".subtaskList");
     const spacer = view?.querySelector<HTMLElement>(".detailComposerSpacer");
 
-    const align = () => {
-      const composer = document.querySelector(".subtaskAddLayer .quickAddSheet");
-      const occluded = composer
-        ? window.innerHeight - composer.getBoundingClientRect().top + 8
-        : 220;
-      // Reserve room below the list and inset the scrollport so the tail can pin
-      // to the composer's top edge instead of the viewport bottom.
-      if (spacer) spacer.style.height = `${Math.round(occluded)}px`;
-      sheet.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
-      if (subtaskList) {
-        subtaskList.scrollIntoView({ block: "end", behavior: "smooth" });
-      } else {
-        sheet.scrollTop = sheet.scrollHeight;
-      }
-    };
+    const composer = document.querySelector(".subtaskAddLayer .quickAddSheet");
+    const occluded = composer
+      ? window.innerHeight - composer.getBoundingClientRect().top + 8
+      : 220;
+    if (spacer) spacer.style.height = `${Math.round(occluded)}px`;
+    sheet.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
+    if (subtaskList) {
+      subtaskList.scrollIntoView({ block: "end", behavior });
+    } else {
+      sheet.scrollTop = sheet.scrollHeight;
+    }
+  };
 
-    const openTimer = window.setTimeout(align, 80);
-    window.visualViewport?.addEventListener("resize", align);
+  // On open + keyboard resize: dock instantly under the last subtask.
+  useEffect(() => {
+    if (!composerOpen) return;
+    const sheet = viewRef.current?.closest(".draggableSheet");
+    if (!(sheet instanceof HTMLElement)) return;
+
+    const alignInstant = () => alignSubtaskTail("auto");
+    const openTimer = window.setTimeout(alignInstant, 60);
+    window.visualViewport?.addEventListener("resize", alignInstant);
 
     return () => {
       window.clearTimeout(openTimer);
-      window.visualViewport?.removeEventListener("resize", align);
+      window.visualViewport?.removeEventListener("resize", alignInstant);
       sheet.style.scrollPaddingBottom = "";
     };
-  }, [composerOpen, task.children.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composerOpen]);
+
+  // After each add (or removal), smoothly re-dock the new tail above the sheet.
+  useEffect(() => {
+    if (!composerOpen) return;
+    const timer = window.setTimeout(() => alignSubtaskTail("smooth"), 40);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.children.length, composerOpen]);
 
   function handleDelete() {
     if (task.children.length === 0) {
@@ -122,6 +158,19 @@ export function TaskDetailView({
     if (window.confirm(text.taskDetail.deleteWithSubtasks)) {
       onDeleteTask(task.id);
     }
+  }
+
+  function handleSubtaskDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    onReorderChild(String(active.id), String(over.id));
+  }
+
+  function handleDeleteSubtask(child: TaskNode) {
+    if (child.children.length > 0 && !window.confirm(text.taskDetail.deleteWithSubtasks)) {
+      return;
+    }
+    onDeleteTask(child.id);
   }
 
   return (
@@ -198,38 +247,34 @@ export function TaskDetailView({
           <h3>{text.taskDetail.subtasks}</h3>
           <span>{task.children.length}</span>
         </div>
-        <div className="subtaskList">
-          {task.children.map((child) => (
-              <div
-                className={child.children.length > 0 ? "subtaskRow hasProgress" : "subtaskRow"}
-                key={child.id}
-                onClick={(event) => {
-                  const target = event.target as HTMLElement;
-                  if (target.closest("button,input")) return;
-                  onSelectTask(child.id);
-                }}
-              >
-                <input
-                  className={`check ${getPriorityClass(child.priority)}`}
-                  type="checkbox"
-                  checked={child.completed}
-                  onChange={() => onToggleComplete(child.id)}
-                  aria-label={text.taskDetail.complete.replace("{title}", child.title)}
-                />
-                <EditableTitle
-                  value={child.title}
-                  className={child.completed ? "subtaskTitle isCompleted" : "subtaskTitle"}
-                  inputClassName="subtaskTitle titleInput"
-                  taskId={child.id}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleSubtaskDragEnd}
+        >
+          <SortableContext
+            items={task.children.map((child) => child.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="subtaskList">
+              {task.children.map((child) => (
+                <SortableSubtaskRow
+                  key={child.id}
+                  child={child}
                   autoEditTaskId={autoEditTaskId}
                   onAutoEditConsumed={onAutoEditConsumed}
-                  onClick={() => onSelectTask(child.id)}
-                  onSave={(title) => onRenameTask(child.id, title)}
+                  onSelectTask={onSelectTask}
+                  onToggleComplete={onToggleComplete}
+                  onRenameTask={onRenameTask}
+                  onDelete={handleDeleteSubtask}
+                  completeLabel={text.taskDetail.complete}
+                  reorderLabel={text.taskDetail.reorderSubtask}
+                  deleteLabel={text.taskDetail.deleteSubtask}
                 />
-                {child.children.length > 0 ? <ProgressBar value={child.progress} /> : null}
-              </div>
-          ))}
-        </div>
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
         {!composerOpen ? (
           <button className="subtaskAddButton" type="button" onClick={() => onComposerOpenChange(true)}>
             <Plus size={18} aria-hidden="true" />
@@ -260,5 +305,90 @@ export function TaskDetailView({
         />
       ) : null}
     </section>
+  );
+}
+
+type SortableSubtaskRowProps = {
+  child: TaskNode;
+  autoEditTaskId: TaskId | null;
+  onAutoEditConsumed: () => void;
+  onSelectTask: (taskId: TaskId) => void;
+  onToggleComplete: (taskId: TaskId) => void;
+  onRenameTask: (taskId: TaskId, title: string) => void;
+  onDelete: (child: TaskNode) => void;
+  completeLabel: string;
+  reorderLabel: string;
+  deleteLabel: string;
+};
+
+function SortableSubtaskRow({
+  child,
+  autoEditTaskId,
+  onAutoEditConsumed,
+  onSelectTask,
+  onToggleComplete,
+  onRenameTask,
+  onDelete,
+  completeLabel,
+  reorderLabel,
+  deleteLabel,
+}: SortableSubtaskRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: child.id, data: { type: "subtask" } });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={isDragging ? "sortableSubtaskItem isDragging" : "sortableSubtaskItem"}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <div
+        className={child.children.length > 0 ? "subtaskRow hasProgress" : "subtaskRow"}
+        onClick={(event) => {
+          const target = event.target as HTMLElement;
+          if (target.closest("button,input")) return;
+          onSelectTask(child.id);
+        }}
+      >
+        <button
+          type="button"
+          className="subtaskDragHandle"
+          aria-label={reorderLabel}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={16} aria-hidden="true" />
+        </button>
+        <input
+          className={`check ${getPriorityClass(child.priority)}`}
+          type="checkbox"
+          checked={child.completed}
+          onChange={() => onToggleComplete(child.id)}
+          aria-label={completeLabel.replace("{title}", child.title)}
+        />
+        <EditableTitle
+          value={child.title}
+          className={child.completed ? "subtaskTitle isCompleted" : "subtaskTitle"}
+          inputClassName="subtaskTitle titleInput"
+          taskId={child.id}
+          autoEditTaskId={autoEditTaskId}
+          onAutoEditConsumed={onAutoEditConsumed}
+          onClick={() => onSelectTask(child.id)}
+          onSave={(title) => onRenameTask(child.id, title)}
+        />
+        {child.children.length > 0 ? <ProgressBar value={child.progress} /> : null}
+        <button
+          type="button"
+          className="subtaskDeleteButton"
+          aria-label={deleteLabel}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete(child);
+          }}
+        >
+          <Trash2 size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
   );
 }

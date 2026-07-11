@@ -1374,7 +1374,7 @@ h1 {
 
 .subtaskRow {
   display: grid;
-  grid-template-columns: 20px minmax(90px, 1fr);
+  grid-template-columns: 22px 20px minmax(60px, 1fr) 30px;
   align-items: center;
   gap: 7px;
   min-height: 38px;
@@ -1383,11 +1383,67 @@ h1 {
 }
 
 .subtaskRow.hasProgress {
-  grid-template-columns: 20px minmax(90px, 1fr) minmax(90px, 138px);
+  grid-template-columns: 22px 20px minmax(60px, 1fr) minmax(80px, 130px) 30px;
 }
 
 .subtaskRow:hover {
   background: var(--surface-muted);
+}
+
+.sortableSubtaskItem {
+  touch-action: manipulation;
+}
+
+.sortableSubtaskItem.isDragging {
+  position: relative;
+  z-index: 2;
+  opacity: 0.85;
+}
+
+.sortableSubtaskItem.isDragging .subtaskRow {
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--focus) 8%, var(--surface));
+  box-shadow: 0 12px 30px rgb(15 23 42 / 18%);
+}
+
+/* Press-and-hold grip that starts a reorder drag; excluded from the sheet's
+   swipe-to-dismiss via .subtaskDragHandle in shouldIgnoreSheetDrag. */
+.subtaskDragHandle {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+
+.subtaskDragHandle:active {
+  cursor: grabbing;
+}
+
+.subtaskDragHandle:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.subtaskDeleteButton {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.subtaskDeleteButton:hover {
+  color: #b42318;
+  background: color-mix(in srgb, #d04444 12%, transparent);
 }
 
 .subtaskAddButton {

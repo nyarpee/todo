@@ -189,6 +189,35 @@ export function buildRootTaskBefore(
   return applyRootOrderAndGroup(tasks, taskId, destinationGroupId, orderedRoots);
 }
 
+export function buildChildTaskBefore(
+  tasks: Task[],
+  taskId: TaskId,
+  overTaskId: TaskId,
+): Task[] {
+  const draggedTask = tasks.find((task) => task.id === taskId);
+  const overTask = tasks.find((task) => task.id === overTaskId);
+  if (!draggedTask || !overTask) return tasks;
+  // Only reorder within the same parent (subtask sibling list).
+  if (draggedTask.parentId !== overTask.parentId) return tasks;
+
+  const siblings = tasks
+    .filter((task) => task.parentId === draggedTask.parentId)
+    .sort(sortTasksByOrder);
+  const oldIndex = siblings.findIndex((task) => task.id === taskId);
+  const overIndex = siblings.findIndex((task) => task.id === overTaskId);
+  if (oldIndex < 0 || overIndex < 0) return tasks;
+
+  const orderedSiblings = arrayMove(siblings, oldIndex, overIndex);
+  const now = new Date().toISOString();
+  const orderById = new Map(orderedSiblings.map((task, index) => [task.id, index]));
+
+  return tasks.map((task) => {
+    const nextOrder = orderById.get(task.id);
+    if (nextOrder === undefined || nextOrder === task.order) return task;
+    return { ...task, order: nextOrder, updatedAt: now };
+  });
+}
+
 export function buildRootTaskToGroupEnd(
   tasks: Task[],
   taskId: TaskId,
