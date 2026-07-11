@@ -325,7 +325,7 @@ export function TaskDetailView({
               ))}
             </div>
           </SortableContext>
-          <TrashDropZone active={activeDragTaskId !== null} />
+          <TrashDropZone active={activeDragTaskId !== null} compact />
           {/* Portal the overlay to <body> so its position:fixed is relative to
               the viewport, not the transformed detail sheet (a transformed
               ancestor becomes the containing block for fixed descendants, which
