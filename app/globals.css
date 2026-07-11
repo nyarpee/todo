@@ -1542,14 +1542,21 @@ h1 {
   outline-offset: 3px;
 }
 
+/* Pin to the visual viewport (the region above the keyboard) exactly like
+   .subtaskAddLayer, instead of padding the layout viewport up by
+   --keyboard-inset. The padding approach recomputes on every visualViewport
+   scroll event and, with the easing transition, lagged behind the scroll so the
+   sheet appeared to wobble/follow the page. Deriving top/height straight from
+   the visual viewport keeps the sheet glued just above the keyboard. */
 .quickAddLayer {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: var(--kb-view-top, 0px);
+  height: var(--kb-view-height, 100%);
   z-index: 40;
   display: grid;
   align-items: end;
-  padding-bottom: var(--keyboard-inset);
-  transition: padding-bottom 160ms ease;
 }
 
 
