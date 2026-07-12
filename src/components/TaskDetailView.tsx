@@ -28,6 +28,7 @@ import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import type { TaskId, TaskNode } from "@/types/task";
 import { getScheduleLabel } from "@/lib/date-utils";
+import { primeKeyboard } from "@/lib/ios-keyboard";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
@@ -346,7 +347,17 @@ export function TaskDetailView({
           )}
         </DndContext>
         {!composerOpen ? (
-          <button className="subtaskAddButton" type="button" onClick={() => onComposerOpenChange(true)}>
+          <button
+            className="subtaskAddButton"
+            type="button"
+            onClick={() => {
+              // iOS: raise the keyboard synchronously inside the tap (same as the
+              // inbox/calendar QuickAdd) so it is already up when the composer's
+              // real input mounts and transfers focus to it.
+              primeKeyboard();
+              onComposerOpenChange(true);
+            }}
+          >
             <Plus size={18} aria-hidden="true" />
             {text.taskDetail.addSubtask}
           </button>

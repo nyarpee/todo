@@ -244,26 +244,40 @@ export function CalendarTabView({
       return;
     }
 
-    function align() {
+    function align(behavior: ScrollBehavior) {
       const listEl = scrollRef.current;
       const dayEl = composeDate ? dayRefs.current.get(composeDate) : null;
       if (!listEl || !dayEl) return;
+      // Bottom of the VISIBLE area in layout-viewport (client) coordinates. On
+      // Android Chrome window.innerHeight already shrinks for the keyboard, so
+      // this equals innerHeight. On iOS Safari innerHeight stays full-screen
+      // while the keyboard occupies the bottom, so we must derive the visible
+      // bottom from the visual viewport — the same coordinate space the sheet is
+      // pinned to (--kb-view-top/height). Mixing the two is what made the pin
+      // land below the sheet / wobble on iOS.
+      const vv = window.visualViewport;
+      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
       const listTop = listEl.getBoundingClientRect().top;
       const sheet = document.querySelector(".quickAddSheet");
       const occluded = sheet
-        ? window.innerHeight - sheet.getBoundingClientRect().top + 8
+        ? visibleBottom - sheet.getBoundingClientRect().top + 8
         : 220;
       // Extend the scroll area down to the sheet's top edge so the day can pin just above it.
-      listEl.style.maxHeight = `${Math.max(0, window.innerHeight - listTop)}px`;
+      listEl.style.maxHeight = `${Math.max(0, visibleBottom - listTop)}px`;
       listEl.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
-      dayEl.scrollIntoView({ block: "end", behavior: "smooth" });
+      dayEl.scrollIntoView({ block: "end", behavior });
     }
 
-    const raf = window.requestAnimationFrame(align);
-    window.visualViewport?.addEventListener("resize", align);
+    // First pass scrolls smoothly to pin the day. The keyboard/visual viewport
+    // then settles over ~300ms on iOS, firing several resize events at
+    // intermediate heights; re-dock instantly ("auto") on each so the final
+    // settle lands exactly, without stacking interruptible smooth scrolls.
+    const raf = window.requestAnimationFrame(() => align("smooth"));
+    const alignInstant = () => align("auto");
+    window.visualViewport?.addEventListener("resize", alignInstant);
     return () => {
       window.cancelAnimationFrame(raf);
-      window.visualViewport?.removeEventListener("resize", align);
+      window.visualViewport?.removeEventListener("resize", alignInstant);
     };
   }, [composeDate, tasksByDate]);
 

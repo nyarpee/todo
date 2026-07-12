@@ -60,9 +60,14 @@ export function SubtaskQuickAddSheet({ placeholder, crumbs, onNavigate, onAdd, o
   }, []);
 
   useEffect(() => {
-    const focusTimer = window.setTimeout(() => {
+    // Focus synchronously once the real input has mounted. iOS keeps the keyboard
+    // up because the opening tap already primed it via primeKeyboard(); this just
+    // transfers focus from the hidden proxy input to the real one. A deferred
+    // (setTimeout) focus would break that gesture chain and the keyboard would
+    // never appear on iOS Safari.
+    if (isMounted) {
       inputRef.current?.focus({ preventScroll: true });
-    }, 80);
+    }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
@@ -70,10 +75,9 @@ export function SubtaskQuickAddSheet({ placeholder, crumbs, onNavigate, onAdd, o
 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [isMounted, onClose]);
 
   function getDetailSheet(): HTMLElement | null {
     return document.querySelector(".draggableSheet.detailSheet");
