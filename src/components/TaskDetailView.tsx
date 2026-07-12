@@ -137,9 +137,18 @@ export function TaskDetailView({
     const subtaskList = view?.querySelector<HTMLElement>(".subtaskList");
     const spacer = view?.querySelector<HTMLElement>(".detailComposerSpacer");
 
+    // Bottom of the VISIBLE area in layout-viewport (client) coordinates. The
+    // composer and this sheet are both pinned to the visual viewport
+    // (--kb-view-top/height), so occlusion must be measured in that same space.
+    // On Android Chrome innerHeight already shrinks for the keyboard, so this
+    // equals innerHeight; on iOS Safari innerHeight stays full-screen while the
+    // keyboard occupies the bottom, so using it would inflate occluded by the
+    // keyboard height and dock the tail far above the composer.
+    const vv = window.visualViewport;
+    const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
     const composer = document.querySelector(".subtaskAddLayer .quickAddSheet");
     const occluded = composer
-      ? window.innerHeight - composer.getBoundingClientRect().top + 8
+      ? visibleBottom - composer.getBoundingClientRect().top + 8
       : 220;
     if (spacer) spacer.style.height = `${Math.round(occluded)}px`;
     sheet.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
