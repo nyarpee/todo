@@ -675,6 +675,99 @@ h1 {
   opacity: 0.78;
 }
 
+/* Inline compose: a faint "ghost" row pinned at the top of the inbox list while
+   a new task is being typed. Dashed + tinted to read as "about to be added". */
+.composeGhostRow {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  padding: 12px;
+  border: 1px dashed color-mix(in srgb, var(--focus) 48%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--focus) 6%, var(--surface));
+  animation: newlyAddedTaskIn 360ms ease-out;
+}
+
+.composeGhostCheck {
+  width: 20px;
+  height: 20px;
+  border: 1.5px dashed color-mix(in srgb, var(--focus) 55%, var(--line));
+  border-radius: 999px;
+  opacity: 0.6;
+}
+
+.composeGhostContent {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.composeGhostInput {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  /* 16px keeps iOS Safari from zooming the viewport on focus. */
+  font-size: 16px;
+  font-weight: 600;
+  outline: none;
+}
+
+.composeGhostInput::placeholder {
+  color: var(--soft);
+  font-weight: 500;
+}
+
+.composeGhostMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.composeGhostChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* Slim bar pinned just above the keyboard while composing. The full-height layer
+   is click-through (pointer-events:none) so taps outside the bar reach the list
+   behind it and commit the draft; only the inner bar is interactive. */
+.inboxComposeBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--kb-view-top, 0px);
+  height: var(--kb-view-height, 100%);
+  z-index: 40;
+  display: grid;
+  align-items: end;
+  pointer-events: none;
+}
+
+.inboxComposeBarInner {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: min(640px, calc(100% - 16px));
+  margin: 0 auto 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 -18px 44px rgb(15 23 42 / 16%);
+}
+
 .completedSection {
   display: grid;
   gap: 8px;

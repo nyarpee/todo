@@ -166,11 +166,27 @@ export function TaskDetailView({
     if (!(sheet instanceof HTMLElement)) return;
 
     const alignInstant = () => alignSubtaskTail("auto");
-    const openTimer = window.setTimeout(alignInstant, 60);
+
+    // The composer mounts asynchronously (isMounted two-pass + portal), and since
+    // the keyboard is already primed before it opens, no visualViewport resize
+    // may fire to correct an early dock. So re-align every frame until the
+    // composer is actually in the DOM (bounded), guaranteeing the final dock is
+    // measured against the real composer height — not the 220px fallback — so the
+    // tail settles precisely at the add position on first open (like the calendar).
+    let frame = 0;
+    let tries = 0;
+    const tick = () => {
+      alignInstant();
+      const composerReady = document.querySelector(".subtaskAddLayer .quickAddSheet");
+      if (composerReady || tries > 30) return;
+      tries += 1;
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
     window.visualViewport?.addEventListener("resize", alignInstant);
 
     return () => {
-      window.clearTimeout(openTimer);
+      window.cancelAnimationFrame(frame);
       window.visualViewport?.removeEventListener("resize", alignInstant);
       sheet.style.scrollPaddingBottom = "";
     };

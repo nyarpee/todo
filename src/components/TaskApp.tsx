@@ -86,9 +86,20 @@ import {
   QuickAddSheet,
   type QuickAddDraft,
 } from "./QuickAddSheet";
+import { InboxComposeBar } from "./InboxComposeBar";
+import { InboxComposeRow } from "./InboxComposeRow";
+import { PriorityEditorSheet } from "./PriorityEditorSheet";
+import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TaskDetailView } from "./TaskDetailView";
 import { TaskListView } from "./TaskListView";
 import { ThemeToggle } from "./ThemeToggle";
+
+const EMPTY_INBOX_DRAFT: QuickAddDraft = {
+  title: "",
+  dueDate: null,
+  dueTime: null,
+  priority: "none",
+};
 
 type LocalWorkspaceData = {
   groups: TaskGroup[];
@@ -124,6 +135,15 @@ export function TaskApp() {
   const [autoEditTaskId, setAutoEditTaskId] = useState<TaskId | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddInitialDate, setQuickAddInitialDate] = useState<string | null>(null);
+  // Inbox inline compose: non-null while a new task is being typed in the ghost
+  // row at the top of the list. The slim bottom bar edits the same draft.
+  const [inboxCompose, setInboxCompose] = useState<QuickAddDraft | null>(null);
+  const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
+  const [composePriorityOpen, setComposePriorityOpen] = useState(false);
+  const inboxComposeInputRef = useRef<HTMLInputElement | null>(null);
+  // True while a date/priority editor is open, so the ghost input's blur does
+  // not commit/discard the draft while the user is picking a value.
+  const suppressComposeCommitRef = useRef(false);
   const [calendarFocusedDate, setCalendarFocusedDate] = useState<string | null>(() => getTodayKey());
   const [groupEditorMode, setGroupEditorMode] = useState<"create" | "manage" | null>(null);
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
@@ -175,6 +195,29 @@ export function TaskApp() {
       },
     }),
   );
+
+  // When inline compose opens, focus the ghost row's input once it mounts
+  // (the keyboard was already primed on the opening tap) and bring the top of
+  // the list into view so the ghost row — where the task lands — is visible.
+  const isInboxComposing = inboxCompose !== null;
+  useEffect(() => {
+    if (!isInboxComposing) return;
+    let frame = 0;
+    let tries = 0;
+    const focusGhost = () => {
+      const input = inboxComposeInputRef.current;
+      if (input) {
+        input.focus({ preventScroll: true });
+        appScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      if (tries > 30) return;
+      tries += 1;
+      frame = window.requestAnimationFrame(focusGhost);
+    };
+    frame = window.requestAnimationFrame(focusGhost);
+    return () => window.cancelAnimationFrame(frame);
+  }, [isInboxComposing]);
 
   // Custom collision detection: the trash drop zone should only win when the
   // pointer is actually over it (pointerWithin). Otherwise the built-in
@@ -724,6 +767,64 @@ export function TaskApp() {
     }
   }
 
+  function startInboxCompose() {
+    // Raise the keyboard synchronously inside the tap (iOS), then mount the
+    // ghost row; the focus effect below transfers focus to its input.
+    primeKeyboard();
+    setInboxCompose({ ...EMPTY_INBOX_DRAFT });
+  }
+
+  function updateInboxComposeTitle(title: string) {
+    setInboxCompose((current) => (current ? { ...current, title } : current));
+  }
+
+  // Enter: commit the current title and keep composing with a fresh ghost row,
+  // holding the keyboard up for rapid entry. Empty input is ignored.
+  function commitInboxComposeAndContinue() {
+    const draft = inboxCompose;
+    if (!draft || draft.title.trim().length === 0) return;
+    addRootTask({ ...draft, title: draft.title.trim() }, true, { skipScrollIntoView: true });
+    setInboxCompose({ ...EMPTY_INBOX_DRAFT });
+    window.requestAnimationFrame(() => {
+      inboxComposeInputRef.current?.focus({ preventScroll: true });
+    });
+  }
+
+  // Blur (keyboard dismissed): save if there's any text, otherwise silently
+  // discard, then close the composer. Skipped while a date/priority editor is
+  // open so picking a value does not accidentally commit or cancel.
+  function finishInboxCompose() {
+    if (suppressComposeCommitRef.current) return;
+    const draft = inboxCompose;
+    setInboxCompose(null);
+    if (draft && draft.title.trim().length > 0) {
+      addRootTask({ ...draft, title: draft.title.trim() }, true, { skipScrollIntoView: true });
+    }
+  }
+
+  function openComposeSchedule() {
+    suppressComposeCommitRef.current = true;
+    setComposeScheduleOpen(true);
+  }
+
+  function openComposePriority() {
+    suppressComposeCommitRef.current = true;
+    setComposePriorityOpen(true);
+  }
+
+  function closeComposeEditors() {
+    setComposeScheduleOpen(false);
+    setComposePriorityOpen(false);
+    suppressComposeCommitRef.current = false;
+    // Return focus to the ghost input to keep composing. Focus synchronously
+    // inside the dismiss gesture (best chance iOS re-opens the keyboard), then
+    // again after the editor unmounts.
+    inboxComposeInputRef.current?.focus({ preventScroll: true });
+    window.requestAnimationFrame(() => {
+      inboxComposeInputRef.current?.focus({ preventScroll: true });
+    });
+  }
+
   function handleAddTask(draft?: QuickAddDraft) {
     if (draft) {
       if (activeTab === "calendar" || activeTab === "inbox") {
@@ -740,7 +841,11 @@ export function TaskApp() {
     setIsQuickAddOpen(false);
   }
 
-  function addRootTask(draft: QuickAddDraft | undefined, hasDraft: boolean) {
+  function addRootTask(
+    draft: QuickAddDraft | undefined,
+    hasDraft: boolean,
+    options: { skipScrollIntoView?: boolean } = {},
+  ) {
     const taskId = crypto.randomUUID();
     const now = new Date().toISOString();
     const rootOrdersInGroup = tasks
@@ -768,10 +873,11 @@ export function TaskApp() {
       setHighlightedTaskId((currentTaskId) => (currentTaskId === taskId ? null : currentTaskId));
     }, 1400);
 
-    if (activeTab !== "calendar") {
+    if (activeTab !== "calendar" && !options.skipScrollIntoView) {
       // Show the user exactly where the task landed: once React has committed
       // the new row, bring it into view in the app scroller. The calendar tab
       // handles this itself by re-pinning the composed day above the sheet.
+      // Skipped during inline compose, which keeps the ghost row pinned at top.
       window.setTimeout(() => {
         document
           .querySelector(`[data-task-id="${taskId}"]`)
@@ -1465,7 +1571,8 @@ export function TaskApp() {
 
   function renderGroupList(groupId: TaskGroupId, isActive: boolean) {
     const groupRoots = rootsByGroup.get(groupId) ?? [];
-    if (groupRoots.length === 0) {
+    const isComposingHere = isActive && activeTab === "inbox" && inboxCompose !== null;
+    if (groupRoots.length === 0 && !isComposingHere) {
       return (
         <div className="emptyState compactEmpty">
           <p>{text.emptyTasks}</p>
@@ -1492,6 +1599,17 @@ export function TaskApp() {
         onAutoEditConsumed={() => setAutoEditTaskId(null)}
         highlightedTaskId={highlightedTaskId}
         isSortingTask={isActive && activeDragTaskId !== null}
+        composeSlot={
+          isActive && activeTab === "inbox" && inboxCompose ? (
+            <InboxComposeRow
+              draft={inboxCompose}
+              inputRef={inboxComposeInputRef}
+              onChangeTitle={updateInboxComposeTitle}
+              onSubmit={commitInboxComposeAndContinue}
+              onFinish={finishInboxCompose}
+            />
+          ) : null
+        }
       />
     );
   }
@@ -1686,17 +1804,44 @@ export function TaskApp() {
           }
         />
       ) : null}
-      {showQuickAdd && activeTab !== "calendar" ? (
+      {showQuickAdd && activeTab !== "calendar" && !inboxCompose ? (
         <FloatingAddButton
           onClick={() => {
             if (activeTab === "habit") {
               setHabitEditorMode("create");
               return;
             }
-            primeKeyboard();
-            setQuickAddInitialDate(null);
-            setIsQuickAddOpen(true);
+            startInboxCompose();
           }}
+        />
+      ) : null}
+      {inboxCompose ? (
+        <InboxComposeBar
+          draft={inboxCompose}
+          onOpenSchedule={openComposeSchedule}
+          onOpenPriority={openComposePriority}
+          onSuppressCommit={() => {
+            suppressComposeCommitRef.current = true;
+          }}
+        />
+      ) : null}
+      {inboxCompose && composeScheduleOpen ? (
+        <ScheduleEditorSheet
+          dueDate={inboxCompose.dueDate}
+          dueTime={inboxCompose.dueTime}
+          onChange={(dueDate, dueTime) =>
+            setInboxCompose((current) => (current ? { ...current, dueDate, dueTime } : current))
+          }
+          onDismiss={closeComposeEditors}
+        />
+      ) : null}
+      {inboxCompose && composePriorityOpen ? (
+        <PriorityEditorSheet
+          value={inboxCompose.priority}
+          onChange={(priority) =>
+            setInboxCompose((current) => (current ? { ...current, priority } : current))
+          }
+          onDismiss={closeComposeEditors}
         />
       ) : null}
       <QuickAddSheet
@@ -1704,7 +1849,7 @@ export function TaskApp() {
         onClose={() => setIsQuickAddOpen(false)}
         onSave={handleAddTask}
         initialDueDate={quickAddInitialDate}
-        keepOpenOnSave={activeTab === "calendar" || activeTab === "inbox"}
+        keepOpenOnSave={activeTab === "calendar"}
         transparentBackdrop={activeTab === "calendar" && quickAddInitialDate !== null}
       />
       {groupEditorMode === "create" ? (

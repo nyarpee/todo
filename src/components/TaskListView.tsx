@@ -27,6 +27,9 @@ type TaskListViewProps = {
   // preview (no drag-and-drop, no navigation) that becomes interactive once the
   // page settles as the active group.
   interactive?: boolean;
+  // The inbox inline-compose ghost row, pinned at the top of the list while a
+  // new task is being composed. Rendered outside the sortable context.
+  composeSlot?: React.ReactNode;
 };
 
 export function TaskListView({
@@ -41,6 +44,7 @@ export function TaskListView({
   highlightedTaskId = null,
   isSortingTask = false,
   interactive = true,
+  composeSlot = null,
 }: TaskListViewProps) {
   const { messages: text } = useLanguage();
   const [isCompletedOpen, setIsCompletedOpen] = useState(false);
@@ -85,7 +89,10 @@ export function TaskListView({
 
   return (
     <div className="simpleTaskList">
-      {roots.length === 0 ? <p className="placeholderText listPlaceholder">No active tasks.</p> : null}
+      {composeSlot}
+      {roots.length === 0 && !composeSlot ? (
+        <p className="placeholderText listPlaceholder">No active tasks.</p>
+      ) : null}
       {activeRows}
       {completedRoots.length > 0 ? (
         <section className="completedSection">
