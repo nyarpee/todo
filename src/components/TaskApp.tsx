@@ -87,6 +87,7 @@ import {
 } from "./QuickAddSheet";
 import { ComposeBar } from "./ComposeBar";
 import { ComposeGhostRow } from "./ComposeGhostRow";
+import { GroupPickerSheet } from "./GroupPickerSheet";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TaskDetailView } from "./TaskDetailView";
@@ -137,6 +138,7 @@ export function TaskApp() {
   const [inboxCompose, setInboxCompose] = useState<QuickAddDraft | null>(null);
   const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
   const [composePriorityOpen, setComposePriorityOpen] = useState(false);
+  const [composeGroupOpen, setComposeGroupOpen] = useState(false);
   // Mirrors CalendarTabView's internal compose state so the app chrome (header,
   // tabs) can be disabled during calendar compose too.
   const [isCalendarComposing, setIsCalendarComposing] = useState(false);
@@ -819,9 +821,15 @@ export function TaskApp() {
     setComposePriorityOpen(true);
   }
 
+  function openComposeGroup() {
+    suppressComposeCommitRef.current = true;
+    setComposeGroupOpen(true);
+  }
+
   function closeComposeEditors() {
     setComposeScheduleOpen(false);
     setComposePriorityOpen(false);
+    setComposeGroupOpen(false);
     suppressComposeCommitRef.current = false;
     // Return focus to the ghost input to keep composing. Focus synchronously
     // inside the dismiss gesture (best chance iOS re-opens the keyboard), then
@@ -845,15 +853,18 @@ export function TaskApp() {
   ) {
     const taskId = crypto.randomUUID();
     const now = new Date().toISOString();
+    // Honor an explicit compose group (calendar sets it in the draft); otherwise
+    // the active group (inbox switches the active group on select).
+    const targetGroupId = draft?.groupId ?? activeGroupId;
     const rootOrdersInGroup = tasks
-      .filter((task) => task.parentId === null && task.groupId === activeGroupId)
+      .filter((task) => task.parentId === null && task.groupId === targetGroupId)
       .map((task) => task.order);
     const topOrder = rootOrdersInGroup.length > 0 ? Math.min(...rootOrdersInGroup) - 1 : 0;
     const nextTasks = addTask(tasks, {
       userId: workspaceId,
       title: draft?.title ?? text.newTask,
       parentId: null,
-      groupId: activeGroupId,
+      groupId: targetGroupId,
       order: topOrder,
       dueDate: draft?.dueDate ?? null,
       dueTime: draft?.dueTime ?? null,
@@ -888,7 +899,7 @@ export function TaskApp() {
 
     recordActivity("task_created", "task", taskId, {
       task: createdTask,
-      groupId: activeGroupId,
+      groupId: targetGroupId,
       hasDraft,
     });
   }
@@ -1681,6 +1692,8 @@ export function TaskApp() {
           onComposingChange={setIsCalendarComposing}
           onMoveTask={handleMoveTaskToDate}
           onDeleteTask={handleDeleteTask}
+          groups={orderedGroups}
+          activeGroupId={activeGroupId}
           highlightedTaskId={highlightedTaskId}
         />
       ) : activeTab === "habit" ? (
@@ -1809,11 +1822,26 @@ export function TaskApp() {
       {inboxCompose ? (
         <ComposeBar
           draft={inboxCompose}
+          groupLabel={orderedGroups.find((group) => group.id === activeGroupId)?.name}
+          onOpenGroup={openComposeGroup}
           onOpenSchedule={openComposeSchedule}
           onOpenPriority={openComposePriority}
           onSuppressCommit={() => {
             suppressComposeCommitRef.current = true;
           }}
+        />
+      ) : null}
+      {inboxCompose && composeGroupOpen ? (
+        <GroupPickerSheet
+          groups={orderedGroups}
+          value={activeGroupId}
+          onChange={(groupId) => {
+            // Move the ghost row to the chosen group's page; the new task uses it
+            // (addRootTask reads the active group). Keep composing there.
+            setActiveGroupId(groupId);
+            closeComposeEditors();
+          }}
+          onDismiss={closeComposeEditors}
         />
       ) : null}
       {inboxCompose && composeScheduleOpen ? (

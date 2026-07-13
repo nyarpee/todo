@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Flag } from "lucide-react";
+import { CalendarDays, Flag, Layers } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import { getScheduleLabel } from "@/lib/date-utils";
@@ -18,6 +18,10 @@ type ComposeBarProps = {
   // Extra root class, e.g. "isElevated" to raise the bar above an open bottom
   // sheet (used inside the task-detail sheet).
   className?: string;
+  // Optional group selector (inbox/calendar; omitted for subtasks). When
+  // provided, a group button is shown that opens the picker.
+  groupLabel?: string;
+  onOpenGroup?: () => void;
 };
 
 // The slim bar pinned just above the keyboard while composing. It only edits the
@@ -30,6 +34,8 @@ export function ComposeBar({
   onOpenPriority,
   onSuppressCommit,
   className,
+  groupLabel,
+  onOpenGroup,
 }: ComposeBarProps) {
   const { messages: text } = useLanguage();
   const priorityLabels = usePriorityLabels(getTranslatedPriorityLabels(text)).labels;
@@ -46,6 +52,18 @@ export function ComposeBar({
   return (
     <div className={className ? `composeBar ${className}` : "composeBar"} role="presentation">
       <div className="composeBarInner">
+        {onOpenGroup ? (
+          <button
+            className="quickAddDateButton"
+            type="button"
+            onPointerDown={onSuppressCommit}
+            onClick={onOpenGroup}
+          >
+            <Layers size={18} aria-hidden="true" />
+            {groupLabel ? <strong>{groupLabel}</strong> : <span>{text.lists.area}</span>}
+          </button>
+        ) : null}
+
         <button
           className="quickAddDateButton"
           type="button"

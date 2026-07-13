@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/core";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { useLanguage } from "@/i18n/LanguageProvider";
-import type { TaskId, TaskNode } from "@/types/task";
+import type { TaskGroup, TaskGroupId, TaskId, TaskNode } from "@/types/task";
 import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import {
   buildCalendarDays,
@@ -38,6 +38,7 @@ import { primeKeyboard } from "@/lib/ios-keyboard";
 import { ProgressBar } from "./ProgressBar";
 import { ComposeBar } from "./ComposeBar";
 import { ComposeGhostRow } from "./ComposeGhostRow";
+import { GroupPickerSheet } from "./GroupPickerSheet";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import type { QuickAddDraft } from "./QuickAddSheet";
@@ -60,6 +61,10 @@ type CalendarTabViewProps = {
   onComposingChange?: (composing: boolean) => void;
   onMoveTask: (taskId: TaskId, dueDate: string) => void;
   onDeleteTask: (taskId: TaskId) => void;
+  // Groups + the current group, for the compose group selector (internal only:
+  // picking a group sets the new task's group; the calendar view doesn't switch).
+  groups: TaskGroup[];
+  activeGroupId: TaskGroupId;
   highlightedTaskId?: TaskId | null;
 };
 
@@ -90,6 +95,8 @@ export function CalendarTabView({
   onComposingChange,
   onMoveTask,
   onDeleteTask,
+  groups,
+  activeGroupId,
   highlightedTaskId = null,
 }: CalendarTabViewProps) {
   const { messages: text } = useLanguage();
@@ -111,6 +118,7 @@ export function CalendarTabView({
   const [composeDraft, setComposeDraft] = useState<QuickAddDraft>(EMPTY_COMPOSE_DRAFT);
   const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
   const [composePriorityOpen, setComposePriorityOpen] = useState(false);
+  const [composeGroupOpen, setComposeGroupOpen] = useState(false);
   const composeInputRef = useRef<HTMLInputElement | null>(null);
   const suppressComposeCommitRef = useRef(false);
   const finishingComposeRef = useRef(false);
@@ -322,7 +330,7 @@ export function CalendarTabView({
     primeKeyboard();
     finishingComposeRef.current = false;
     suppressComposeCommitRef.current = false;
-    setComposeDraft({ ...EMPTY_COMPOSE_DRAFT, dueDate: date });
+    setComposeDraft({ ...EMPTY_COMPOSE_DRAFT, dueDate: date, groupId: activeGroupId });
     onFocusDate(date);
     setComposeDate(date);
   }
@@ -335,7 +343,12 @@ export function CalendarTabView({
   function commitComposeAndContinue() {
     if (!composeDate || composeDraft.title.trim().length === 0) return;
     onCreateTask({ ...composeDraft, title: composeDraft.title.trim() });
-    setComposeDraft({ ...EMPTY_COMPOSE_DRAFT, dueDate: composeDate });
+    // Keep the chosen group/day for the next entry.
+    setComposeDraft({
+      ...EMPTY_COMPOSE_DRAFT,
+      dueDate: composeDate,
+      groupId: composeDraft.groupId,
+    });
     window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
   }
 
@@ -362,9 +375,15 @@ export function CalendarTabView({
     setComposePriorityOpen(true);
   }
 
+  function openComposeGroup() {
+    suppressComposeCommitRef.current = true;
+    setComposeGroupOpen(true);
+  }
+
   function closeComposeEditors() {
     setComposeScheduleOpen(false);
     setComposePriorityOpen(false);
+    setComposeGroupOpen(false);
     suppressComposeCommitRef.current = false;
     composeInputRef.current?.focus({ preventScroll: true });
     window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
@@ -592,11 +611,25 @@ export function CalendarTabView({
     {composeDate ? (
       <ComposeBar
         draft={composeDraft}
+        groupLabel={groups.find((group) => group.id === (composeDraft.groupId ?? activeGroupId))?.name}
+        onOpenGroup={openComposeGroup}
         onOpenSchedule={openComposeSchedule}
         onOpenPriority={openComposePriority}
         onSuppressCommit={() => {
           suppressComposeCommitRef.current = true;
         }}
+      />
+    ) : null}
+    {composeDate && composeGroupOpen ? (
+      <GroupPickerSheet
+        groups={groups}
+        value={composeDraft.groupId ?? activeGroupId}
+        onChange={(groupId) => {
+          // Calendar: only set the new task's group (no visible page switch).
+          setComposeDraft((current) => ({ ...current, groupId }));
+          closeComposeEditors();
+        }}
+        onDismiss={closeComposeEditors}
       />
     ) : null}
     {composeDate && composeScheduleOpen ? (
