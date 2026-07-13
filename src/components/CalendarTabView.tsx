@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   closestCenter,
@@ -608,18 +609,24 @@ export function CalendarTabView({
         <div ref={sentinelRef} className="calSentinel" aria-hidden="true" />
       </div>
     </section>
-    {composeDate ? (
-      <ComposeBar
-        draft={composeDraft}
-        groupLabel={groups.find((group) => group.id === (composeDraft.groupId ?? activeGroupId))?.name}
-        onOpenGroup={openComposeGroup}
-        onOpenSchedule={openComposeSchedule}
-        onOpenPriority={openComposePriority}
-        onSuppressCommit={() => {
-          suppressComposeCommitRef.current = true;
-        }}
-      />
-    ) : null}
+    {/* Portal to <body> so the fixed bar is anchored to the viewport, not to the
+        scroll container it would otherwise live in — otherwise opening/closing
+        the group picker (which toggles body overflow) nudges the bar down. */}
+    {composeDate
+      ? createPortal(
+          <ComposeBar
+            draft={composeDraft}
+            groupLabel={groups.find((group) => group.id === (composeDraft.groupId ?? activeGroupId))?.name}
+            onOpenGroup={openComposeGroup}
+            onOpenSchedule={openComposeSchedule}
+            onOpenPriority={openComposePriority}
+            onSuppressCommit={() => {
+              suppressComposeCommitRef.current = true;
+            }}
+          />,
+          document.body,
+        )
+      : null}
     {composeDate && composeGroupOpen ? (
       <GroupPickerSheet
         groups={groups}
