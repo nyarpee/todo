@@ -9,7 +9,7 @@ import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
-type InboxComposeRowProps = {
+type ComposeGhostRowProps = {
   draft: QuickAddDraft;
   inputRef: RefObject<HTMLInputElement | null>;
   // Enter: save the current title and keep composing (a fresh ghost row).
@@ -19,17 +19,17 @@ type InboxComposeRowProps = {
   onChangeTitle: (title: string) => void;
 };
 
-// The faint "ghost" row pinned at the top of the inbox list while composing. Its
-// input is the single source of truth for the new task's title; the slim bottom
-// bar edits the same draft's date/priority. Styled dimly to read as "this is
-// about to be added here".
-export function InboxComposeRow({
+// The faint "ghost" row shown where a new task will land while composing (top of
+// the inbox list, or the tail of a subtask/day group). Its input is the single
+// source of truth for the new task's title; the slim compose bar edits the same
+// draft's date/priority. Styled dimly to read as "this is about to be added here".
+export function ComposeGhostRow({
   draft,
   inputRef,
   onSubmit,
   onFinish,
   onChangeTitle,
-}: InboxComposeRowProps) {
+}: ComposeGhostRowProps) {
   const { messages: text } = useLanguage();
   const priorityLabels = usePriorityLabels(getTranslatedPriorityLabels(text)).labels;
 

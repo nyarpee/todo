@@ -33,12 +33,21 @@ import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
+import { ComposeBar } from "./ComposeBar";
+import { ComposeGhostRow } from "./ComposeGhostRow";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
-import { SubtaskQuickAddSheet } from "./SubtaskQuickAddSheet";
+import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import { TaskPathBreadcrumb, type PathCrumb } from "./TaskPathBreadcrumb";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
+
+const EMPTY_COMPOSE_DRAFT: QuickAddDraft = {
+  title: "",
+  dueDate: null,
+  dueTime: null,
+  priority: "none",
+};
 
 type TaskDetailViewProps = {
   task: TaskNode;
@@ -81,6 +90,14 @@ export function TaskDetailView({
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
   const [isOverTrash, setIsOverTrash] = useState(false);
+  // Inline subtask compose: a ghost row at the tail of the subtask list bound to
+  // this draft, plus a slim bar (date/priority) pinned above the keyboard.
+  const [composeDraft, setComposeDraft] = useState<QuickAddDraft>(EMPTY_COMPOSE_DRAFT);
+  const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
+  const [composePriorityOpen, setComposePriorityOpen] = useState(false);
+  const composeInputRef = useRef<HTMLInputElement | null>(null);
+  const suppressComposeCommitRef = useRef(false);
+  const finishingComposeRef = useRef(false);
   // Press-and-hold to start a drag (same feel as inbox/calendar): a quick tap
   // still toggles/opens the subtask, a hold drags the whole row to reorder or
   // onto the trash to delete.
@@ -113,53 +130,42 @@ export function TaskDetailView({
     ...path.slice(0, -1).map((node) => ({ id: node.id, label: node.title })),
     { id: null, label: task.title },
   ];
-  // Path to the current task itself (group + full ancestors + current); the
-  // trailing ">" leads into the composer input — you're adding inside here.
-  // Ancestors are tappable (jump up); the current task (last) is a non-tappable
-  // emphasized "you are here" label.
-  const composerCrumbs: PathCrumb[] = [
-    { id: null, label: groupName },
-    ...path.slice(0, -1).map((node) => ({ id: node.id, label: node.title })),
-    { id: null, label: task.title },
-  ];
   const viewRef = useRef<HTMLElement>(null);
 
-  // While the floating composer is open, pin the BOTTOM of the subtask list just
-  // above the composer (mirrors the calendar's compose behaviour), so the newest
-  // subtask lands right above the sheet. The spacer below is sized to the
-  // composer's occluded height so there's always room to scroll the list's tail
-  // up to it. On open (and keyboard resize) we jump instantly ("auto") so the
-  // sheet appears already docked under the last subtask, with no visible scroll.
+  // While composing, pin the ghost row (the tail of the subtask list, where the
+  // new subtask lands) just above the slim compose bar. The spacer below is sized
+  // to the bar's occluded height so there's always room to scroll the tail up to
+  // it. On open (and keyboard resize) we jump instantly ("auto") so it appears
+  // already docked, with no visible scroll.
   const alignSubtaskTail = (behavior: ScrollBehavior) => {
     const view = viewRef.current;
     const sheet = view?.closest(".draggableSheet");
     if (!(sheet instanceof HTMLElement)) return;
-    const subtaskList = view?.querySelector<HTMLElement>(".subtaskList");
+    const ghost = view?.querySelector<HTMLElement>(".composeGhostRow");
     const spacer = view?.querySelector<HTMLElement>(".detailComposerSpacer");
 
-    // Bottom of the VISIBLE area in layout-viewport (client) coordinates. The
-    // composer and this sheet are both pinned to the visual viewport
-    // (--kb-view-top/height), so occlusion must be measured in that same space.
-    // On Android Chrome innerHeight already shrinks for the keyboard, so this
-    // equals innerHeight; on iOS Safari innerHeight stays full-screen while the
-    // keyboard occupies the bottom, so using it would inflate occluded by the
-    // keyboard height and dock the tail far above the composer.
+    // Bottom of the VISIBLE area in layout-viewport (client) coordinates. The bar
+    // and this sheet are both pinned to the visual viewport (--kb-view-top/height),
+    // so occlusion must be measured in that same space. On Android Chrome
+    // innerHeight already shrinks for the keyboard; on iOS Safari it stays
+    // full-screen, so using it would inflate occluded by the keyboard height.
     const vv = window.visualViewport;
     const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-    const composer = document.querySelector(".subtaskAddLayer .quickAddSheet");
-    const occluded = composer
-      ? visibleBottom - composer.getBoundingClientRect().top + 8
-      : 220;
+    const bar = document.querySelector(".composeBar .composeBarInner");
+    const occluded = bar
+      ? visibleBottom - bar.getBoundingClientRect().top + 8
+      : 160;
     if (spacer) spacer.style.height = `${Math.round(occluded)}px`;
     sheet.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
-    if (subtaskList) {
-      subtaskList.scrollIntoView({ block: "end", behavior });
+    const target = ghost ?? view?.querySelector<HTMLElement>(".subtaskList");
+    if (target) {
+      target.scrollIntoView({ block: "end", behavior });
     } else {
       sheet.scrollTop = sheet.scrollHeight;
     }
   };
 
-  // On open + keyboard resize: dock instantly under the last subtask.
+  // On open + keyboard resize: focus the ghost input and dock it above the bar.
   useEffect(() => {
     if (!composerOpen) return;
     const sheet = viewRef.current?.closest(".draggableSheet");
@@ -167,18 +173,18 @@ export function TaskDetailView({
 
     const alignInstant = () => alignSubtaskTail("auto");
 
-    // The composer mounts asynchronously (isMounted two-pass + portal), and since
-    // the keyboard is already primed before it opens, no visualViewport resize
-    // may fire to correct an early dock. So re-align every frame until the
-    // composer is actually in the DOM (bounded), guaranteeing the final dock is
-    // measured against the real composer height — not the 220px fallback — so the
-    // tail settles precisely at the add position on first open (like the calendar).
+    // The bar mounts asynchronously (portal), and since the keyboard is already
+    // primed before compose opens, no visualViewport resize may fire to correct
+    // an early dock. So re-align every frame until the bar is in the DOM (bounded),
+    // guaranteeing the final dock is measured against the real bar height — not the
+    // fallback — and focus the ghost input (keyboard already up transfers focus).
     let frame = 0;
     let tries = 0;
     const tick = () => {
+      composeInputRef.current?.focus({ preventScroll: true });
       alignInstant();
-      const composerReady = document.querySelector(".subtaskAddLayer .quickAddSheet");
-      if (composerReady || tries > 30) return;
+      const barReady = document.querySelector(".composeBar .composeBarInner");
+      if (barReady || tries > 30) return;
       tries += 1;
       frame = window.requestAnimationFrame(tick);
     };
@@ -192,6 +198,58 @@ export function TaskDetailView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerOpen]);
+
+  // Reset the draft each time compose opens.
+  useEffect(() => {
+    if (composerOpen) {
+      setComposeDraft(EMPTY_COMPOSE_DRAFT);
+      finishingComposeRef.current = false;
+      suppressComposeCommitRef.current = false;
+    }
+  }, [composerOpen]);
+
+  function updateComposeTitle(title: string) {
+    setComposeDraft((current) => ({ ...current, title }));
+  }
+
+  // Enter: save the current subtask and keep composing (fresh ghost row).
+  function commitComposeAndContinue() {
+    if (composeDraft.title.trim().length === 0) return;
+    onAddChild(task.id, { ...composeDraft, title: composeDraft.title.trim() });
+    setComposeDraft(EMPTY_COMPOSE_DRAFT);
+    window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
+  }
+
+  // Blur (keyboard dismissed): save if non-empty else discard, then close.
+  // Skipped while a date/priority editor is open. Guarded against double commit.
+  function finishCompose() {
+    if (suppressComposeCommitRef.current) return;
+    if (finishingComposeRef.current) return;
+    finishingComposeRef.current = true;
+    const draft = composeDraft;
+    onComposerOpenChange(false);
+    if (draft.title.trim().length > 0) {
+      onAddChild(task.id, { ...draft, title: draft.title.trim() });
+    }
+  }
+
+  function openComposeSchedule() {
+    suppressComposeCommitRef.current = true;
+    setComposeScheduleOpen(true);
+  }
+
+  function openComposePriority() {
+    suppressComposeCommitRef.current = true;
+    setComposePriorityOpen(true);
+  }
+
+  function closeComposeEditors() {
+    setComposeScheduleOpen(false);
+    setComposePriorityOpen(false);
+    suppressComposeCommitRef.current = false;
+    composeInputRef.current?.focus({ preventScroll: true });
+    window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
+  }
 
   // After each add (or removal), smoothly re-dock the new tail above the sheet.
   useEffect(() => {
@@ -250,7 +308,7 @@ export function TaskDetailView({
     : null;
 
   return (
-    <section ref={viewRef} className="detailView">
+    <section ref={viewRef} className={composerOpen ? "detailView isComposing" : "detailView"}>
       <TaskPathBreadcrumb
         className="detailPath"
         crumbs={detailCrumbs}
@@ -347,10 +405,20 @@ export function TaskDetailView({
                   onToggleComplete={onToggleComplete}
                   onRenameTask={onRenameTask}
                   completeLabel={text.taskDetail.complete}
+                  disabled={composerOpen}
                 />
               ))}
             </div>
           </SortableContext>
+          {composerOpen ? (
+            <ComposeGhostRow
+              draft={composeDraft}
+              inputRef={composeInputRef}
+              onChangeTitle={updateComposeTitle}
+              onSubmit={commitComposeAndContinue}
+              onFinish={finishCompose}
+            />
+          ) : null}
           <TrashDropZone active={activeDragTaskId !== null} compact />
           {/* Portal the overlay to <body> so its position:fixed is relative to
               the viewport, not the transformed detail sheet (a transformed
@@ -394,13 +462,37 @@ export function TaskDetailView({
         {text.taskDetail.deleteTask}
       </button>
       {composerOpen ? <div className="detailComposerSpacer" aria-hidden="true" /> : null}
-      {composerOpen ? (
-        <SubtaskQuickAddSheet
-          placeholder={text.taskDetail.subtaskTitle}
-          crumbs={composerCrumbs}
-          onNavigate={onSelectTask}
-          onAdd={(draft) => onAddChild(task.id, draft)}
-          onClose={() => onComposerOpenChange(false)}
+      {/* Portal the compose bar to <body>: it is position:fixed and must be
+          relative to the viewport, not the (transformed) detail sheet. */}
+      {composerOpen
+        ? createPortal(
+            <ComposeBar
+              draft={composeDraft}
+              className="isElevated"
+              onOpenSchedule={openComposeSchedule}
+              onOpenPriority={openComposePriority}
+              onSuppressCommit={() => {
+                suppressComposeCommitRef.current = true;
+              }}
+            />,
+            document.body,
+          )
+        : null}
+      {composerOpen && composeScheduleOpen ? (
+        <ScheduleEditorSheet
+          dueDate={composeDraft.dueDate}
+          dueTime={composeDraft.dueTime}
+          onChange={(dueDate, dueTime) =>
+            setComposeDraft((current) => ({ ...current, dueDate, dueTime }))
+          }
+          onDismiss={closeComposeEditors}
+        />
+      ) : null}
+      {composerOpen && composePriorityOpen ? (
+        <PriorityEditorSheet
+          value={composeDraft.priority}
+          onChange={(priority) => setComposeDraft((current) => ({ ...current, priority }))}
+          onDismiss={closeComposeEditors}
         />
       ) : null}
       {isPriorityOpen ? (
@@ -422,6 +514,9 @@ type SortableSubtaskRowProps = {
   onToggleComplete: (taskId: TaskId) => void;
   onRenameTask: (taskId: TaskId, title: string) => void;
   completeLabel: string;
+  // While composing, keep the row in place (and hittable, so the sheet scrolls)
+  // but don't let it be dragged/reordered.
+  disabled?: boolean;
 };
 
 function SortableSubtaskRow({
@@ -432,9 +527,10 @@ function SortableSubtaskRow({
   onToggleComplete,
   onRenameTask,
   completeLabel,
+  disabled = false,
 }: SortableSubtaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: child.id, data: { type: "subtask" } });
+    useSortable({ id: child.id, data: { type: "subtask" }, disabled });
 
   return (
     <div
@@ -442,7 +538,7 @@ function SortableSubtaskRow({
       className={isDragging ? "sortableSubtaskItem isDragging" : "sortableSubtaskItem"}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
-      {...listeners}
+      {...(disabled ? {} : listeners)}
     >
       <div
         className={child.children.length > 0 ? "subtaskRow hasProgress" : "subtaskRow"}

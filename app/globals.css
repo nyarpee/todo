@@ -754,7 +754,7 @@ h1 {
 /* Slim bar pinned just above the keyboard while composing. The full-height layer
    is click-through (pointer-events:none) so taps outside the bar reach the list
    behind it and commit the draft; only the inner bar is interactive. */
-.inboxComposeBar {
+.composeBar {
   position: fixed;
   left: 0;
   right: 0;
@@ -766,7 +766,14 @@ h1 {
   pointer-events: none;
 }
 
-.inboxComposeBarInner {
+/* Inside the task-detail sheet (z-index 60): match the sheet's layer so the bar,
+   portaled to <body> after the sheet, stacks above the sheet content but below
+   the date/priority editor sheets that open later (also z-index 60). */
+.composeBar.isElevated {
+  z-index: 60;
+}
+
+.composeBarInner {
   pointer-events: auto;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1592,6 +1599,26 @@ h1 {
    of the floating composer. */
 .detailComposerSpacer {
   height: 168px;
+}
+
+/* While composing a subtask, disable the rest of the detail ("look but don't
+   touch") without covering it — the sheet keeps its native vertical scroll and
+   the ghost input stays directly tappable. The upper fields are dimmed to signal
+   they're disabled; the subtask list stays readable but non-interactive. */
+.detailView.isComposing .detailPath,
+.detailView.isComposing .detailHeader,
+.detailView.isComposing .detailFields,
+.detailView.isComposing .detailDeleteButton {
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity 160ms ease;
+}
+
+/* Disable the inner row content (tap-to-open, checkbox, inline edit) but keep the
+   .sortableSubtaskItem wrapper hittable so DraggableBottomSheet still yields to
+   native scrolling (it detects a subtask-row drag and lets the sheet scroll). */
+.detailView.isComposing .subtaskRow {
+  pointer-events: none;
 }
 
 .detailDeleteButton {

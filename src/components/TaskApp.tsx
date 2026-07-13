@@ -86,8 +86,8 @@ import {
   QuickAddSheet,
   type QuickAddDraft,
 } from "./QuickAddSheet";
-import { InboxComposeBar } from "./InboxComposeBar";
-import { InboxComposeRow } from "./InboxComposeRow";
+import { ComposeBar } from "./ComposeBar";
+import { ComposeGhostRow } from "./ComposeGhostRow";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TaskDetailView } from "./TaskDetailView";
@@ -1608,7 +1608,7 @@ export function TaskApp() {
         isSortingTask={isActive && activeDragTaskId !== null}
         composeSlot={
           isComposingHere && inboxCompose ? (
-            <InboxComposeRow
+            <ComposeGhostRow
               draft={inboxCompose}
               inputRef={inboxComposeInputRef}
               onChangeTitle={updateInboxComposeTitle}
@@ -1823,7 +1823,7 @@ export function TaskApp() {
         />
       ) : null}
       {inboxCompose ? (
-        <InboxComposeBar
+        <ComposeBar
           draft={inboxCompose}
           onOpenSchedule={openComposeSchedule}
           onOpenPriority={openComposePriority}

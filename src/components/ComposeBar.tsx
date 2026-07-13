@@ -8,25 +8,29 @@ import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
-type InboxComposeBarProps = {
+type ComposeBarProps = {
   draft: QuickAddDraft;
   onOpenSchedule: () => void;
   onOpenPriority: () => void;
   // Called before the buttons steal focus so the parent can suppress the
   // ghost input's blur-to-commit while a date/priority editor is open.
   onSuppressCommit: () => void;
+  // Extra root class, e.g. "isElevated" to raise the bar above an open bottom
+  // sheet (used inside the task-detail sheet).
+  className?: string;
 };
 
-// The slim bar pinned just above the keyboard while composing an inbox task. It
-// only edits the date/priority of the shared draft — the title lives in the
-// ghost row at the top of the list. There is no send button: committing happens
-// on Enter (continue) or on blur (finish), handled by the ghost row.
-export function InboxComposeBar({
+// The slim bar pinned just above the keyboard while composing. It only edits the
+// date/priority of the shared draft — the title lives in the ghost row (inbox
+// top / subtask or day tail). There is no send button: committing happens on
+// Enter (continue) or on blur (finish), handled by the ghost row.
+export function ComposeBar({
   draft,
   onOpenSchedule,
   onOpenPriority,
   onSuppressCommit,
-}: InboxComposeBarProps) {
+  className,
+}: ComposeBarProps) {
   const { messages: text } = useLanguage();
   const priorityLabels = usePriorityLabels(getTranslatedPriorityLabels(text)).labels;
 
@@ -40,8 +44,8 @@ export function InboxComposeBar({
     draft.priority !== "none" ? getPriorityLabel(draft.priority, priorityLabels) : null;
 
   return (
-    <div className="inboxComposeBar" role="presentation">
-      <div className="inboxComposeBarInner">
+    <div className={className ? `composeBar ${className}` : "composeBar"} role="presentation">
+      <div className="composeBarInner">
         <button
           className="quickAddDateButton"
           type="button"
