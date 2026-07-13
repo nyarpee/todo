@@ -83,7 +83,6 @@ import { HabitTabView } from "./HabitTabView";
 import { MindMapView } from "./MindMapView";
 import {
   FloatingAddButton,
-  QuickAddSheet,
   type QuickAddDraft,
 } from "./QuickAddSheet";
 import { ComposeBar } from "./ComposeBar";
@@ -133,13 +132,14 @@ export function TaskApp() {
   const [mindMapRootId, setMindMapRootId] = useState<TaskId | null>(null);
   const [detailReturnTarget, setDetailReturnTarget] = useState<"list" | "mindmap">("list");
   const [autoEditTaskId, setAutoEditTaskId] = useState<TaskId | null>(null);
-  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [quickAddInitialDate, setQuickAddInitialDate] = useState<string | null>(null);
   // Inbox inline compose: non-null while a new task is being typed in the ghost
   // row at the top of the list. The slim bottom bar edits the same draft.
   const [inboxCompose, setInboxCompose] = useState<QuickAddDraft | null>(null);
   const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
   const [composePriorityOpen, setComposePriorityOpen] = useState(false);
+  // Mirrors CalendarTabView's internal compose state so the app chrome (header,
+  // tabs) can be disabled during calendar compose too.
+  const [isCalendarComposing, setIsCalendarComposing] = useState(false);
   const inboxComposeInputRef = useRef<HTMLInputElement | null>(null);
   // True while a date/priority editor is open, so the ghost input's blur does
   // not commit/discard the draft while the user is picking a value.
@@ -832,20 +832,10 @@ export function TaskApp() {
     });
   }
 
-  function handleAddTask(draft?: QuickAddDraft) {
-    if (draft) {
-      if (activeTab === "calendar" || activeTab === "inbox") {
-        // Compose mode: add immediately and keep the sheet open for the next task.
-        addRootTask(draft, true);
-        return;
-      }
-      setIsQuickAddOpen(false);
-      window.setTimeout(() => addRootTask(draft, true), QUICK_ADD_REFLECT_DELAY_MS);
-      return;
-    }
-
-    addRootTask(undefined, false);
-    setIsQuickAddOpen(false);
+  // Calendar inline compose commits through here (one task per call, kept on its
+  // composed day). The calendar re-pins the ghost row itself, so skip the scroll.
+  function handleAddTask(draft: QuickAddDraft) {
+    addRootTask(draft, true);
   }
 
   function addRootTask(
@@ -1638,14 +1628,8 @@ export function TaskApp() {
     setSelectedTaskId(taskId);
   }
 
-  function openCalendarQuickAdd(dueDate: string) {
-    primeKeyboard();
-    setQuickAddInitialDate(dueDate);
-    setIsQuickAddOpen(true);
-  }
-
   return (
-    <main className={isInboxComposing ? "appShell isComposing" : "appShell"}>
+    <main className={isInboxComposing || isCalendarComposing ? "appShell isComposing" : "appShell"}>
       <div
         className="ptrIndicator"
         data-refreshing={isRefreshing ? "true" : undefined}
@@ -1693,10 +1677,10 @@ export function TaskApp() {
           onSelectTask={openCalendarDetail}
           focusedDate={calendarFocusedDate}
           onFocusDate={setCalendarFocusedDate}
-          onAddTask={openCalendarQuickAdd}
+          onCreateTask={handleAddTask}
+          onComposingChange={setIsCalendarComposing}
           onMoveTask={handleMoveTaskToDate}
           onDeleteTask={handleDeleteTask}
-          composeDate={isQuickAddOpen ? quickAddInitialDate : null}
           highlightedTaskId={highlightedTaskId}
         />
       ) : activeTab === "habit" ? (
@@ -1851,14 +1835,6 @@ export function TaskApp() {
           onDismiss={closeComposeEditors}
         />
       ) : null}
-      <QuickAddSheet
-        isOpen={isQuickAddOpen}
-        onClose={() => setIsQuickAddOpen(false)}
-        onSave={handleAddTask}
-        initialDueDate={quickAddInitialDate}
-        keepOpenOnSave={activeTab === "calendar"}
-        transparentBackdrop={activeTab === "calendar" && quickAddInitialDate !== null}
-      />
       {groupEditorMode === "create" ? (
         <GroupEditorSheet
           mode="create"
@@ -1940,7 +1916,6 @@ const EDGE_SWITCH_ZONE_PX = 28;
 const GROUP_CHIPS_SCROLL_ZONE_PX = 34;
 const GROUP_CHIPS_SCROLL_STEP_PX = 7;
 const GROUP_CHIPS_SCROLL_INTERVAL_MS = 24;
-const QUICK_ADD_REFLECT_DELAY_MS = 500;
 
 function findParentNode(nodes: TaskNode[], task: TaskNode): TaskNode | null {
   if (!task.parentId) return null;

@@ -2773,8 +2773,29 @@ h1 {
   scroll-behavior: smooth;
 }
 
+/* While composing, keep native scrolling (the align effect bounds the height to
+   the area above the keyboard/bar). */
 .calDayList.isCompose {
-  overflow-y: hidden;
+  overflow-y: auto;
+}
+
+/* Inline compose: disable the calendar chrome ("look but don't touch") without
+   covering the day list — it keeps native vertical scroll and the ghost input
+   stays tappable. Month swiping/jump, header, overdue are dimmed; day headers,
+   existing task rows and other days' add buttons are blocked (ghost row stays
+   interactive). Group-day drag is blocked because the rows are non-interactive. */
+.calendarTabView.isComposing .calStickyHeader,
+.calendarTabView.isComposing .calMonthJump,
+.calendarTabView.isComposing .calOverdue {
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity 160ms ease;
+}
+
+.calendarTabView.isComposing .calDayGroupHead,
+.calendarTabView.isComposing .calDayTasks,
+.calendarTabView.isComposing .calDayAddSlot {
+  pointer-events: none;
 }
 
 .calDayGroup {

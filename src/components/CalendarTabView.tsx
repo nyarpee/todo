@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   closestCenter,
@@ -34,17 +34,32 @@ import {
   toDateKey,
 } from "@/lib/date-utils";
 import { getHighestPriority, getPriorityClass } from "@/lib/priority";
+import { primeKeyboard } from "@/lib/ios-keyboard";
 import { ProgressBar } from "./ProgressBar";
+import { ComposeBar } from "./ComposeBar";
+import { ComposeGhostRow } from "./ComposeGhostRow";
+import { PriorityEditorSheet } from "./PriorityEditorSheet";
+import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
+import type { QuickAddDraft } from "./QuickAddSheet";
+
+const EMPTY_COMPOSE_DRAFT: QuickAddDraft = {
+  title: "",
+  dueDate: null,
+  dueTime: null,
+  priority: "none",
+};
 
 type CalendarTabViewProps = {
   tasks: TaskNode[];
   onSelectTask: (taskId: TaskId) => void;
   focusedDate: string | null;
   onFocusDate: (dueDate: string | null) => void;
-  onAddTask: (dueDate: string) => void;
+  onCreateTask: (draft: QuickAddDraft) => void;
+  // Reports whether inline compose is active, so the parent can disable the app
+  // chrome (header, bottom tabs) while composing.
+  onComposingChange?: (composing: boolean) => void;
   onMoveTask: (taskId: TaskId, dueDate: string) => void;
   onDeleteTask: (taskId: TaskId) => void;
-  composeDate: string | null;
   highlightedTaskId?: TaskId | null;
 };
 
@@ -71,10 +86,10 @@ export function CalendarTabView({
   onSelectTask,
   focusedDate,
   onFocusDate,
-  onAddTask,
+  onCreateTask,
+  onComposingChange,
   onMoveTask,
   onDeleteTask,
-  composeDate,
   highlightedTaskId = null,
 }: CalendarTabViewProps) {
   const { messages: text } = useLanguage();
@@ -90,6 +105,15 @@ export function CalendarTabView({
   const [pendingScrollDate, setPendingScrollDate] = useState<string | null>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
   const [isOverTrash, setIsOverTrash] = useState(false);
+  // Inline compose: which day is being composed, plus the shared draft bound to
+  // the ghost row (in that day) and the slim bar (date/priority) above the keyboard.
+  const [composeDate, setComposeDate] = useState<string | null>(null);
+  const [composeDraft, setComposeDraft] = useState<QuickAddDraft>(EMPTY_COMPOSE_DRAFT);
+  const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
+  const [composePriorityOpen, setComposePriorityOpen] = useState(false);
+  const composeInputRef = useRef<HTMLInputElement | null>(null);
+  const suppressComposeCommitRef = useRef(false);
+  const finishingComposeRef = useRef(false);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
@@ -233,7 +257,14 @@ export function CalendarTabView({
     setPendingScrollDate(null);
   }, [pendingScrollDate, forwardDays]);
 
-  // Compose mode: freeze the list and pin the composed day's tail just above the sheet.
+  // Keep the parent's chrome-disable flag in sync with local compose state.
+  useEffect(() => {
+    onComposingChange?.(composeDate !== null);
+    return () => onComposingChange?.(false);
+  }, [composeDate, onComposingChange]);
+
+  // Compose mode: constrain the list to the area above the keyboard/bar and pin
+  // the ghost row (the day's tail, where the task lands) just above the slim bar.
   useEffect(() => {
     const list = scrollRef.current;
     if (!list) return;
@@ -252,27 +283,31 @@ export function CalendarTabView({
       // Android Chrome window.innerHeight already shrinks for the keyboard, so
       // this equals innerHeight. On iOS Safari innerHeight stays full-screen
       // while the keyboard occupies the bottom, so we must derive the visible
-      // bottom from the visual viewport — the same coordinate space the sheet is
-      // pinned to (--kb-view-top/height). Mixing the two is what made the pin
-      // land below the sheet / wobble on iOS.
+      // bottom from the visual viewport — the same coordinate space the bar is
+      // pinned to (--kb-view-top/height). Mixing the two makes the pin land below
+      // the bar / wobble on iOS.
       const vv = window.visualViewport;
       const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
       const listTop = listEl.getBoundingClientRect().top;
-      const sheet = document.querySelector(".quickAddSheet");
-      const occluded = sheet
-        ? visibleBottom - sheet.getBoundingClientRect().top + 8
-        : 220;
-      // Extend the scroll area down to the sheet's top edge so the day can pin just above it.
+      const bar = document.querySelector(".composeBar .composeBarInner");
+      const occluded = bar
+        ? visibleBottom - bar.getBoundingClientRect().top + 8
+        : 160;
+      // Extend the scroll area down to the bar's top edge so the ghost can pin just above it.
       listEl.style.maxHeight = `${Math.max(0, visibleBottom - listTop)}px`;
       listEl.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
-      dayEl.scrollIntoView({ block: "end", behavior });
+      const ghostEl = listEl.querySelector<HTMLElement>(".composeGhostRow");
+      (ghostEl ?? dayEl).scrollIntoView({ block: "end", behavior });
     }
 
-    // First pass scrolls smoothly to pin the day. The keyboard/visual viewport
-    // then settles over ~300ms on iOS, firing several resize events at
-    // intermediate heights; re-dock instantly ("auto") on each so the final
-    // settle lands exactly, without stacking interruptible smooth scrolls.
-    const raf = window.requestAnimationFrame(() => align("smooth"));
+    // Focus the ghost input (keyboard already primed) then pin. The keyboard /
+    // visual viewport settles over ~300ms on iOS, firing several resize events at
+    // intermediate heights; re-dock instantly ("auto") on each so the final settle
+    // lands exactly, without stacking interruptible smooth scrolls.
+    const raf = window.requestAnimationFrame(() => {
+      composeInputRef.current?.focus({ preventScroll: true });
+      align("smooth");
+    });
     const alignInstant = () => align("auto");
     window.visualViewport?.addEventListener("resize", alignInstant);
     return () => {
@@ -280,6 +315,60 @@ export function CalendarTabView({
       window.visualViewport?.removeEventListener("resize", alignInstant);
     };
   }, [composeDate, tasksByDate]);
+
+  function startCompose(date: string) {
+    // Raise the keyboard synchronously inside the tap (iOS); the align effect
+    // focuses the ghost input once it mounts and pins it above the bar.
+    primeKeyboard();
+    finishingComposeRef.current = false;
+    suppressComposeCommitRef.current = false;
+    setComposeDraft({ ...EMPTY_COMPOSE_DRAFT, dueDate: date });
+    onFocusDate(date);
+    setComposeDate(date);
+  }
+
+  function updateComposeTitle(title: string) {
+    setComposeDraft((current) => ({ ...current, title }));
+  }
+
+  // Enter: save the current task on this day and keep composing (fresh ghost row).
+  function commitComposeAndContinue() {
+    if (!composeDate || composeDraft.title.trim().length === 0) return;
+    onCreateTask({ ...composeDraft, title: composeDraft.title.trim() });
+    setComposeDraft({ ...EMPTY_COMPOSE_DRAFT, dueDate: composeDate });
+    window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
+  }
+
+  // Blur (keyboard dismissed): save if non-empty else discard, then close.
+  // Skipped while a date/priority editor is open. Guarded against double commit.
+  function finishCompose() {
+    if (suppressComposeCommitRef.current) return;
+    if (finishingComposeRef.current) return;
+    finishingComposeRef.current = true;
+    const draft = composeDraft;
+    setComposeDate(null);
+    if (draft.title.trim().length > 0) {
+      onCreateTask({ ...draft, title: draft.title.trim() });
+    }
+  }
+
+  function openComposeSchedule() {
+    suppressComposeCommitRef.current = true;
+    setComposeScheduleOpen(true);
+  }
+
+  function openComposePriority() {
+    suppressComposeCommitRef.current = true;
+    setComposePriorityOpen(true);
+  }
+
+  function closeComposeEditors() {
+    setComposeScheduleOpen(false);
+    setComposePriorityOpen(false);
+    suppressComposeCommitRef.current = false;
+    composeInputRef.current?.focus({ preventScroll: true });
+    window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
+  }
 
   function moveGridMonth(offset: number) {
     setGridMonth((current) => {
@@ -301,6 +390,16 @@ export function CalendarTabView({
   const activeDragTask = activeDragTaskId
     ? tasks.find((task) => task.id === activeDragTaskId) ?? null
     : null;
+
+  const composeGhost: ReactNode = composeDate ? (
+    <ComposeGhostRow
+      draft={composeDraft}
+      inputRef={composeInputRef}
+      onChangeTitle={updateComposeTitle}
+      onSubmit={commitComposeAndContinue}
+      onFinish={finishCompose}
+    />
+  ) : null;
 
   function handleDragStart(event: DragStartEvent) {
     setActiveDragTaskId(String(event.active.id));
@@ -346,7 +445,7 @@ export function CalendarTabView({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-    <section className="calendarTabView">
+    <section className={composeDate ? "calendarTabView isComposing" : "calendarTabView"}>
       <div className="calStickyHeader">
         <h2>{visibleMonthLabel}</h2>
         <button
@@ -444,8 +543,9 @@ export function CalendarTabView({
                   isSelected={group.date === focusedDate}
                   isComposing={group.date === composeDate}
                   onFocusDate={onFocusDate}
-                  onAddTask={onAddTask}
+                  onAddTask={startCompose}
                   addLabel={text.common.addTask}
+                  composeSlot={group.date === composeDate ? composeGhost : null}
                   isOverdue
                 />
               ))}
@@ -473,8 +573,9 @@ export function CalendarTabView({
             isSelected={day.date === focusedDate}
             isComposing={day.date === composeDate}
             onFocusDate={onFocusDate}
-            onAddTask={onAddTask}
+            onAddTask={startCompose}
             addLabel={text.common.addTask}
+            composeSlot={day.date === composeDate ? composeGhost : null}
             highlightedTaskId={highlightedTaskId}
             registerRef={(element) => {
               if (element) {
@@ -488,6 +589,33 @@ export function CalendarTabView({
         <div ref={sentinelRef} className="calSentinel" aria-hidden="true" />
       </div>
     </section>
+    {composeDate ? (
+      <ComposeBar
+        draft={composeDraft}
+        onOpenSchedule={openComposeSchedule}
+        onOpenPriority={openComposePriority}
+        onSuppressCommit={() => {
+          suppressComposeCommitRef.current = true;
+        }}
+      />
+    ) : null}
+    {composeDate && composeScheduleOpen ? (
+      <ScheduleEditorSheet
+        dueDate={composeDraft.dueDate}
+        dueTime={composeDraft.dueTime}
+        onChange={(dueDate, dueTime) =>
+          setComposeDraft((current) => ({ ...current, dueDate, dueTime }))
+        }
+        onDismiss={closeComposeEditors}
+      />
+    ) : null}
+    {composeDate && composePriorityOpen ? (
+      <PriorityEditorSheet
+        value={composeDraft.priority}
+        onChange={(priority) => setComposeDraft((current) => ({ ...current, priority }))}
+        onDismiss={closeComposeEditors}
+      />
+    ) : null}
     <TrashDropZone active={activeDragTaskId !== null} />
     <DragOverlay modifiers={[snapCenterToCursor]}>
       {activeDragTask ? (
@@ -521,6 +649,8 @@ type DayGroupProps = {
   isOverdue?: boolean;
   registerRef?: (element: HTMLElement | null) => void;
   highlightedTaskId?: TaskId | null;
+  // The compose ghost row, rendered at this day's tail while composing here.
+  composeSlot?: ReactNode;
 };
 
 function DayGroup({
@@ -540,6 +670,7 @@ function DayGroup({
   isOverdue = false,
   registerRef,
   highlightedTaskId = null,
+  composeSlot = null,
 }: DayGroupProps) {
   const offset = diffDaysFromKey(dateKey, todayKey);
   const weekday = weekdays[getWeekdayIndexFromKey(dateKey)] ?? "";
@@ -593,18 +724,21 @@ function DayGroup({
           ))}
         </div>
       ) : null}
-      <div className="calDayAddSlot" aria-hidden={!isSelected}>
-        <button
-          type="button"
-          className="calDayAddInline"
-          aria-label={addLabel}
-          tabIndex={isSelected ? 0 : -1}
-          onClick={() => onAddTask(dateKey)}
-        >
-          <Plus size={15} aria-hidden="true" />
-          <span>{addLabel}</span>
-        </button>
-      </div>
+      {composeSlot}
+      {isComposing ? null : (
+        <div className="calDayAddSlot" aria-hidden={!isSelected}>
+          <button
+            type="button"
+            className="calDayAddInline"
+            aria-label={addLabel}
+            tabIndex={isSelected ? 0 : -1}
+            onClick={() => onAddTask(dateKey)}
+          >
+            <Plus size={15} aria-hidden="true" />
+            <span>{addLabel}</span>
+          </button>
+        </div>
+      )}
     </section>
   );
 }
