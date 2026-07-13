@@ -88,7 +88,6 @@ import {
 } from "./QuickAddSheet";
 import { InboxComposeBar } from "./InboxComposeBar";
 import { InboxComposeRow } from "./InboxComposeRow";
-import { InboxComposeScrim } from "./InboxComposeScrim";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TaskDetailView } from "./TaskDetailView";
@@ -1598,7 +1597,7 @@ export function TaskApp() {
       <TaskListView
         roots={activeRoots}
         completedRoots={completedRoots}
-        interactive={isActive}
+        interactive={isActive && !isComposingHere}
         onSelectTask={openListDetail}
         onOpenMindMap={setMindMapRootId}
         onToggleComplete={handleToggleComplete}
@@ -1608,7 +1607,7 @@ export function TaskApp() {
         highlightedTaskId={highlightedTaskId}
         isSortingTask={isActive && activeDragTaskId !== null}
         composeSlot={
-          isActive && activeTab === "inbox" && inboxCompose ? (
+          isComposingHere && inboxCompose ? (
             <InboxComposeRow
               draft={inboxCompose}
               inputRef={inboxComposeInputRef}
@@ -1646,7 +1645,7 @@ export function TaskApp() {
   }
 
   return (
-    <main className="appShell">
+    <main className={isInboxComposing ? "appShell isComposing" : "appShell"}>
       <div
         className="ptrIndicator"
         data-refreshing={isRefreshing ? "true" : undefined}
@@ -1734,7 +1733,7 @@ export function TaskApp() {
               ref={pagerRef}
               orderedGroups={orderedGroups}
               activeGroupId={activeGroupId}
-              disabled={activeDragTaskId !== null}
+              disabled={activeDragTaskId !== null || isInboxComposing}
               onChangeActiveGroup={setActiveGroupId}
               renderGroup={renderGroupList}
               onSwipeProgress={(fromId, toId, t, animate) =>
@@ -1821,14 +1820,6 @@ export function TaskApp() {
             }
             startInboxCompose();
           }}
-        />
-      ) : null}
-      {inboxCompose ? (
-        <InboxComposeScrim
-          onScrollBy={(delta) => {
-            if (appScrollRef.current) appScrollRef.current.scrollTop += delta;
-          }}
-          onDismiss={finishInboxCompose}
         />
       ) : null}
       {inboxCompose ? (

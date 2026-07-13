@@ -739,28 +739,20 @@ h1 {
   font-weight: 650;
 }
 
-/* Transparent scrim over the whole app while composing: blocks taps on the
-   chrome (group bar/switch, header, tabs) so only the list can be scrolled and
-   the compose bar used. Sits below the compose bar (z-index 40) and the editor
-   sheets (z-index 60), above all normal-flow content. */
-.inboxComposeScrim {
-  position: fixed;
-  inset: 0;
-  z-index: 39;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  /* We forward pans/wheel to the inbox scroller manually, so suppress the
-     browser's own scrolling/gestures on the scrim itself. */
-  touch-action: none;
-  cursor: default;
+/* While composing an inbox task, disable the surrounding chrome ("look but don't
+   touch") without covering the list — the list keeps its native vertical scroll
+   and the ghost input stays directly tappable for cursor control. Group swiping
+   is disabled separately via the pager's `disabled` prop. */
+.appShell.isComposing .headerActions,
+.appShell.isComposing .groupArea,
+.appShell.isComposing .bottomTabs {
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity 160ms ease;
 }
 
 /* Slim bar pinned just above the keyboard while composing. The full-height layer
-   is click-through (pointer-events:none) so taps outside the bar reach the scrim
+   is click-through (pointer-events:none) so taps outside the bar reach the list
    behind it and commit the draft; only the inner bar is interactive. */
 .inboxComposeBar {
   position: fixed;
