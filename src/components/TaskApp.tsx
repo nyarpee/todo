@@ -88,6 +88,7 @@ import {
 } from "./QuickAddSheet";
 import { InboxComposeBar } from "./InboxComposeBar";
 import { InboxComposeRow } from "./InboxComposeRow";
+import { InboxComposeScrim } from "./InboxComposeScrim";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TaskDetailView } from "./TaskDetailView";
@@ -144,6 +145,9 @@ export function TaskApp() {
   // True while a date/priority editor is open, so the ghost input's blur does
   // not commit/discard the draft while the user is picking a value.
   const suppressComposeCommitRef = useRef(false);
+  // Guards against a double commit when a single tap on the scrim both blurs the
+  // ghost input (onBlur -> finish) and clicks the scrim (onClick -> finish).
+  const finishingComposeRef = useRef(false);
   const [calendarFocusedDate, setCalendarFocusedDate] = useState<string | null>(() => getTodayKey());
   const [groupEditorMode, setGroupEditorMode] = useState<"create" | "manage" | null>(null);
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
@@ -771,6 +775,7 @@ export function TaskApp() {
     // Raise the keyboard synchronously inside the tap (iOS), then mount the
     // ghost row; the focus effect below transfers focus to its input.
     primeKeyboard();
+    finishingComposeRef.current = false;
     setInboxCompose({ ...EMPTY_INBOX_DRAFT });
   }
 
@@ -795,9 +800,12 @@ export function TaskApp() {
   // open so picking a value does not accidentally commit or cancel.
   function finishInboxCompose() {
     if (suppressComposeCommitRef.current) return;
+    if (finishingComposeRef.current) return;
     const draft = inboxCompose;
+    if (!draft) return;
+    finishingComposeRef.current = true;
     setInboxCompose(null);
-    if (draft && draft.title.trim().length > 0) {
+    if (draft.title.trim().length > 0) {
       addRootTask({ ...draft, title: draft.title.trim() }, true, { skipScrollIntoView: true });
     }
   }
@@ -1813,6 +1821,14 @@ export function TaskApp() {
             }
             startInboxCompose();
           }}
+        />
+      ) : null}
+      {inboxCompose ? (
+        <InboxComposeScrim
+          onScrollBy={(delta) => {
+            if (appScrollRef.current) appScrollRef.current.scrollTop += delta;
+          }}
+          onDismiss={finishInboxCompose}
         />
       ) : null}
       {inboxCompose ? (
