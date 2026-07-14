@@ -152,16 +152,26 @@ export function TaskDetailView({
     const vv = window.visualViewport;
     const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
     const bar = document.querySelector(".composeBar .composeBarInner");
-    const occluded = bar
-      ? visibleBottom - bar.getBoundingClientRect().top + 8
-      : 160;
+    const barTop = bar ? bar.getBoundingClientRect().top : visibleBottom - 140;
+    const occluded = visibleBottom - barTop + 8;
+    // The spacer gives the sheet enough scrollable room below the ghost so it can
+    // be scrolled clear of the bar.
     if (spacer) spacer.style.height = `${Math.round(occluded)}px`;
-    sheet.style.scrollPaddingBottom = `${Math.round(occluded)}px`;
+
     const target = ghost ?? view?.querySelector<HTMLElement>(".subtaskList");
-    if (target) {
-      target.scrollIntoView({ block: "end", behavior });
-    } else {
+    if (!target) {
       sheet.scrollTop = sheet.scrollHeight;
+      return;
+    }
+    // Scroll so the target's bottom sits just above the bar. We set scrollTop
+    // directly rather than relying on scrollIntoView + scroll-padding-bottom,
+    // which iOS Safari honors unreliably (leaving the ghost behind the bar).
+    const delta = target.getBoundingClientRect().bottom - (barTop - 8);
+    const nextTop = Math.max(0, sheet.scrollTop + delta);
+    if (behavior === "smooth") {
+      sheet.scrollTo({ top: nextTop, behavior: "smooth" });
+    } else {
+      sheet.scrollTop = nextTop;
     }
   };
 
