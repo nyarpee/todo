@@ -146,7 +146,7 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-        // D&D中は、指によるページスワイプを処理しない
+    // D&D中は、指によるページスワイプを処理しない
     if (disabled) {
       gestureRef.current = null;
       rawDeltaRef.current = 0;

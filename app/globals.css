@@ -1203,7 +1203,7 @@ h1 {
 
 .detailView {
   display: grid;
-  gap: 8px;
+  gap: 0;
   width: 100%;
 }
 
@@ -1278,8 +1278,18 @@ h1 {
 .subtaskAddPath {
   justify-self: start;
   max-width: 100%;
-  padding: 0 2px 2px;
+  margin-bottom: 8px;
+  padding: 0 2px;
   font-size: 13px;
+}
+
+.detailPath .taskPathCrumb.isCurrent .taskPathLabel,
+.detailPath .taskPathCrumb.isCurrent .taskPathButton {
+  padding: 0;
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 600;
 }
 
 .taskPath .taskPathCrumb:last-child .taskPathLabel {
@@ -1334,27 +1344,26 @@ h1 {
 
 .detailHeader {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 3px 10px rgb(22 29 39 / 3%);
+  gap: 10px;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .detailHeader.hasProgress {
-  grid-template-columns: 20px minmax(0, 1fr) minmax(96px, 156px);
+  grid-template-columns: 24px minmax(0, 1fr) minmax(104px, 176px);
 }
 
 .detailTitle {
   overflow: hidden;
   width: 100%;
   padding: 0;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 740;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1373,20 +1382,19 @@ h1 {
   text-align: left;
 }
 
-.detailFields {
-  display: grid;
-  gap: 6px;
+.detailMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 3px 0 18px 34px;
 }
 
-.detailSection,
 .subtasksSection {
   display: grid;
-  gap: 4px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 3px 10px rgb(22 29 39 / 3%);
+  gap: 0;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
 }
 
 .fieldLabel {
@@ -1403,15 +1411,18 @@ h1 {
 
 .descriptionInput {
   width: 100%;
-  min-height: 44px;
-  resize: vertical;
-  padding: 8px 10px;
+  min-height: 25px;
+  padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 0;
   color: var(--text);
   background: transparent;
-  line-height: 1.5;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.55;
   outline: none;
+  resize: none;
+  overflow: hidden;
 }
 
 .descriptionInput::placeholder {
@@ -1419,64 +1430,41 @@ h1 {
 }
 
 .descriptionInput:focus {
-  box-shadow: inset 0 0 0 1px var(--focus), 0 0 0 3px rgb(47 111 237 / 14%);
+  box-shadow: inset 0 -1px 0 var(--focus);
 }
 
-.scheduleFieldButton {
-  justify-self: start;
-  min-width: 0;
-  overflow: hidden;
-  padding: 0;
-  border: 0;
-  color: var(--text);
-  background: transparent;
-  font-weight: 650;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.detailActionRow {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+.detailMetaAction {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 40px;
-  padding: 0 10px;
+  gap: 6px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 4px 7px;
   border: 0;
-  border-radius: 10px;
-  color: var(--text);
+  border-radius: 6px;
+  color: var(--muted);
   background: transparent;
+  font-size: 13px;
+  font-weight: 650;
   text-align: left;
 }
 
-.detailActionRow span {
+.detailMetaAction span {
   min-width: 0;
   overflow: hidden;
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.detailActionRow.isEmpty {
+.detailMetaAction.isEmpty {
   color: var(--soft);
 }
 
-.detailActionRow:hover {
+.detailMetaAction:hover,
+.detailMetaAction:focus-visible {
   color: var(--focus);
-  background: var(--surface-muted);
-}
-
-.scheduleFieldButton.isEmpty {
-  color: var(--soft);
-  font-weight: 500;
-}
-
-.scheduleFieldButton:hover {
-  color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+  outline: none;
 }
 
 .parentLink {
@@ -1493,8 +1481,7 @@ h1 {
 }
 
 .subtasksSection {
-  gap: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .subtasksHeader {
@@ -1502,7 +1489,8 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 10px 3px;
+  min-height: 30px;
+  padding: 0;
 }
 
 .subtasksHeader h3 {
@@ -1526,20 +1514,29 @@ h1 {
 
 .subtaskRow {
   display: grid;
-  grid-template-columns: 20px minmax(90px, 1fr);
+  grid-template-columns: 22px minmax(90px, 1fr);
   align-items: center;
-  gap: 7px;
-  min-height: 38px;
-  padding: 4px 8px;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
   border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .subtaskRow.hasProgress {
-  grid-template-columns: 20px minmax(90px, 1fr) minmax(90px, 138px);
+  grid-template-columns: 22px minmax(90px, 1fr) minmax(90px, 138px);
 }
 
 .subtaskRow:hover {
-  background: var(--surface-muted);
+  color: var(--focus);
+}
+
+.subtaskTitle {
+  font-size: 16px;
+  font-weight: 520;
 }
 
 /* Whole-row drag to reorder (or onto the trash to delete), same as the inbox
@@ -1555,21 +1552,28 @@ h1 {
 .subtaskAddButton {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   width: 100%;
-  min-height: 38px;
+  justify-content: flex-start;
+  min-height: 48px;
+  padding: 0 2px;
   border: 0;
-  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   border-radius: 0;
   color: var(--focus);
   background: transparent;
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .subtaskAddButton:hover {
   border-color: var(--focus);
-  background: color-mix(in srgb, var(--focus) 8%, transparent);
+  background: color-mix(in srgb, var(--focus) 6%, transparent);
+}
+
+.detailNote {
+  min-height: 58px;
+  padding: 18px 0 3px;
+  border-top: 1px solid var(--line);
 }
 
 /* Floating subtask composer, pinned above the keyboard like the inbox
@@ -1608,7 +1612,8 @@ h1 {
    they're disabled; the subtask list stays readable but non-interactive. */
 .detailView.isComposing .detailPath,
 .detailView.isComposing .detailHeader,
-.detailView.isComposing .detailFields,
+.detailView.isComposing .detailMeta,
+.detailView.isComposing .detailNote,
 .detailView.isComposing .detailDeleteButton {
   pointer-events: none;
   opacity: 0.5;
@@ -1625,19 +1630,21 @@ h1 {
 .detailDeleteButton {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
-  width: 100%;
-  height: 38px;
-  border: 1px solid #d04444;
-  border-radius: 8px;
-  color: #b42318;
-  background: var(--surface);
+  width: auto;
+  min-height: 44px;
+  margin-top: 24px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  color: var(--danger);
+  background: transparent;
 }
 
 .detailDeleteButton:hover {
-  color: #ffffff;
-  background: #d04444;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .trashIcon {
@@ -2013,9 +2020,17 @@ h1 {
 }
 
 .detailSheet {
+  /* A full-height sheet must not be a grid container: CSS Grid stretches its
+     implicit auto row to consume the remaining height, which in turn makes the
+     detail document distribute large gaps between every section. */
+  display: block;
   height: calc(var(--kb-view-height, 100dvh) - 8px);
   padding: 28px 12px 84px;
   background: var(--bg);
+}
+
+.detailSheet .detailView {
+  align-content: start;
 }
 
 .canvasSheet {
@@ -4027,7 +4042,6 @@ h1 {
     gap: 6px;
   }
 
-  .detailFields,
   .breadcrumbBar,
   .focusToolbar,
   .focusTitle {
@@ -4035,14 +4049,14 @@ h1 {
   }
 
   .detailHeader {
-    grid-template-columns: 20px minmax(0, 1fr);
-    gap: 7px;
-    min-height: 42px;
-    padding: 7px 9px;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 8px;
+    min-height: 52px;
+    padding: 0;
   }
 
   .detailHeader.hasProgress {
-    grid-template-columns: 20px minmax(0, 1fr) minmax(72px, 94px);
+    grid-template-columns: 22px minmax(0, 1fr) minmax(72px, 92px);
   }
 
   .detailHeader .progressInline {
@@ -4050,12 +4064,17 @@ h1 {
   }
 
   .detailTitle {
-    font-size: 15px;
+    font-size: 16px;
+  }
+
+  .detailMeta {
+    margin-left: 0;
+    padding-left: 30px;
   }
 
   .subtaskRow {
     grid-template-columns: 20px minmax(64px, 1fr);
-    gap: 5px;
+    gap: 8px;
   }
 
   .subtaskRow.hasProgress {
@@ -4076,5 +4095,292 @@ h1 {
 
   .treeCardHeader .progressInline {
     grid-template-columns: minmax(36px, 1fr) 32px;
+  }
+}
+
+/* Standalone visual prototype for the next detail-sheet direction. The paper
+   has one visual surface; its structure comes from spacing and typography,
+   rather than stacked cards. */
+.detailMockPage {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+  background: var(--bg);
+}
+
+.detailMockShell {
+  width: min(100%, 660px);
+  margin: 0 auto;
+}
+
+.detailMockTopbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 42px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.detailMockBack {
+  color: var(--focus);
+  text-decoration: none;
+}
+
+.detailMockPaper {
+  padding: clamp(10px, 3vw, 20px) 0 28px;
+  background: var(--surface);
+}
+
+.detailMockHeader {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(108px, 176px);
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0;
+}
+
+.detailMockCheck {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 2px solid var(--soft);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.detailMockCheck[aria-pressed="true"] {
+  border-color: var(--bar-done);
+  background: var(--bar-done);
+  box-shadow: inset 0 0 0 4px var(--surface);
+}
+
+.detailMockTitle {
+  min-width: 0;
+  padding: 1px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  outline: none;
+  color: var(--text);
+  background: transparent;
+  font-size: 17px;
+  font-weight: 740;
+  letter-spacing: 0;
+}
+
+.detailMockTitle:focus {
+  border-bottom-color: var(--focus);
+}
+
+.detailMockMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px 0 18px 34px;
+}
+
+.detailMockMetaButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.detailMockMetaButton:hover,
+.detailMockMetaButton:focus-visible {
+  color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+  outline: none;
+}
+
+.detailMockMetaButton.isPriority.priority-high {
+  color: #d64545;
+}
+
+.detailMockMetaButton.isPriority.priority-medium {
+  color: #c98400;
+}
+
+.detailMockMetaButton.isPriority.priority-low {
+  color: var(--focus);
+}
+
+.detailMockSubtasks {
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.detailMockSectionHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+  margin-bottom: 2px;
+}
+
+.detailMockSectionHeading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.detailMockSectionHeading span {
+  color: var(--soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.detailMockSubtaskList {
+  display: grid;
+}
+
+.detailMockSubtask {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+}
+
+.detailMockSubtask span {
+  font-size: 16px;
+  font-weight: 520;
+}
+
+.detailMockSubtask:hover {
+  color: var(--focus);
+}
+
+.detailMockSubtask input {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 2px solid var(--soft);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.detailMockSubtask input:checked {
+  border-color: var(--bar-done);
+  background: var(--bar-done);
+  box-shadow: inset 0 0 0 4px var(--surface);
+}
+
+.detailMockSubtask.isCompleted span {
+  color: var(--soft);
+  text-decoration: line-through;
+}
+
+.detailMockAddSubtask {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--focus);
+  background: transparent;
+}
+
+.detailMockAddSubtask input {
+  min-width: 0;
+  padding: 5px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  outline: none;
+  color: var(--text);
+  background: transparent;
+}
+
+.detailMockAddSubtask input:focus {
+  border-bottom-color: var(--focus);
+}
+
+.detailMockAddSubtask input::placeholder {
+  color: var(--focus);
+  opacity: 0.82;
+}
+
+.detailMockNote {
+  min-height: 58px;
+  padding: 18px 0 3px;
+  border-top: 1px solid var(--line);
+}
+
+.detailMockNote textarea {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  min-height: 40px;
+  font-size: 16px;
+  line-height: 1.55;
+  overflow: hidden;
+}
+
+.detailMockNote textarea::placeholder {
+  color: var(--soft);
+}
+
+.detailMockHint {
+  margin: 16px 4px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .detailMockPage {
+    padding-inline: 10px;
+  }
+
+  .detailMockPaper {
+    min-height: calc(100dvh - 74px);
+    padding: 12px 0 24px;
+  }
+
+  .detailMockHeader {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 94px);
+  }
+
+  .detailMockHeader .progressInline {
+    grid-template-columns: minmax(24px, 1fr) 28px;
+  }
+
+  .detailMockMeta {
+    margin-left: 0;
+    padding-left: 34px;
+  }
+
+  .detailMockMeta {
+    padding-right: 0;
   }
 }

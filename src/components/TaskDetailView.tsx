@@ -123,14 +123,24 @@ export function TaskDetailView({
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
 
-  // Path to the current task's *parent* (group + ancestors, current excluded);
-  // the trailing ">" leads into the title below it.
+  // The path stops at the task's parent: the current title already has a
+  // dedicated, editable header below, so it should not be repeated here.
   const detailCrumbs: PathCrumb[] = [
     { id: null, label: groupName },
     ...path.slice(0, -1).map((node) => ({ id: node.id, label: node.title })),
-    { id: null, label: task.title },
   ];
   const viewRef = useRef<HTMLElement>(null);
+  const descriptionInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Keep the note as a continuous piece of text instead of a fixed-height
+  // field: its sheet grows naturally as the user writes.
+  useEffect(() => {
+    const input = descriptionInputRef.current;
+    if (!input) return;
+
+    input.style.height = "auto";
+    input.style.height = `${input.scrollHeight}px`;
+  }, [task.id, task.description]);
 
   // While composing, pin the ghost row (the tail of the subtask list, where the
   // new subtask lands) just above the slim compose bar. The spacer below is sized
@@ -348,42 +358,29 @@ export function TaskDetailView({
         {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
       </div>
 
-      <div className="detailFields">
-        <section className="detailSection">
-          <textarea
-            id={`description-${task.id}`}
-            className="descriptionInput"
-            value={task.description}
-            placeholder={text.taskDetail.description}
-            onChange={(event) => onUpdateDescription(task.id, event.target.value)}
-          />
-        </section>
-        <section className="detailSection">
-          <button
-            className={task.dueDate ? "detailActionRow" : "detailActionRow isEmpty"}
-            type="button"
-            onClick={() => onOpenSchedule(task.id)}
-          >
-            <CalendarClock size={18} aria-hidden="true" />
-            <span>{getScheduleLabel(task.dueDate, task.dueTime, {
-              locale: text.common.locale,
-              noDateLabel: text.common.noDate,
-            })}</span>
-          </button>
-        </section>
-        <section className="detailSection">
-          <button
-            className="detailActionRow"
-            type="button"
-            onClick={() => setIsPriorityOpen(true)}
-          >
-            <Flag size={18} aria-hidden="true" />
-            <span className="priorityValue">
-              <span className={`priorityDot ${getPriorityClass(task.priority)}`} aria-hidden="true" />
-              {getPriorityLabel(task.priority, labels)}
-            </span>
-          </button>
-        </section>
+      <div className="detailMeta" aria-label="Task settings">
+        <button
+          className={task.dueDate ? "detailMetaAction" : "detailMetaAction isEmpty"}
+          type="button"
+          onClick={() => onOpenSchedule(task.id)}
+        >
+          <CalendarClock size={16} aria-hidden="true" />
+          <span>{getScheduleLabel(task.dueDate, task.dueTime, {
+            locale: text.common.locale,
+            noDateLabel: text.common.noDate,
+          })}</span>
+        </button>
+        <button
+          className="detailMetaAction"
+          type="button"
+          onClick={() => setIsPriorityOpen(true)}
+        >
+          <Flag size={16} aria-hidden="true" />
+          <span className="priorityValue">
+            <span className={`priorityDot ${getPriorityClass(task.priority)}`} aria-hidden="true" />
+            {getPriorityLabel(task.priority, labels)}
+          </span>
+        </button>
       </div>
 
       <section className="subtasksSection">
@@ -465,6 +462,18 @@ export function TaskDetailView({
             {text.taskDetail.addSubtask}
           </button>
         ) : null}
+      </section>
+
+      <section className="detailNote" aria-label={text.taskDetail.description}>
+        <textarea
+          ref={descriptionInputRef}
+          id={`description-${task.id}`}
+          className="descriptionInput"
+          value={task.description}
+          placeholder={text.taskDetail.description}
+          rows={1}
+          onChange={(event) => onUpdateDescription(task.id, event.target.value)}
+        />
       </section>
 
       <button className="detailDeleteButton" type="button" onClick={handleDelete}>
