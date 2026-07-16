@@ -56,19 +56,31 @@ export function ComposeGhostRow({
       <span className="composeGhostCheck" aria-hidden="true" />
       <div className="composeGhostContent">
         {locationLabel ? <span className="composeGhostLocation">{locationLabel} &gt;</span> : null}
-        <input
-          ref={inputRef}
-          className="composeGhostInput"
-          value={draft.title}
-          onChange={(event) => onChangeTitle(event.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={onFinish}
-          placeholder={text.newTask}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-        />
+        {/* The <form> wrapper exists for iOS: an input inside a form, like the
+            old QuickAddSheet's, keeps Safari from attaching its prev/next/done
+            keyboard assistant bar the way a bare input among the list's other
+            form controls does. Submission itself is handled on keydown. */}
+        <form
+          style={{ display: "contents" }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <input
+            ref={inputRef}
+            className="composeGhostInput"
+            value={draft.title}
+            onChange={(event) => onChangeTitle(event.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={onFinish}
+            placeholder={text.newTask}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+          />
+        </form>
         {scheduleLabel || priorityLabel ? (
           <div className="composeGhostMeta">
             {scheduleLabel ? (
