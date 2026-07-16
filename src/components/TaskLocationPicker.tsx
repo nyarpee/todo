@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, MapPin } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TaskGroup, TaskGroupId, TaskId, TaskNode } from "@/types/task";
@@ -19,11 +19,12 @@ type TaskLocationPickerProps = {
   onDismiss: () => void;
 };
 
-// The destination picker for a compose session, split along the two axes of a
-// task location: the always-visible group rail switches trees horizontally
-// (level 0), while the breadcrumb + child list navigate vertically inside the
-// selected tree. Groups are just the roots of the hierarchy, so both axes move
-// the same target.
+// The destination picker for a compose session. Its header band mirrors the
+// compose bar's location strip — the sheet reads as that strip, expanded —
+// with the path's crumbs individually tappable to climb back up. Below it,
+// the child list drills down. The group rail only appears at a group root:
+// switching trees is a root-level move, so the rail shows exactly when the
+// path is at a root.
 export function TaskLocationPicker({
   groups,
   tasks,
@@ -33,6 +34,7 @@ export function TaskLocationPicker({
 }: TaskLocationPickerProps) {
   const { messages: text } = useLanguage();
   const railRef = useRef<HTMLDivElement | null>(null);
+  const pathRef = useRef<HTMLDivElement | null>(null);
   const hasCenteredRef = useRef(false);
   const currentGroup = groups.find((group) => group.id === value.groupId) ?? groups[0] ?? null;
   const tasksById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
@@ -45,6 +47,7 @@ export function TaskLocationPicker({
     }
     return path;
   }, [tasksById, value.parentTaskId]);
+  const isAtRoot = value.parentTaskId === null;
   // Completed tasks are not offered as destinations — you don't compose new
   // work under something already done.
   const children = useMemo(
@@ -58,17 +61,26 @@ export function TaskLocationPicker({
     [tasks, value.groupId, value.parentTaskId],
   );
 
-  // Keep the selected chip visible in the rail: jump instantly on open, glide
-  // when the selection changes while the sheet stays up.
+  // Keep the selected chip visible in the rail (it only exists at a root):
+  // jump instantly on open, glide when the selection changes.
   useEffect(() => {
     const chip = railRef.current?.querySelector<HTMLElement>(".taskLocationGroup.isSelected");
-    chip?.scrollIntoView({
+    if (!chip) return;
+    chip.scrollIntoView({
       inline: "center",
       block: "nearest",
       behavior: hasCenteredRef.current ? "smooth" : "auto",
     });
     hasCenteredRef.current = true;
-  }, [value.groupId]);
+  }, [value.groupId, isAtRoot]);
+
+  // Like the compose bar's strip, the tail of the path — the destination — must
+  // stay visible: keep the header band scrolled to its end.
+  useEffect(() => {
+    const path = pathRef.current;
+    if (!path) return;
+    path.scrollTo({ left: path.scrollWidth });
+  }, [value.groupId, value.parentTaskId]);
 
   // Keep the ghost row visible while this sheet is up: on open, and every time
   // the target moves it, scroll whatever container holds the ghost so it sits
@@ -77,7 +89,7 @@ export function TaskLocationPicker({
   // the sheet finish re-rendering the ghost at its new location first.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const sheet = railRef.current?.closest(".draggableSheet");
+      const sheet = pathRef.current?.closest(".draggableSheet");
       const ghost = document.querySelector<HTMLElement>(".composeGhostRow");
       if (!(sheet instanceof HTMLElement) || !ghost) return;
 
@@ -109,42 +121,47 @@ export function TaskLocationPicker({
       dismissOnBackdrop
       onDismiss={onDismiss}
     >
-      <div ref={railRef} className="taskLocationGroupRail" role="list" aria-label={text.lists.area}>
-        {groups.map((group) => (
+      <div className="taskLocationHeader">
+        <MapPin size={15} aria-hidden="true" />
+        <div ref={pathRef} className="taskLocationPath" aria-label="Task location">
           <button
-            key={group.id}
             type="button"
-            className={group.id === value.groupId ? "taskLocationGroup isSelected" : "taskLocationGroup"}
-            onClick={() => onChange({ groupId: group.id, parentTaskId: null })}
+            className={ancestors.length === 0 ? "taskLocationCrumb isCurrent" : "taskLocationCrumb"}
+            onClick={() => onChange({ groupId: currentGroup.id, parentTaskId: null })}
           >
-            {group.name}
+            {currentGroup.name}
           </button>
-        ))}
+          {ancestors.map((task, index) => (
+            <span className="taskLocationCrumbWrap" key={task.id}>
+              <ChevronRight size={14} aria-hidden="true" />
+              <button
+                type="button"
+                className={
+                  index === ancestors.length - 1 ? "taskLocationCrumb isCurrent" : "taskLocationCrumb"
+                }
+                onClick={() => onChange({ groupId: task.groupId, parentTaskId: task.id })}
+              >
+                {task.title}
+              </button>
+            </span>
+          ))}
+        </div>
       </div>
 
-      <div className="taskLocationPath" aria-label="Task location">
-        <button
-          type="button"
-          className={ancestors.length === 0 ? "taskLocationCrumb isCurrent" : "taskLocationCrumb"}
-          onClick={() => onChange({ groupId: currentGroup.id, parentTaskId: null })}
-        >
-          {currentGroup.name}
-        </button>
-        {ancestors.map((task, index) => (
-          <span className="taskLocationCrumbWrap" key={task.id}>
-            <ChevronRight size={14} aria-hidden="true" />
+      {isAtRoot ? (
+        <div ref={railRef} className="taskLocationGroupRail" role="list" aria-label={text.lists.area}>
+          {groups.map((group) => (
             <button
+              key={group.id}
               type="button"
-              className={
-                index === ancestors.length - 1 ? "taskLocationCrumb isCurrent" : "taskLocationCrumb"
-              }
-              onClick={() => onChange({ groupId: task.groupId, parentTaskId: task.id })}
+              className={group.id === value.groupId ? "taskLocationGroup isSelected" : "taskLocationGroup"}
+              onClick={() => onChange({ groupId: group.id, parentTaskId: null })}
             >
-              {task.title}
+              {group.name}
             </button>
-          </span>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="taskLocationChildren" role="list">
         {children.map((task) => (

@@ -786,8 +786,6 @@ h1 {
 .composeBarInner {
   pointer-events: auto;
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
   width: min(640px, calc(100% - 16px));
   margin: 0 auto 8px;
@@ -796,6 +794,44 @@ h1 {
   border-radius: 16px;
   background: var(--surface);
   box-shadow: 0 -18px 44px rgb(15 23 42 / 16%);
+}
+
+/* Row 1: the destination strip — "you are writing into…". Deliberately flat
+   (no border, no fill) so it reads as context above the attribute chips, not
+   as another chip-rank control; the chevron alone signals it opens the picker. */
+.composeBarLocation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+/* Clip the path from the LEFT on overflow: the innermost location (the tail)
+   is what "where am I" means, so it must never be the part that gets cut. */
+.composeBarLocationPath {
+  display: flex;
+  justify-content: flex-end;
+  overflow: hidden;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Row 2: the draft attribute chips (date / priority). */
+.composeBarActions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
 }
 
 .completedSection {
@@ -1217,85 +1253,12 @@ h1 {
   width: 100%;
 }
 
-/* "group > ancestor > ..." location trail. Every crumb is followed by ">",
-   including the last, so the trailing separator points at "the next level". */
-.taskPath {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px;
-  min-width: 0;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.taskPathCrumb {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.taskPathButton,
-.taskPathLabel,
-.taskPathEllipsis {
-  max-width: 140px;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.taskPathButton {
-  cursor: pointer;
-}
-
-.taskPathCrumb.isAncestor {
-  color: var(--muted);
-}
-
-.taskPathCrumb.isAncestor .taskPathButton {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.taskPathCrumb.isCurrent .taskPathLabel,
-.taskPathCrumb.isCurrent .taskPathButton {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--focus) 14%, transparent);
-  color: var(--focus);
-  font-weight: 700;
-}
-
-.taskPathSep {
-  margin: 0 5px;
-  color: var(--muted);
-}
-
-.taskPathButton:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-/* Detail page + composer share the same quiet trail. Every ancestor crumb is a
-   tappable link; the current task (last crumb) is a non-tappable emphasized
-   "you are here" label. */
-.detailPath,
-.subtaskAddPath {
+/* Placement of the shared location header band on the detail page (the band's
+   look itself comes from .taskLocationHeader — same UI as the compose strip). */
+.detailPath {
   justify-self: start;
   max-width: 100%;
   margin-bottom: 8px;
-  padding: 0 2px;
-  font-size: 13px;
-}
-
-.taskPath .taskPathCrumb:last-child .taskPathLabel {
-  color: var(--text);
-  font-weight: 800;
 }
 
 .breadcrumbBar {
@@ -3223,16 +3186,33 @@ h1 {
    and the user keeps their bearings. Long lists scroll inside the children
    pane while the rail, path and handle stay pinned. */
 .taskLocationPickerSheet {
+  /* Flex, not grid: the group rail row comes and goes (root only), so the
+     remaining rows must redistribute without a fixed row template. */
+  display: flex;
+  flex-direction: column;
   gap: 14px;
-  /* Rows: drag handle / group rail / breadcrumb / children (scrolls). */
-  grid-template-rows: auto auto auto minmax(0, 1fr);
   height: min(440px, calc(var(--kb-view-height, 100dvh) * 0.62));
   overflow: hidden;
   padding-bottom: max(24px, env(safe-area-inset-bottom));
 }
 
+/* The header deliberately mirrors .composeBarLocation (same flat, fill-less
+   look) — this sheet is the compose bar's location strip, expanded. Crumbs
+   inside stay tappable. */
+.taskLocationHeader {
+  display: grid;
+  flex: none;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 4px;
+  color: var(--muted);
+}
+
 .taskLocationGroupRail {
   display: flex;
+  flex: none;
   gap: 6px;
   overflow-x: auto;
   padding: 0 2px;
@@ -3310,6 +3290,7 @@ h1 {
 
 .taskLocationChildren {
   display: grid;
+  flex: 1;
   gap: 2px;
   align-content: start;
   min-height: 0;

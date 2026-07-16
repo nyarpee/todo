@@ -64,6 +64,7 @@ export function ScheduleEditorSheet({
       ariaLabel={text.common.date}
       className="scheduleSheet"
       layerClassName={layerClassName}
+      dismissOnBackdrop
       onDismiss={onDismiss}
     >
         {title ? (

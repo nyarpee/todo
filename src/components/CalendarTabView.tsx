@@ -623,7 +623,7 @@ export function CalendarTabView({
       ? createPortal(
           <ComposeBar
             draft={composeDraft}
-            groupLabel={getComposeLocationTailLabel(groups, tasks, composeDraft, activeGroupId)}
+            groupLabel={getComposeLocationLabel(groups, tasks, composeDraft, activeGroupId)}
             onOpenGroup={openComposeGroup}
             onOpenSchedule={openComposeSchedule}
             onOpenPriority={openComposePriority}
@@ -857,25 +857,6 @@ function getComposeLocationLabel(
   }
 
   return [group.name, ...path].join(" > ");
-}
-
-// Compact "you are here" for the slim compose bar: the full path truncates from
-// the right on a narrow bar, which would always collapse a deep location down
-// to just the group name. Show the tail (the actual destination) instead.
-function getComposeLocationTailLabel(
-  groups: TaskGroup[],
-  tasks: TaskNode[],
-  draft: QuickAddDraft,
-  activeGroupId: TaskGroupId,
-): string {
-  if (!draft.parentTaskId) {
-    return getComposeLocationLabel(groups, tasks, draft, activeGroupId);
-  }
-  const parent = tasks.find((task) => task.id === draft.parentTaskId);
-  if (!parent) {
-    return getComposeLocationLabel(groups, tasks, draft, activeGroupId);
-  }
-  return `… > ${parent.title}`;
 }
 
 function formatOffset(offset: number): string {

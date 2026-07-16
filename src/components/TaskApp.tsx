@@ -896,16 +896,6 @@ export function TaskApp() {
     return [group.name, ...buildNodePath(allNodes, parent).map((node) => node.title)].join(" > ");
   }
 
-  // Compact "you are here" for the slim compose bar. The full path truncates
-  // from the right, so on a narrow bar a deep location would always collapse
-  // to just the group name — show the tail (the actual destination) instead.
-  function getComposeLocationTailLabel(target: ComposeTarget): string {
-    if (!target.parentTaskId) return getComposeLocationLabel(target);
-    const parent = allNodes.find((node) => node.id === target.parentTaskId);
-    if (!parent) return getComposeLocationLabel(target);
-    return `… > ${parent.title}`;
-  }
-
   function applyComposeLocation(target: TaskLocationTarget) {
     const session = composeSession;
     if (!session) return;
@@ -1931,7 +1921,7 @@ export function TaskApp() {
         <ComposeBar
           draft={toQuickAddDraft(composeSession)}
           className={selectedTask ? "isElevated" : undefined}
-          groupLabel={getComposeLocationTailLabel(composeSession.target)}
+          groupLabel={getComposeLocationLabel(composeSession.target)}
           onOpenGroup={() => openComposePanel("location")}
           onOpenSchedule={() => openComposePanel("schedule")}
           onOpenPriority={() => openComposePanel("priority")}

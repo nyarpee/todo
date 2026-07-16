@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { CalendarClock, Flag, Plus } from "lucide-react";
+import { CalendarClock, ChevronRight, Flag, MapPin, Plus } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
   closestCenter,
@@ -35,7 +35,6 @@ import { ProgressBar } from "./ProgressBar";
 import { ComposeGhostRow } from "./ComposeGhostRow";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
-import { TaskPathBreadcrumb, type PathCrumb } from "./TaskPathBreadcrumb";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
@@ -121,15 +120,17 @@ export function TaskDetailView({
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
 
-  // Always include the current task. The editable title below answers "what is
-  // this task?" while the complete path answers "where am I in the tree?".
-  const detailCrumbs: PathCrumb[] = [
-    { id: null, label: groupName },
-    ...path.slice(0, -1).map((node) => ({ id: node.id, label: node.title })),
-    { id: null, label: task.title },
-  ];
   const viewRef = useRef<HTMLElement>(null);
+  const detailPathRef = useRef<HTMLDivElement | null>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Same rule as the compose bar strip and the location picker header: when the
+  // path overflows, the tail — where you are — is the part that stays visible.
+  useEffect(() => {
+    const pathElement = detailPathRef.current;
+    if (!pathElement) return;
+    pathElement.scrollTo({ left: pathElement.scrollWidth });
+  }, [task.id]);
 
   // Keep the note as a continuous piece of text instead of a fixed-height
   // field: its sheet grows naturally as the user writes.
@@ -276,13 +277,31 @@ export function TaskDetailView({
 
   return (
     <section ref={viewRef} className={composerOpen ? "detailView isComposing" : "detailView"}>
-      <TaskPathBreadcrumb
-        className="detailPath"
-        crumbs={detailCrumbs}
-        ariaLabel={text.taskDetail.path}
-        onNavigate={onSelectTask}
-        trailingSeparator={false}
-      />
+      {/* Same header band as the compose bar strip / location picker, so the
+          "where am I" UI reads as one thing across all three surfaces. The
+          group and the current task are labels; ancestors in between navigate. */}
+      <div className="taskLocationHeader detailPath">
+        <MapPin size={15} aria-hidden="true" />
+        <div ref={detailPathRef} className="taskLocationPath" aria-label={text.taskDetail.path}>
+          <span className="taskLocationCrumb">{groupName}</span>
+          {path.slice(0, -1).map((node) => (
+            <span className="taskLocationCrumbWrap" key={node.id}>
+              <ChevronRight size={14} aria-hidden="true" />
+              <button
+                type="button"
+                className="taskLocationCrumb"
+                onClick={() => onSelectTask(node.id)}
+              >
+                {node.title}
+              </button>
+            </span>
+          ))}
+          <span className="taskLocationCrumbWrap">
+            <ChevronRight size={14} aria-hidden="true" />
+            <span className="taskLocationCrumb isCurrent">{task.title}</span>
+          </span>
+        </div>
+      </div>
 
       <div className={task.children.length > 0 ? "detailHeader hasProgress" : "detailHeader"}>
         <input
