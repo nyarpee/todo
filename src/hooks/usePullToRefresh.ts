@@ -6,6 +6,9 @@ const RESISTANCE = 0.5; // Dampen the finger travel into a shorter pull.
 const MAX_PULL = 96; // Cap so the spinner never wanders too far down.
 const TRIGGER_THRESHOLD = 64; // Release past this to fire the refresh.
 const ENGAGE_SLOP = 6; // Ignore tiny/ambiguous moves before committing.
+// Any sideways travel beyond this before committing means the gesture is a
+// horizontal group swipe — never turn it into a pull.
+const HORIZONTAL_CANCEL_SLOP = 10;
 // A pull must start moving quickly. Drag-to-reorder (dnd-kit) activates only
 // after a ~180ms still press-and-hold, so requiring the first real move before
 // this limit keeps a reorder drag from being mistaken for a refresh pull.
@@ -102,9 +105,17 @@ export function usePullToRefresh(
           startXRef.current = null;
           return;
         }
-        // Commit to a pull only once the move is clearly a downward drag, so we
-        // don't steal horizontal group swipes or normal upward scrolls.
-        if (dy < ENGAGE_SLOP || dy <= Math.abs(dx)) return;
+        // A clear sideways component means a group swipe: bow out for the rest
+        // of this touch so a slightly diagonal swipe can't drop the refresh
+        // spinner over the group bar.
+        if (Math.abs(dx) > HORIZONTAL_CANCEL_SLOP) {
+          startYRef.current = null;
+          startXRef.current = null;
+          return;
+        }
+        // Commit to a pull only once the move is clearly a downward drag —
+        // dominantly vertical, not merely "more down than across".
+        if (dy < ENGAGE_SLOP || dy <= Math.abs(dx) * 2) return;
         const scroller = scrollerAtPoint(event.target);
         if (scroller && scroller.scrollTop > 0) {
           reset();
