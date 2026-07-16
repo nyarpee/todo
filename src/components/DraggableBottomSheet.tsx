@@ -13,6 +13,9 @@ import { createPortal } from "react-dom";
 type DraggableBottomSheetProps = {
   ariaLabel: string;
   className?: string;
+  // Extra class on the fixed full-screen layer (not the sheet itself), e.g.
+  // "composeSheetLayer" to pin compose-owned sheets above the detail sheet.
+  layerClassName?: string;
   children: ReactNode;
   dismissOnBackdrop?: boolean;
   initialOffset?: number;
@@ -23,6 +26,7 @@ type DraggableBottomSheetProps = {
 export function DraggableBottomSheet({
   ariaLabel,
   className,
+  layerClassName,
   children,
   dismissOnBackdrop = false,
   initialOffset = 0,
@@ -207,7 +211,10 @@ export function DraggableBottomSheet({
   if (!isMounted) return null;
 
   return createPortal(
-    <div className="sheetLayer" role="presentation">
+    <div
+      className={layerClassName ? `sheetLayer ${layerClassName}` : "sheetLayer"}
+      role="presentation"
+    >
       {dismissOnBackdrop ? (
         <button
           className="sheetBackdrop"

@@ -17,6 +17,7 @@ type ComposeGhostRowProps = {
   // Blur (keyboard dismissed): save if non-empty, otherwise discard, then close.
   onFinish: () => void;
   onChangeTitle: (title: string) => void;
+  locationLabel?: string;
 };
 
 // The faint "ghost" row shown where a new task will land while composing (top of
@@ -29,6 +30,7 @@ export function ComposeGhostRow({
   onSubmit,
   onFinish,
   onChangeTitle,
+  locationLabel,
 }: ComposeGhostRowProps) {
   const { messages: text } = useLanguage();
   const priorityLabels = usePriorityLabels(getTranslatedPriorityLabels(text)).labels;
@@ -53,6 +55,7 @@ export function ComposeGhostRow({
     <div className="composeGhostRow" role="group" aria-label={text.common.addTask}>
       <span className="composeGhostCheck" aria-hidden="true" />
       <div className="composeGhostContent">
+        {locationLabel ? <span className="composeGhostLocation">{locationLabel} &gt;</span> : null}
         <input
           ref={inputRef}
           className="composeGhostInput"

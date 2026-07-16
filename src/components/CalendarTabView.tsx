@@ -39,7 +39,7 @@ import { primeKeyboard } from "@/lib/ios-keyboard";
 import { ProgressBar } from "./ProgressBar";
 import { ComposeBar } from "./ComposeBar";
 import { ComposeGhostRow } from "./ComposeGhostRow";
-import { GroupPickerSheet } from "./GroupPickerSheet";
+import { TaskLocationPicker } from "./TaskLocationPicker";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import type { QuickAddDraft } from "./QuickAddSheet";
@@ -119,7 +119,7 @@ export function CalendarTabView({
   const [composeDraft, setComposeDraft] = useState<QuickAddDraft>(EMPTY_COMPOSE_DRAFT);
   const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
   const [composePriorityOpen, setComposePriorityOpen] = useState(false);
-  const [composeGroupOpen, setComposeGroupOpen] = useState(false);
+  const [composeLocationPickerOpen, setComposeLocationPickerOpen] = useState(false);
   const composeInputRef = useRef<HTMLInputElement | null>(null);
   const suppressComposeCommitRef = useRef(false);
   const finishingComposeRef = useRef(false);
@@ -331,7 +331,12 @@ export function CalendarTabView({
     primeKeyboard();
     finishingComposeRef.current = false;
     suppressComposeCommitRef.current = false;
-    setComposeDraft({ ...EMPTY_COMPOSE_DRAFT, dueDate: date, groupId: activeGroupId });
+    setComposeDraft({
+      ...EMPTY_COMPOSE_DRAFT,
+      dueDate: date,
+      groupId: activeGroupId,
+      parentTaskId: null,
+    });
     onFocusDate(date);
     setComposeDate(date);
   }
@@ -349,6 +354,7 @@ export function CalendarTabView({
       ...EMPTY_COMPOSE_DRAFT,
       dueDate: composeDate,
       groupId: composeDraft.groupId,
+      parentTaskId: composeDraft.parentTaskId,
     });
     window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
   }
@@ -378,13 +384,13 @@ export function CalendarTabView({
 
   function openComposeGroup() {
     suppressComposeCommitRef.current = true;
-    setComposeGroupOpen(true);
+    setComposeLocationPickerOpen(true);
   }
 
   function closeComposeEditors() {
     setComposeScheduleOpen(false);
     setComposePriorityOpen(false);
-    setComposeGroupOpen(false);
+    setComposeLocationPickerOpen(false);
     suppressComposeCommitRef.current = false;
     composeInputRef.current?.focus({ preventScroll: true });
     window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
@@ -418,6 +424,7 @@ export function CalendarTabView({
       onChangeTitle={updateComposeTitle}
       onSubmit={commitComposeAndContinue}
       onFinish={finishCompose}
+      locationLabel={getComposeLocationLabel(groups, tasks, composeDraft, activeGroupId)}
     />
   ) : null;
 
@@ -616,7 +623,7 @@ export function CalendarTabView({
       ? createPortal(
           <ComposeBar
             draft={composeDraft}
-            groupLabel={groups.find((group) => group.id === (composeDraft.groupId ?? activeGroupId))?.name}
+            groupLabel={getComposeLocationTailLabel(groups, tasks, composeDraft, activeGroupId)}
             onOpenGroup={openComposeGroup}
             onOpenSchedule={openComposeSchedule}
             onOpenPriority={openComposePriority}
@@ -627,14 +634,18 @@ export function CalendarTabView({
           document.body,
         )
       : null}
-    {composeDate && composeGroupOpen ? (
-      <GroupPickerSheet
+    {composeDate && composeLocationPickerOpen ? (
+      <TaskLocationPicker
         groups={groups}
-        value={composeDraft.groupId ?? activeGroupId}
-        onChange={(groupId) => {
-          // Calendar: only set the new task's group (no visible page switch).
-          setComposeDraft((current) => ({ ...current, groupId }));
-          closeComposeEditors();
+        tasks={tasks}
+        value={{
+          groupId: composeDraft.groupId ?? activeGroupId,
+          parentTaskId: composeDraft.parentTaskId ?? null,
+        }}
+        onChange={({ groupId, parentTaskId }) => {
+          // Calendar remains date-oriented: only the destination changes. Keep
+          // the picker open so a task can be followed through multiple levels.
+          setComposeDraft((current) => ({ ...current, groupId, parentTaskId }));
         }}
         onDismiss={closeComposeEditors}
       />
@@ -825,6 +836,46 @@ function CalendarTaskRow({ task, onSelectTask, isHighlighted = false }: Calendar
       {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
     </button>
   );
+}
+
+function getComposeLocationLabel(
+  groups: TaskGroup[],
+  tasks: TaskNode[],
+  draft: QuickAddDraft,
+  activeGroupId: TaskGroupId,
+): string {
+  const group = groups.find((candidate) => candidate.id === (draft.groupId ?? activeGroupId));
+  if (!group) return "";
+  if (!draft.parentTaskId) return group.name;
+
+  const tasksById = new Map(tasks.map((task) => [task.id, task]));
+  const path: string[] = [];
+  let current = tasksById.get(draft.parentTaskId);
+  while (current) {
+    path.unshift(current.title);
+    current = current.parentId ? tasksById.get(current.parentId) : undefined;
+  }
+
+  return [group.name, ...path].join(" > ");
+}
+
+// Compact "you are here" for the slim compose bar: the full path truncates from
+// the right on a narrow bar, which would always collapse a deep location down
+// to just the group name. Show the tail (the actual destination) instead.
+function getComposeLocationTailLabel(
+  groups: TaskGroup[],
+  tasks: TaskNode[],
+  draft: QuickAddDraft,
+  activeGroupId: TaskGroupId,
+): string {
+  if (!draft.parentTaskId) {
+    return getComposeLocationLabel(groups, tasks, draft, activeGroupId);
+  }
+  const parent = tasks.find((task) => task.id === draft.parentTaskId);
+  if (!parent) {
+    return getComposeLocationLabel(groups, tasks, draft, activeGroupId);
+  }
+  return `… > ${parent.title}`;
 }
 
 function formatOffset(offset: number): string {

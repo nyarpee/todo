@@ -7,7 +7,7 @@ import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import { getScheduleLabel } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
-import type { TaskGroupId, TaskPriority } from "@/types/task";
+import type { TaskGroupId, TaskId, TaskPriority } from "@/types/task";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 
@@ -18,6 +18,8 @@ export type QuickAddDraft = {
   priority: TaskPriority;
   // Target group for the new task; falls back to the active group when unset.
   groupId?: TaskGroupId;
+  // null creates a root task in the group. A task id creates a subtask there.
+  parentTaskId?: TaskId | null;
 };
 
 type QuickAddSheetProps = {

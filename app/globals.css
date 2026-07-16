@@ -707,6 +707,15 @@ h1 {
   min-width: 0;
 }
 
+.composeGhostLocation {
+  overflow: hidden;
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .composeGhostInput {
   width: 100%;
   padding: 0;
@@ -766,11 +775,12 @@ h1 {
   pointer-events: none;
 }
 
-/* Inside the task-detail sheet (z-index 60): match the sheet's layer so the bar,
-   portaled to <body> after the sheet, stacks above the sheet content but below
-   the date/priority editor sheets that open later (also z-index 60). */
+/* While the task-detail sheet (z-index 60) is open: raise the bar above the
+   sheet content. The compose-owned location/date/priority sheets sit on their
+   own layer above this (see .composeSheetLayer), so stacking never depends on
+   mount order. */
 .composeBar.isElevated {
-  z-index: 60;
+  z-index: 66;
 }
 
 .composeBarInner {
@@ -1281,15 +1291,6 @@ h1 {
   margin-bottom: 8px;
   padding: 0 2px;
   font-size: 13px;
-}
-
-.detailPath .taskPathCrumb.isCurrent .taskPathLabel,
-.detailPath .taskPathCrumb.isCurrent .taskPathButton {
-  padding: 0;
-  border-radius: 0;
-  color: var(--muted);
-  background: transparent;
-  font-weight: 600;
 }
 
 .taskPath .taskPathCrumb:last-child .taskPathLabel {
@@ -1964,6 +1965,13 @@ h1 {
 
 .quickAddTimeRow input:disabled {
   color: var(--soft);
+}
+
+/* Sheets owned by a compose session (location/date/priority pickers). They must
+   always stack above the detail sheet (60) and the elevated compose bar (66),
+   whatever order they mounted in. */
+.sheetLayer.composeSheetLayer {
+  z-index: 68;
 }
 
 .sheetLayer {
@@ -3206,6 +3214,140 @@ h1 {
 .groupPickerSheet {
   gap: 4px;
   padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+/* Root/task destination picker. It is intentionally a small navigator: the
+   path is the route back, and the list only exposes direct children ahead.
+   The sheet's height is FIXED — never derived from how many children the
+   current level has — so drilling in and out of the tree doesn't resize it
+   and the user keeps their bearings. Long lists scroll inside the children
+   pane while the rail, path and handle stay pinned. */
+.taskLocationPickerSheet {
+  gap: 14px;
+  /* Rows: drag handle / group rail / breadcrumb / children (scrolls). */
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  height: min(440px, calc(var(--kb-view-height, 100dvh) * 0.62));
+  overflow: hidden;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.taskLocationGroupRail {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 2px;
+  scrollbar-width: none;
+}
+
+.taskLocationGroupRail::-webkit-scrollbar {
+  display: none;
+}
+
+.taskLocationGroup {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.taskLocationGroup.isSelected {
+  border-color: color-mix(in srgb, var(--focus) 46%, var(--line));
+  color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, var(--surface));
+}
+
+.taskLocationPath {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: none;
+}
+
+.taskLocationPath::-webkit-scrollbar {
+  display: none;
+}
+
+.taskLocationCrumbWrap {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.taskLocationCrumb {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  max-width: 160px;
+  padding: 0 4px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The tail of the path = where the ghost row currently is — the "you are here". */
+.taskLocationCrumb.isCurrent {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.taskLocationChildren {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.taskLocationChild {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-weight: 680;
+}
+
+.taskLocationChild:hover {
+  background: var(--surface-muted);
+}
+
+.taskLocationChild span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskLocationEmpty {
+  margin: 0;
+  padding: 14px 10px;
+  color: var(--soft);
+  font-size: 13px;
 }
 
 .groupPickerList {

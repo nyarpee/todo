@@ -67,6 +67,7 @@ import { IndexedDbSyncQueueRepository } from "@/repositories/indexed-db-sync-que
 import { IndexedDbTaskRepository } from "@/repositories/indexed-db-task-repository";
 import { ANONYMOUS_USER_ID, LEGACY_LOCAL_USER_ID } from "@/repositories/task-repository";
 import type { ActivityEntityId, ActivityEntityType, ActivityEvent, ActivityEventType } from "@/types/activity";
+import type { ComposeDraft, ComposePanel, ComposeSession, ComposeTarget } from "@/types/compose-session";
 import type { Habit, HabitColor, HabitEntry, HabitEntryId, HabitId, HabitUnitType } from "@/types/habit";
 import type { Task, TaskGroup, TaskGroupId, TaskId, TaskNode, UserId } from "@/types/task";
 import { AccountMenu } from "./AccountMenu";
@@ -87,19 +88,29 @@ import {
 } from "./QuickAddSheet";
 import { ComposeBar } from "./ComposeBar";
 import { ComposeGhostRow } from "./ComposeGhostRow";
-import { GroupPickerSheet } from "./GroupPickerSheet";
+import { TaskLocationPicker, type TaskLocationTarget } from "./TaskLocationPicker";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TaskDetailView } from "./TaskDetailView";
 import { TaskListView } from "./TaskListView";
 import { ThemeToggle } from "./ThemeToggle";
 
-const EMPTY_INBOX_DRAFT: QuickAddDraft = {
+const EMPTY_COMPOSE_DRAFT: ComposeDraft = {
   title: "",
   dueDate: null,
   dueTime: null,
   priority: "none",
 };
+
+// The ghost row / compose bar edit a ComposeSession; committing needs the flat
+// QuickAddDraft shape that the add handlers (and the calendar) already speak.
+function toQuickAddDraft(session: ComposeSession): QuickAddDraft {
+  return {
+    ...session.draft,
+    groupId: session.target.groupId,
+    parentTaskId: session.target.parentTaskId,
+  };
+}
 
 type LocalWorkspaceData = {
   groups: TaskGroup[];
@@ -128,21 +139,19 @@ export function TaskApp() {
   const [hasLoadedTheme, setHasLoadedTheme] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("inbox");
   const [selectedTaskId, setSelectedTaskId] = useState<TaskId | null>(null);
-  const [isDetailComposerOpen, setIsDetailComposerOpen] = useState(false);
   const [datePickerTaskId, setDatePickerTaskId] = useState<TaskId | null>(null);
   const [mindMapRootId, setMindMapRootId] = useState<TaskId | null>(null);
   const [detailReturnTarget, setDetailReturnTarget] = useState<"list" | "mindmap">("list");
   const [autoEditTaskId, setAutoEditTaskId] = useState<TaskId | null>(null);
-  // Inbox inline compose: non-null while a new task is being typed in the ghost
-  // row at the top of the list. The slim bottom bar edits the same draft.
-  const [inboxCompose, setInboxCompose] = useState<QuickAddDraft | null>(null);
-  const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
-  const [composePriorityOpen, setComposePriorityOpen] = useState(false);
-  const [composeGroupOpen, setComposeGroupOpen] = useState(false);
+  // The single in-progress new task shared by the inbox list and the detail
+  // sheet. Its ghost row renders wherever `target` points; the compose bar and
+  // the location/date/priority sheets are mounted once at this level, so they
+  // survive any target change instead of being handed off between views.
+  const [composeSession, setComposeSession] = useState<ComposeSession | null>(null);
   // Mirrors CalendarTabView's internal compose state so the app chrome (header,
   // tabs) can be disabled during calendar compose too.
   const [isCalendarComposing, setIsCalendarComposing] = useState(false);
-  const inboxComposeInputRef = useRef<HTMLInputElement | null>(null);
+  const composeInputRef = useRef<HTMLInputElement | null>(null);
   // True while a date/priority editor is open, so the ghost input's blur does
   // not commit/discard the draft while the user is picking a value.
   const suppressComposeCommitRef = useRef(false);
@@ -201,16 +210,21 @@ export function TaskApp() {
     }),
   );
 
-  // When inline compose opens, focus the ghost row's input once it mounts
-  // (the keyboard was already primed on the opening tap) and bring the top of
-  // the list into view so the ghost row — where the task lands — is visible.
-  const isInboxComposing = inboxCompose !== null;
+  // When the compose target points at a group root, focus the ghost row's input
+  // once it mounts (the keyboard was already primed on the opening tap) and
+  // bring the top of the list into view so the ghost row — where the task
+  // lands — is visible. Re-runs when the location picker moves the target to a
+  // different root, because the ghost input remounts on the new group's page.
+  const isComposingAtRoot = composeSession !== null && composeSession.target.parentTaskId === null;
+  const composeTargetKey = composeSession
+    ? `${composeSession.target.groupId}:${composeSession.target.parentTaskId ?? ""}`
+    : null;
   useEffect(() => {
-    if (!isInboxComposing) return;
+    if (!isComposingAtRoot) return;
     let frame = 0;
     let tries = 0;
     const focusGhost = () => {
-      const input = inboxComposeInputRef.current;
+      const input = composeInputRef.current;
       if (input) {
         input.focus({ preventScroll: true });
         appScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -222,7 +236,7 @@ export function TaskApp() {
     };
     frame = window.requestAnimationFrame(focusGhost);
     return () => window.cancelAnimationFrame(frame);
-  }, [isInboxComposing]);
+  }, [isComposingAtRoot, composeTargetKey]);
 
   // Custom collision detection: the trash drop zone should only win when the
   // pointer is actually over it (pointerWithin). Otherwise the built-in
@@ -266,10 +280,30 @@ export function TaskApp() {
   const selectedTask = selectedTaskId
     ? allNodes.find((node) => node.id === selectedTaskId) ?? null
     : null;
+  // Whether the docked subtask composer is open inside the detail sheet is
+  // derived from the session: no separate open flag, no hand-off bookkeeping.
+  const isDetailComposerOpen =
+    composeSession !== null &&
+    selectedTask !== null &&
+    composeSession.target.parentTaskId === selectedTask.id;
   useEffect(() => {
-    // Reset the docked subtask composer whenever the open task changes/closes.
-    setIsDetailComposerOpen(false);
-  }, [selectedTaskId]);
+    // The detail view navigated away from the compose target (subtask tap,
+    // breadcrumb, sheet dismissed) — the location picker is not involved, since
+    // it retargets the session and the view in the same update. Finish the
+    // session like a blur would: save a non-empty title, then close.
+    const session = composeSession;
+    if (!session || session.target.parentTaskId === null) return;
+    if (session.target.parentTaskId === selectedTaskId) return;
+    finishingComposeRef.current = true;
+    setComposeSession(null);
+    if (session.draft.title.trim().length > 0) {
+      handleAddTask(
+        { ...toQuickAddDraft(session), title: session.draft.title.trim() },
+        { skipScrollIntoView: true },
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTaskId, composeSession]);
   const datePickerTask = datePickerTaskId
     ? allNodes.find((node) => node.id === datePickerTaskId) ?? null
     : null;
@@ -772,78 +806,128 @@ export function TaskApp() {
     }
   }
 
-  function startInboxCompose() {
+  function startCompose(target: ComposeTarget) {
     // Raise the keyboard synchronously inside the tap (iOS), then mount the
-    // ghost row; the focus effect below transfers focus to its input.
+    // ghost row; the focus effects transfer focus to its input once it exists.
     primeKeyboard();
     finishingComposeRef.current = false;
-    setInboxCompose({ ...EMPTY_INBOX_DRAFT });
+    suppressComposeCommitRef.current = false;
+    setComposeSession({ draft: { ...EMPTY_COMPOSE_DRAFT }, target, panel: "compact" });
   }
 
-  function updateInboxComposeTitle(title: string) {
-    setInboxCompose((current) => (current ? { ...current, title } : current));
+  function updateComposeTitle(title: string) {
+    setComposeSession((current) =>
+      current ? { ...current, draft: { ...current.draft, title } } : current,
+    );
   }
 
-  // Enter: commit the current title and keep composing with a fresh ghost row,
-  // holding the keyboard up for rapid entry. Empty input is ignored.
-  function commitInboxComposeAndContinue() {
-    const draft = inboxCompose;
-    if (!draft || draft.title.trim().length === 0) return;
-    addRootTask({ ...draft, title: draft.title.trim() }, true, { skipScrollIntoView: true });
-    setInboxCompose({ ...EMPTY_INBOX_DRAFT });
+  // Enter: commit the current title and keep composing with a fresh ghost row
+  // at the same target, holding the keyboard up for rapid entry.
+  function commitComposeAndContinue() {
+    const session = composeSession;
+    if (!session || session.draft.title.trim().length === 0) return;
+    handleAddTask(
+      { ...toQuickAddDraft(session), title: session.draft.title.trim() },
+      { skipScrollIntoView: true },
+    );
+    setComposeSession({ ...session, draft: { ...EMPTY_COMPOSE_DRAFT } });
     window.requestAnimationFrame(() => {
-      inboxComposeInputRef.current?.focus({ preventScroll: true });
+      composeInputRef.current?.focus({ preventScroll: true });
     });
   }
 
   // Blur (keyboard dismissed): save if there's any text, otherwise silently
-  // discard, then close the composer. Skipped while a date/priority editor is
-  // open so picking a value does not accidentally commit or cancel.
-  function finishInboxCompose() {
+  // discard, then end the session. Skipped while a compose panel is open so
+  // picking a value does not accidentally commit or cancel.
+  function finishCompose() {
     if (suppressComposeCommitRef.current) return;
     if (finishingComposeRef.current) return;
-    const draft = inboxCompose;
-    if (!draft) return;
+    const session = composeSession;
+    if (!session) return;
     finishingComposeRef.current = true;
-    setInboxCompose(null);
-    if (draft.title.trim().length > 0) {
-      addRootTask({ ...draft, title: draft.title.trim() }, true, { skipScrollIntoView: true });
+    setComposeSession(null);
+    if (session.draft.title.trim().length > 0) {
+      handleAddTask(
+        { ...toQuickAddDraft(session), title: session.draft.title.trim() },
+        { skipScrollIntoView: true },
+      );
     }
   }
 
-  function openComposeSchedule() {
+  // The location/date/priority sheets are one exclusive panel on the session,
+  // so two of them can never be open (or stack against each other) at once.
+  function openComposePanel(panel: ComposePanel) {
     suppressComposeCommitRef.current = true;
-    setComposeScheduleOpen(true);
+    setComposeSession((current) => (current ? { ...current, panel } : current));
   }
 
-  function openComposePriority() {
-    suppressComposeCommitRef.current = true;
-    setComposePriorityOpen(true);
-  }
-
-  function openComposeGroup() {
-    suppressComposeCommitRef.current = true;
-    setComposeGroupOpen(true);
-  }
-
-  function closeComposeEditors() {
-    setComposeScheduleOpen(false);
-    setComposePriorityOpen(false);
-    setComposeGroupOpen(false);
+  function closeComposePanel() {
+    setComposeSession((current) => (current ? { ...current, panel: "compact" } : current));
     suppressComposeCommitRef.current = false;
     // Return focus to the ghost input to keep composing. Focus synchronously
     // inside the dismiss gesture (best chance iOS re-opens the keyboard), then
-    // again after the editor unmounts.
-    inboxComposeInputRef.current?.focus({ preventScroll: true });
+    // again after the panel unmounts.
+    composeInputRef.current?.focus({ preventScroll: true });
     window.requestAnimationFrame(() => {
-      inboxComposeInputRef.current?.focus({ preventScroll: true });
+      composeInputRef.current?.focus({ preventScroll: true });
     });
   }
 
   // Calendar inline compose commits through here (one task per call, kept on its
   // composed day). The calendar re-pins the ghost row itself, so skip the scroll.
-  function handleAddTask(draft: QuickAddDraft) {
-    addRootTask(draft, true);
+  function handleAddTask(
+    draft: QuickAddDraft,
+    options: { skipScrollIntoView?: boolean } = {},
+  ) {
+    if (draft.parentTaskId) {
+      handleAddChild(draft.parentTaskId, draft);
+      return;
+    }
+    addRootTask(draft, true, options);
+  }
+
+  function getComposeLocationLabel(target: ComposeTarget): string {
+    const group = orderedGroups.find((candidate) => candidate.id === target.groupId);
+    if (!group) return "";
+    if (!target.parentTaskId) return group.name;
+
+    const parent = allNodes.find((node) => node.id === target.parentTaskId);
+    if (!parent) return group.name;
+    return [group.name, ...buildNodePath(allNodes, parent).map((node) => node.title)].join(" > ");
+  }
+
+  // Compact "you are here" for the slim compose bar. The full path truncates
+  // from the right, so on a narrow bar a deep location would always collapse
+  // to just the group name — show the tail (the actual destination) instead.
+  function getComposeLocationTailLabel(target: ComposeTarget): string {
+    if (!target.parentTaskId) return getComposeLocationLabel(target);
+    const parent = allNodes.find((node) => node.id === target.parentTaskId);
+    if (!parent) return getComposeLocationLabel(target);
+    return `… > ${parent.title}`;
+  }
+
+  function applyComposeLocation(target: TaskLocationTarget) {
+    const session = composeSession;
+    if (!session) return;
+
+    // This click may move the focused ghost input between the inbox list and
+    // the detail sheet. Keep the soft keyboard alive through that transition.
+    primeKeyboard();
+
+    // Retarget the session — the picker stays open so the user can keep
+    // drilling, and the compose bar never unmounts; only the ghost row moves.
+    setComposeSession({ ...session, target });
+
+    // Bring the view under the compose sheets to the new destination. This
+    // happens in the same update as the retarget, so the away-navigation
+    // effect above never sees a mismatch.
+    setActiveGroupId(target.groupId);
+    if (target.parentTaskId === null) {
+      setActiveTab("inbox");
+      setSelectedTaskId(null);
+    } else {
+      setSelectedTaskId(target.parentTaskId);
+    }
   }
 
   function addRootTask(
@@ -1579,7 +1663,12 @@ export function TaskApp() {
 
   function renderGroupList(groupId: TaskGroupId, isActive: boolean) {
     const groupRoots = rootsByGroup.get(groupId) ?? [];
-    const isComposingHere = isActive && activeTab === "inbox" && inboxCompose !== null;
+    const isComposingHere =
+      isActive &&
+      activeTab === "inbox" &&
+      composeSession !== null &&
+      composeSession.target.parentTaskId === null &&
+      composeSession.target.groupId === groupId;
     if (groupRoots.length === 0 && !isComposingHere) {
       return (
         <div className="emptyState compactEmpty">
@@ -1608,13 +1697,14 @@ export function TaskApp() {
         highlightedTaskId={highlightedTaskId}
         isSortingTask={isActive && activeDragTaskId !== null}
         composeSlot={
-          isComposingHere && inboxCompose ? (
+          isComposingHere && composeSession ? (
             <ComposeGhostRow
-              draft={inboxCompose}
-              inputRef={inboxComposeInputRef}
-              onChangeTitle={updateInboxComposeTitle}
-              onSubmit={commitInboxComposeAndContinue}
-              onFinish={finishInboxCompose}
+              draft={toQuickAddDraft(composeSession)}
+              inputRef={composeInputRef}
+              onChangeTitle={updateComposeTitle}
+              onSubmit={commitComposeAndContinue}
+              onFinish={finishCompose}
+              locationLabel={getComposeLocationLabel(composeSession.target)}
             />
           ) : null
         }
@@ -1640,7 +1730,7 @@ export function TaskApp() {
   }
 
   return (
-    <main className={isInboxComposing || isCalendarComposing ? "appShell isComposing" : "appShell"}>
+    <main className={isComposingAtRoot || isCalendarComposing ? "appShell isComposing" : "appShell"}>
       <div
         className="ptrIndicator"
         data-refreshing={isRefreshing ? "true" : undefined}
@@ -1730,7 +1820,7 @@ export function TaskApp() {
               ref={pagerRef}
               orderedGroups={orderedGroups}
               activeGroupId={activeGroupId}
-              disabled={activeDragTaskId !== null || isInboxComposing}
+              disabled={activeDragTaskId !== null || isComposingAtRoot}
               onChangeActiveGroup={setActiveGroupId}
               renderGroup={renderGroupList}
               onSwipeProgress={(fromId, toId, t, animate) =>
@@ -1777,7 +1867,11 @@ export function TaskApp() {
           className="detailSheet"
           dismissOnBackdrop
           initialOffset={isDetailComposerOpen ? 0 : 88}
-          onDismiss={() => setSelectedTaskId(null)}
+          onDismiss={() => {
+            // Closing the sheet mid-compose is handled by the away-navigation
+            // effect, which finishes the session once selectedTaskId changes.
+            setSelectedTaskId(null);
+          }}
         >
           <TaskDetailView
             task={selectedTask}
@@ -1792,10 +1886,20 @@ export function TaskApp() {
             onOpenSchedule={setDatePickerTaskId}
             autoEditTaskId={autoEditTaskId}
             onAutoEditConsumed={() => setAutoEditTaskId(null)}
-            onAddChild={handleAddChild}
             onReorderChild={handleReorderChild}
-            composerOpen={isDetailComposerOpen}
-            onComposerOpenChange={setIsDetailComposerOpen}
+            composeDraft={
+              isDetailComposerOpen && composeSession ? toQuickAddDraft(composeSession) : null
+            }
+            composeInputRef={composeInputRef}
+            composeLocationLabel={
+              composeSession ? getComposeLocationLabel(composeSession.target) : undefined
+            }
+            onChangeComposeTitle={updateComposeTitle}
+            onCommitCompose={commitComposeAndContinue}
+            onFinishCompose={finishCompose}
+            onOpenComposer={() =>
+              startCompose({ groupId: selectedTask.groupId, parentTaskId: selectedTask.id })
+            }
           />
         </DraggableBottomSheet>
       ) : null}
@@ -1808,59 +1912,66 @@ export function TaskApp() {
           }
         />
       ) : null}
-      {showQuickAdd && activeTab !== "calendar" && !inboxCompose ? (
+      {showQuickAdd && activeTab !== "calendar" && !composeSession ? (
         <FloatingAddButton
           onClick={() => {
             if (activeTab === "habit") {
               setHabitEditorMode("create");
               return;
             }
-            startInboxCompose();
+            startCompose({ groupId: activeGroupId, parentTaskId: null });
           }}
         />
       ) : null}
-      {inboxCompose ? (
+      {/* The compose bar and the exclusive panel below live for the whole
+          session, wherever its target moves. isElevated lifts the bar above an
+          open detail sheet; the compose sheets sit on their own layer above
+          both (see .composeSheetLayer). */}
+      {composeSession ? (
         <ComposeBar
-          draft={inboxCompose}
-          groupLabel={orderedGroups.find((group) => group.id === activeGroupId)?.name}
-          onOpenGroup={openComposeGroup}
-          onOpenSchedule={openComposeSchedule}
-          onOpenPriority={openComposePriority}
+          draft={toQuickAddDraft(composeSession)}
+          className={selectedTask ? "isElevated" : undefined}
+          groupLabel={getComposeLocationTailLabel(composeSession.target)}
+          onOpenGroup={() => openComposePanel("location")}
+          onOpenSchedule={() => openComposePanel("schedule")}
+          onOpenPriority={() => openComposePanel("priority")}
           onSuppressCommit={() => {
             suppressComposeCommitRef.current = true;
           }}
         />
       ) : null}
-      {inboxCompose && composeGroupOpen ? (
-        <GroupPickerSheet
+      {composeSession?.panel === "location" ? (
+        <TaskLocationPicker
           groups={orderedGroups}
-          value={activeGroupId}
-          onChange={(groupId) => {
-            // Move the ghost row to the chosen group's page; the new task uses it
-            // (addRootTask reads the active group). Keep composing there.
-            setActiveGroupId(groupId);
-            closeComposeEditors();
-          }}
-          onDismiss={closeComposeEditors}
+          tasks={allNodes}
+          value={composeSession.target}
+          onChange={applyComposeLocation}
+          onDismiss={closeComposePanel}
         />
       ) : null}
-      {inboxCompose && composeScheduleOpen ? (
+      {composeSession?.panel === "schedule" ? (
         <ScheduleEditorSheet
-          dueDate={inboxCompose.dueDate}
-          dueTime={inboxCompose.dueTime}
+          layerClassName="composeSheetLayer"
+          dueDate={composeSession.draft.dueDate}
+          dueTime={composeSession.draft.dueTime}
           onChange={(dueDate, dueTime) =>
-            setInboxCompose((current) => (current ? { ...current, dueDate, dueTime } : current))
+            setComposeSession((current) =>
+              current ? { ...current, draft: { ...current.draft, dueDate, dueTime } } : current,
+            )
           }
-          onDismiss={closeComposeEditors}
+          onDismiss={closeComposePanel}
         />
       ) : null}
-      {inboxCompose && composePriorityOpen ? (
+      {composeSession?.panel === "priority" ? (
         <PriorityEditorSheet
-          value={inboxCompose.priority}
+          layerClassName="composeSheetLayer"
+          value={composeSession.draft.priority}
           onChange={(priority) =>
-            setInboxCompose((current) => (current ? { ...current, priority } : current))
+            setComposeSession((current) =>
+              current ? { ...current, draft: { ...current.draft, priority } } : current,
+            )
           }
-          onDismiss={closeComposeEditors}
+          onDismiss={closeComposePanel}
         />
       ) : null}
       {groupEditorMode === "create" ? (

@@ -16,6 +16,7 @@ import { DraggableBottomSheet } from "./DraggableBottomSheet";
 
 type ScheduleEditorSheetProps = {
   title?: string;
+  layerClassName?: string;
   dueDate: string | null;
   dueTime: string | null;
   onChange: (dueDate: string | null, dueTime: string | null) => void;
@@ -25,6 +26,7 @@ type ScheduleEditorSheetProps = {
 
 export function ScheduleEditorSheet({
   title,
+  layerClassName,
   dueDate,
   dueTime,
   onChange,
@@ -61,6 +63,7 @@ export function ScheduleEditorSheet({
     <DraggableBottomSheet
       ariaLabel={text.common.date}
       className="scheduleSheet"
+      layerClassName={layerClassName}
       onDismiss={onDismiss}
     >
         {title ? (

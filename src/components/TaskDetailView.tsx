@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { CalendarClock, Flag, Plus } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
@@ -28,26 +28,16 @@ import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import type { TaskId, TaskNode } from "@/types/task";
 import { getScheduleLabel } from "@/lib/date-utils";
-import { primeKeyboard } from "@/lib/ios-keyboard";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
-import { ComposeBar } from "./ComposeBar";
 import { ComposeGhostRow } from "./ComposeGhostRow";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
-import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import { TaskPathBreadcrumb, type PathCrumb } from "./TaskPathBreadcrumb";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
-
-const EMPTY_COMPOSE_DRAFT: QuickAddDraft = {
-  title: "",
-  dueDate: null,
-  dueTime: null,
-  priority: "none",
-};
 
 type TaskDetailViewProps = {
   task: TaskNode;
@@ -62,10 +52,21 @@ type TaskDetailViewProps = {
   onOpenSchedule: (taskId: TaskId) => void;
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
-  onAddChild: (parentId: TaskId, draft?: QuickAddDraft) => void;
   onReorderChild: (activeId: TaskId, overId: TaskId) => void;
-  composerOpen: boolean;
-  onComposerOpenChange: (open: boolean) => void;
+  // The app-level compose session, projected onto this view: non-null while the
+  // session targets this task, in which case the ghost row renders at the tail
+  // of the subtask list. This view never owns a draft or any compose sheets —
+  // the compose bar and location/date/priority panels live in TaskApp.
+  composeDraft: QuickAddDraft | null;
+  composeInputRef: RefObject<HTMLInputElement | null>;
+  composeLocationLabel?: string;
+  onChangeComposeTitle: (title: string) => void;
+  // Enter: save the current title and keep composing (fresh ghost row).
+  onCommitCompose: () => void;
+  // Blur (keyboard dismissed): save if non-empty, otherwise discard, then close.
+  onFinishCompose: () => void;
+  // "Add subtask": start a session targeting this task.
+  onOpenComposer: () => void;
 };
 
 export function TaskDetailView({
@@ -81,23 +82,20 @@ export function TaskDetailView({
   onOpenSchedule,
   autoEditTaskId,
   onAutoEditConsumed,
-  onAddChild,
   onReorderChild,
-  composerOpen,
-  onComposerOpenChange,
+  composeDraft,
+  composeInputRef,
+  composeLocationLabel,
+  onChangeComposeTitle,
+  onCommitCompose,
+  onFinishCompose,
+  onOpenComposer,
 }: TaskDetailViewProps) {
   const { messages: text } = useLanguage();
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
   const [isOverTrash, setIsOverTrash] = useState(false);
-  // Inline subtask compose: a ghost row at the tail of the subtask list bound to
-  // this draft, plus a slim bar (date/priority) pinned above the keyboard.
-  const [composeDraft, setComposeDraft] = useState<QuickAddDraft>(EMPTY_COMPOSE_DRAFT);
-  const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
-  const [composePriorityOpen, setComposePriorityOpen] = useState(false);
-  const composeInputRef = useRef<HTMLInputElement | null>(null);
-  const suppressComposeCommitRef = useRef(false);
-  const finishingComposeRef = useRef(false);
+  const composerOpen = composeDraft !== null;
   // Press-and-hold to start a drag (same feel as inbox/calendar): a quick tap
   // still toggles/opens the subtask, a hold drags the whole row to reorder or
   // onto the trash to delete.
@@ -123,11 +121,12 @@ export function TaskDetailView({
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
 
-  // The path stops at the task's parent: the current title already has a
-  // dedicated, editable header below, so it should not be repeated here.
+  // Always include the current task. The editable title below answers "what is
+  // this task?" while the complete path answers "where am I in the tree?".
   const detailCrumbs: PathCrumb[] = [
     { id: null, label: groupName },
     ...path.slice(0, -1).map((node) => ({ id: node.id, label: node.title })),
+    { id: null, label: task.title },
   ];
   const viewRef = useRef<HTMLElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -217,59 +216,7 @@ export function TaskDetailView({
       sheet.style.scrollPaddingBottom = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composerOpen]);
-
-  // Reset the draft each time compose opens.
-  useEffect(() => {
-    if (composerOpen) {
-      setComposeDraft(EMPTY_COMPOSE_DRAFT);
-      finishingComposeRef.current = false;
-      suppressComposeCommitRef.current = false;
-    }
-  }, [composerOpen]);
-
-  function updateComposeTitle(title: string) {
-    setComposeDraft((current) => ({ ...current, title }));
-  }
-
-  // Enter: save the current subtask and keep composing (fresh ghost row).
-  function commitComposeAndContinue() {
-    if (composeDraft.title.trim().length === 0) return;
-    onAddChild(task.id, { ...composeDraft, title: composeDraft.title.trim() });
-    setComposeDraft(EMPTY_COMPOSE_DRAFT);
-    window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
-  }
-
-  // Blur (keyboard dismissed): save if non-empty else discard, then close.
-  // Skipped while a date/priority editor is open. Guarded against double commit.
-  function finishCompose() {
-    if (suppressComposeCommitRef.current) return;
-    if (finishingComposeRef.current) return;
-    finishingComposeRef.current = true;
-    const draft = composeDraft;
-    onComposerOpenChange(false);
-    if (draft.title.trim().length > 0) {
-      onAddChild(task.id, { ...draft, title: draft.title.trim() });
-    }
-  }
-
-  function openComposeSchedule() {
-    suppressComposeCommitRef.current = true;
-    setComposeScheduleOpen(true);
-  }
-
-  function openComposePriority() {
-    suppressComposeCommitRef.current = true;
-    setComposePriorityOpen(true);
-  }
-
-  function closeComposeEditors() {
-    setComposeScheduleOpen(false);
-    setComposePriorityOpen(false);
-    suppressComposeCommitRef.current = false;
-    composeInputRef.current?.focus({ preventScroll: true });
-    window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
-  }
+  }, [composerOpen, task.id]);
 
   // After each add (or removal), smoothly re-dock the new tail above the sheet.
   useEffect(() => {
@@ -417,13 +364,14 @@ export function TaskDetailView({
               ))}
             </div>
           </SortableContext>
-          {composerOpen ? (
+          {composeDraft ? (
             <ComposeGhostRow
               draft={composeDraft}
               inputRef={composeInputRef}
-              onChangeTitle={updateComposeTitle}
-              onSubmit={commitComposeAndContinue}
-              onFinish={finishCompose}
+              onChangeTitle={onChangeComposeTitle}
+              onSubmit={onCommitCompose}
+              onFinish={onFinishCompose}
+              locationLabel={composeLocationLabel}
             />
           ) : null}
           <TrashDropZone active={activeDragTaskId !== null} compact />
@@ -450,13 +398,8 @@ export function TaskDetailView({
           <button
             className="subtaskAddButton"
             type="button"
-            onClick={() => {
-              // iOS: raise the keyboard synchronously inside the tap (same as the
-              // inbox/calendar QuickAdd) so it is already up when the composer's
-              // real input mounts and transfers focus to it.
-              primeKeyboard();
-              onComposerOpenChange(true);
-            }}
+            // startCompose primes the iOS keyboard synchronously inside this tap.
+            onClick={onOpenComposer}
           >
             <Plus size={18} aria-hidden="true" />
             {text.taskDetail.addSubtask}
@@ -480,40 +423,9 @@ export function TaskDetailView({
         <TrashIcon />
         {text.taskDetail.deleteTask}
       </button>
+      {/* The compose bar itself is rendered by TaskApp for the whole session;
+          this spacer only reserves scroll room for it inside the sheet. */}
       {composerOpen ? <div className="detailComposerSpacer" aria-hidden="true" /> : null}
-      {/* Portal the compose bar to <body>: it is position:fixed and must be
-          relative to the viewport, not the (transformed) detail sheet. */}
-      {composerOpen
-        ? createPortal(
-            <ComposeBar
-              draft={composeDraft}
-              className="isElevated"
-              onOpenSchedule={openComposeSchedule}
-              onOpenPriority={openComposePriority}
-              onSuppressCommit={() => {
-                suppressComposeCommitRef.current = true;
-              }}
-            />,
-            document.body,
-          )
-        : null}
-      {composerOpen && composeScheduleOpen ? (
-        <ScheduleEditorSheet
-          dueDate={composeDraft.dueDate}
-          dueTime={composeDraft.dueTime}
-          onChange={(dueDate, dueTime) =>
-            setComposeDraft((current) => ({ ...current, dueDate, dueTime }))
-          }
-          onDismiss={closeComposeEditors}
-        />
-      ) : null}
-      {composerOpen && composePriorityOpen ? (
-        <PriorityEditorSheet
-          value={composeDraft.priority}
-          onChange={(priority) => setComposeDraft((current) => ({ ...current, priority }))}
-          onDismiss={closeComposeEditors}
-        />
-      ) : null}
       {isPriorityOpen ? (
         <PriorityEditorSheet
           value={task.priority}

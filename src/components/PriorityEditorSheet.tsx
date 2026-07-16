@@ -11,12 +11,14 @@ import { DraggableBottomSheet } from "./DraggableBottomSheet";
 
 type PriorityEditorSheetProps = {
   value: TaskPriority;
+  layerClassName?: string;
   onChange: (priority: TaskPriority) => void;
   onDismiss: () => void;
 };
 
 export function PriorityEditorSheet({
   value,
+  layerClassName,
   onChange,
   onDismiss,
 }: PriorityEditorSheetProps) {
@@ -55,6 +57,7 @@ export function PriorityEditorSheet({
     <DraggableBottomSheet
       ariaLabel={text.common.priority}
       className="prioritySheet"
+      layerClassName={layerClassName}
       dismissOnBackdrop
       onDismiss={handleDismiss}
     >
