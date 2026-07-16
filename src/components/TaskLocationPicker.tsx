@@ -45,8 +45,16 @@ export function TaskLocationPicker({
     }
     return path;
   }, [tasksById, value.parentTaskId]);
+  // Completed tasks are not offered as destinations — you don't compose new
+  // work under something already done.
   const children = useMemo(
-    () => tasks.filter((task) => task.groupId === value.groupId && task.parentId === value.parentTaskId),
+    () =>
+      tasks.filter(
+        (task) =>
+          !task.completed &&
+          task.groupId === value.groupId &&
+          task.parentId === value.parentTaskId,
+      ),
     [tasks, value.groupId, value.parentTaskId],
   );
 
