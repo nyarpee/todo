@@ -716,8 +716,11 @@ h1 {
   white-space: nowrap;
 }
 
+/* A contenteditable div, not an <input> (keeps iOS's prev/next/done keyboard
+   assistant bar away — it only attaches to focused form controls). */
 .composeGhostInput {
   width: 100%;
+  min-height: 1.5em;
   padding: 0;
   border: 0;
   background: transparent;
@@ -726,11 +729,18 @@ h1 {
   font-size: 16px;
   font-weight: 600;
   outline: none;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
-.composeGhostInput::placeholder {
+/* Contenteditables have no ::placeholder — emulate it while empty. */
+.composeGhostInput:empty::before {
+  content: attr(data-placeholder);
   color: var(--soft);
   font-weight: 500;
+  pointer-events: none;
 }
 
 .composeGhostMeta {

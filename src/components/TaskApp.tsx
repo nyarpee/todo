@@ -151,7 +151,8 @@ export function TaskApp() {
   // Mirrors CalendarTabView's internal compose state so the app chrome (header,
   // tabs) can be disabled during calendar compose too.
   const [isCalendarComposing, setIsCalendarComposing] = useState(false);
-  const composeInputRef = useRef<HTMLInputElement | null>(null);
+  // Ref to the ghost row's contenteditable title field (a div, not an input).
+  const composeInputRef = useRef<HTMLDivElement | null>(null);
   // True while a date/priority editor is open, so the ghost input's blur does
   // not commit/discard the draft while the user is picking a value.
   const suppressComposeCommitRef = useRef(false);

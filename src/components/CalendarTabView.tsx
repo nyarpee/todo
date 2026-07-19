@@ -120,7 +120,7 @@ export function CalendarTabView({
   const [composeScheduleOpen, setComposeScheduleOpen] = useState(false);
   const [composePriorityOpen, setComposePriorityOpen] = useState(false);
   const [composeLocationPickerOpen, setComposeLocationPickerOpen] = useState(false);
-  const composeInputRef = useRef<HTMLInputElement | null>(null);
+  const composeInputRef = useRef<HTMLDivElement | null>(null);
   const suppressComposeCommitRef = useRef(false);
   const finishingComposeRef = useRef(false);
 

@@ -13,14 +13,18 @@
  * throwaway input and then hands off, with no visible effect.
  */
 
-let proxyInput: HTMLInputElement | null = null;
+let proxyInput: HTMLElement | null = null;
 
-function ensureProxy(): HTMLInputElement | null {
+function ensureProxy(): HTMLElement | null {
   if (typeof document === "undefined") return null;
   if (proxyInput && proxyInput.isConnected) return proxyInput;
 
-  const input = document.createElement("input");
-  input.type = "text";
+  // A contenteditable div, not an <input>: focusing a form control makes iOS
+  // attach its prev/next/done keyboard assistant bar, and the compose flow's
+  // real title field is a contenteditable too — matching kinds keeps the bar
+  // away for the whole hand-off.
+  const input = document.createElement("div");
+  input.setAttribute("contenteditable", "plaintext-only");
   input.setAttribute("aria-hidden", "true");
   input.tabIndex = -1;
   Object.assign(input.style, {

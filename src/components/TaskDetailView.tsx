@@ -57,7 +57,7 @@ type TaskDetailViewProps = {
   // of the subtask list. This view never owns a draft or any compose sheets —
   // the compose bar and location/date/priority panels live in TaskApp.
   composeDraft: QuickAddDraft | null;
-  composeInputRef: RefObject<HTMLInputElement | null>;
+  composeInputRef: RefObject<HTMLDivElement | null>;
   composeLocationLabel?: string;
   onChangeComposeTitle: (title: string) => void;
   // Enter: save the current title and keep composing (fresh ghost row).

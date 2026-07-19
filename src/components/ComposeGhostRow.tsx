@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, RefObject } from "react";
+import { useEffect, type KeyboardEvent, type RefObject } from "react";
 import { CalendarDays } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
@@ -11,7 +11,11 @@ import type { QuickAddDraft } from "./QuickAddSheet";
 
 type ComposeGhostRowProps = {
   draft: QuickAddDraft;
-  inputRef: RefObject<HTMLInputElement | null>;
+  // The title field is a contenteditable div, NOT an <input>: iOS attaches its
+  // prev/next/done keyboard assistant bar to focused form controls, and a
+  // contenteditable is the one text-entry surface it leaves alone. Caret, IME
+  // and the soft keyboard all behave the same.
+  inputRef: RefObject<HTMLDivElement | null>;
   // Enter: save the current title and keep composing (a fresh ghost row).
   onSubmit: () => void;
   // Blur (keyboard dismissed): save if non-empty, otherwise discard, then close.
@@ -44,7 +48,18 @@ export function ComposeGhostRow({
   const priorityLabel =
     draft.priority !== "none" ? getPriorityLabel(draft.priority, priorityLabels) : null;
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  // One-way sync INTO the contenteditable: it owns the text while the user
+  // types (onInput reports changes up), but external resets — committing a
+  // task clears the draft to "" — must be pushed back down. Guarded so normal
+  // typing never rewrites the DOM (which would throw away the caret position).
+  useEffect(() => {
+    const input = inputRef.current;
+    if (input && (input.textContent ?? "") !== draft.title) {
+      input.textContent = draft.title;
+    }
+  }, [draft.title, inputRef]);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
       onSubmit();
@@ -56,31 +71,21 @@ export function ComposeGhostRow({
       <span className="composeGhostCheck" aria-hidden="true" />
       <div className="composeGhostContent">
         {locationLabel ? <span className="composeGhostLocation">{locationLabel} &gt;</span> : null}
-        {/* The <form> wrapper exists for iOS: an input inside a form, like the
-            old QuickAddSheet's, keeps Safari from attaching its prev/next/done
-            keyboard assistant bar the way a bare input among the list's other
-            form controls does. Submission itself is handled on keydown. */}
-        <form
-          style={{ display: "contents" }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSubmit();
-          }}
-        >
-          <input
-            ref={inputRef}
-            className="composeGhostInput"
-            value={draft.title}
-            onChange={(event) => onChangeTitle(event.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={onFinish}
-            placeholder={text.newTask}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-          />
-        </form>
+        <div
+          ref={inputRef}
+          className="composeGhostInput"
+          contentEditable="plaintext-only"
+          role="textbox"
+          aria-label={text.common.addTask}
+          data-placeholder={text.newTask}
+          enterKeyHint="done"
+          onInput={(event) => onChangeTitle(event.currentTarget.textContent ?? "")}
+          onKeyDown={handleKeyDown}
+          onBlur={onFinish}
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+        />
         {scheduleLabel || priorityLabel ? (
           <div className="composeGhostMeta">
             {scheduleLabel ? (
