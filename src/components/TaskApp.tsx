@@ -1678,7 +1678,11 @@ export function TaskApp() {
       <TaskListView
         roots={activeRoots}
         completedRoots={completedRoots}
-        interactive={isActive && !isComposingHere}
+        // Non-interactive (and inert) not only while the ghost composes in
+        // this list, but during ANY compose session — a detail-sheet compose
+        // must also remove this background list's checkboxes from iOS's
+        // keyboard field navigation.
+        interactive={isActive && composeSession === null}
         onSelectTask={openListDetail}
         onOpenMindMap={setMindMapRootId}
         onToggleComplete={handleToggleComplete}

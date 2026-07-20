@@ -281,7 +281,7 @@ export function TaskDetailView({
       {/* Same header band as the compose bar strip / location picker, so the
           "where am I" UI reads as one thing across all three surfaces. The
           group and the current task are labels; ancestors in between navigate. */}
-      <div className="taskLocationHeader detailPath">
+      <div className="taskLocationHeader detailPath" inert={composerOpen}>
         <MapPin size={15} aria-hidden="true" />
         <div ref={detailPathRef} className="taskLocationPath" aria-label={text.taskDetail.path}>
           <span className="taskLocationCrumb">{groupName}</span>
@@ -304,7 +304,15 @@ export function TaskDetailView({
         </div>
       </div>
 
-      <div className={task.children.length > 0 ? "detailHeader hasProgress" : "detailHeader"}>
+      {/* While composing, the sections around the ghost input are "look but
+          don't touch" — `inert` makes that formal, removing their controls
+          (checkboxes, title inputs, the note textarea) from focus and from
+          iOS's keyboard field navigation, which otherwise pins its
+          prev/next/done assistant bar above the keyboard. */}
+      <div
+        className={task.children.length > 0 ? "detailHeader hasProgress" : "detailHeader"}
+        inert={composerOpen}
+      >
         <input
           className={`check ${getPriorityClass(task.priority)}`}
           type="checkbox"
@@ -325,7 +333,7 @@ export function TaskDetailView({
         {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
       </div>
 
-      <div className="detailMeta" aria-label="Task settings">
+      <div className="detailMeta" aria-label="Task settings" inert={composerOpen}>
         <button
           className={task.dueDate ? "detailMetaAction" : "detailMetaAction isEmpty"}
           type="button"
@@ -368,7 +376,7 @@ export function TaskDetailView({
             items={task.children.map((child) => child.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="subtaskList">
+            <div className="subtaskList" inert={composerOpen}>
               {task.children.map((child) => (
                 <SortableSubtaskRow
                   key={child.id}
@@ -427,7 +435,7 @@ export function TaskDetailView({
         ) : null}
       </section>
 
-      <section className="detailNote" aria-label={text.taskDetail.description}>
+      <section className="detailNote" aria-label={text.taskDetail.description} inert={composerOpen}>
         <textarea
           ref={descriptionInputRef}
           id={`description-${task.id}`}
@@ -439,7 +447,7 @@ export function TaskDetailView({
         />
       </section>
 
-      <button className="detailDeleteButton" type="button" onClick={handleDelete}>
+      <button className="detailDeleteButton" type="button" onClick={handleDelete} inert={composerOpen}>
         <TrashIcon />
         {text.taskDetail.deleteTask}
       </button>

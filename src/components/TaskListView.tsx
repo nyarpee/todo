@@ -93,29 +93,37 @@ export function TaskListView({
       {roots.length === 0 && !composeSlot ? (
         <p className="placeholderText listPlaceholder">No active tasks.</p>
       ) : null}
-      {activeRows}
-      {completedRoots.length > 0 ? (
-        <section className="completedSection">
-          <button
-            className="completedToggle"
-            type="button"
-            onClick={() => setIsCompletedOpen((current) => !current)}
-          >
-            <span>{text.lists.completed}</span>
-            <strong>{completedRoots.length}</strong>
-            <ChevronDown
-              className={isCompletedOpen ? "isOpen" : ""}
-              size={16}
-              aria-hidden="true"
-            />
-          </button>
-          {isCompletedOpen ? (
-            <div className="completedList">
-              {completedRoots.map((root) => renderTaskRow(root, { sortable: false }))}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+      {/* While non-interactive (inline compose, or a neighbouring pager page),
+          `inert` removes every row control — most importantly the checkboxes —
+          from focus and from iOS's keyboard field navigation. Without it, iOS
+          sees fields to step through from the ghost input and shows its
+          prev/next/done assistant bar above the keyboard. display:contents
+          keeps the wrapper out of the list's layout. */}
+      <div style={{ display: "contents" }} inert={!interactive}>
+        {activeRows}
+        {completedRoots.length > 0 ? (
+          <section className="completedSection">
+            <button
+              className="completedToggle"
+              type="button"
+              onClick={() => setIsCompletedOpen((current) => !current)}
+            >
+              <span>{text.lists.completed}</span>
+              <strong>{completedRoots.length}</strong>
+              <ChevronDown
+                className={isCompletedOpen ? "isOpen" : ""}
+                size={16}
+                aria-hidden="true"
+              />
+            </button>
+            {isCompletedOpen ? (
+              <div className="completedList">
+                {completedRoots.map((root) => renderTaskRow(root, { sortable: false }))}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }
