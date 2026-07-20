@@ -193,19 +193,20 @@ export function TaskDetailView({
 
     const alignInstant = () => alignSubtaskTail("auto");
 
-    // The bar mounts asynchronously (portal), and since the keyboard is already
-    // primed before compose opens, no visualViewport resize may fire to correct
-    // an early dock. So re-align every frame until the bar is in the DOM (bounded),
-    // guaranteeing the final dock is measured against the real bar height — not the
-    // fallback — and focus the ghost input (keyboard already up transfers focus).
+    // Right after the composer opens, everything is still moving: the keyboard
+    // is animating up, the detail sheet is sliding to its full-height rest and
+    // the bar is re-pinning to the shrinking visual viewport. Aligning once at
+    // the first opportunity measures mid-animation and strands the ghost row
+    // behind the keyboard. So re-dock every frame until the dust has settled
+    // (~700ms comfortably covers the iOS keyboard + sheet transitions), and
+    // focus the ghost input (keyboard already up transfers focus; re-focusing
+    // the focused element is a no-op).
     let frame = 0;
-    let tries = 0;
+    const openedAt = performance.now();
     const tick = () => {
       composeInputRef.current?.focus({ preventScroll: true });
       alignInstant();
-      const barReady = document.querySelector(".composeBar .composeBarInner");
-      if (barReady || tries > 30) return;
-      tries += 1;
+      if (performance.now() - openedAt > 700) return;
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
