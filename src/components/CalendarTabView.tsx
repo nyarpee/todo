@@ -627,6 +627,10 @@ export function CalendarTabView({
             onOpenGroup={openComposeGroup}
             onOpenSchedule={openComposeSchedule}
             onOpenPriority={openComposePriority}
+            onSelectQuickDate={(dueDate, dueTime) =>
+              setComposeDraft((current) => ({ ...current, dueDate, dueTime }))
+            }
+            onResumeCompose={closeComposeEditors}
             onSuppressCommit={() => {
               suppressComposeCommitRef.current = true;
             }}

@@ -2009,6 +2009,12 @@ export function TaskApp() {
           onOpenGroup={() => openComposePanel("location")}
           onOpenSchedule={() => openComposePanel("schedule")}
           onOpenPriority={() => openComposePanel("priority")}
+          onSelectQuickDate={(dueDate, dueTime) =>
+            setComposeSession((current) =>
+              current ? { ...current, draft: { ...current.draft, dueDate, dueTime } } : current,
+            )
+          }
+          onResumeCompose={closeComposePanel}
           onSuppressCommit={() => {
             suppressComposeCommitRef.current = true;
           }}

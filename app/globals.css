@@ -844,6 +844,59 @@ h1 {
   gap: 8px;
 }
 
+/* Row 2, date-expanded: the date chip's slot becomes an inline quick picker so
+   the common dates don't need the full calendar sheet. Same 46px height as the
+   chips so the bar doesn't jump when it opens. */
+.composeBarDateRow {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.composeDateCollapse {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--focus);
+  background: var(--surface-muted);
+}
+
+.composeDateQuick {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 46px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.composeDateQuick.isSelected {
+  border-color: color-mix(in srgb, var(--focus) 46%, var(--line));
+  color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 12%, var(--surface));
+}
+
+/* The escape hatch to the full calendar sheet: given a little more room and a
+   trailing chevron so it reads as "opens more", not another quick value. */
+.composeDateQuick.isCalendar {
+  flex: 1.4 1 0;
+  color: var(--muted);
+}
+
 .completedSection {
   display: grid;
   gap: 8px;
