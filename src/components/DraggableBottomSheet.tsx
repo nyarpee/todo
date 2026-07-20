@@ -83,7 +83,7 @@ export function DraggableBottomSheet({
     setTranslateY(window.innerHeight);
     // Matches the .draggableSheet.isClosing transition: unmount only after
     // the unhurried slide has fully played.
-    const timer = window.setTimeout(() => onClosedRef.current?.(), 520);
+    const timer = window.setTimeout(() => onClosedRef.current?.(), 700);
     return () => window.clearTimeout(timer);
   }, [closing, initialOffset]);
 
@@ -321,7 +321,7 @@ export function DraggableBottomSheet({
           // which the inline value must not override.
           opacity:
             !isClosing && dragFadeProgress > 0
-              ? 1 - (1 - HELD_MIN_OPACITY) * dragFadeProgress
+              ? Math.max(0, 1 - HELD_FADE_STRENGTH * dragFadeProgress)
               : undefined,
           transition: isDragging ? "none" : undefined,
         } as CSSProperties}
@@ -354,9 +354,10 @@ const DRAG_START_THRESHOLD = 10;
 // fade so the dimming never promises a close that wouldn't happen.
 const DISMISS_DRAG_DISTANCE = 170;
 const DISMISS_POSITION_RATIO = 0.42;
-// While still held, the sheet dims towards this floor — never fully invisible
-// under the finger. The final fade to 0 happens in the closing slide.
-const HELD_MIN_OPACITY = 0.25;
+// How aggressively the held sheet dissolves with depth past the threshold:
+// opacity = 1 - progress * strength (clamped at 0), so at 1.5 the sheet is
+// fully dissolved two thirds of the way down.
+const HELD_FADE_STRENGTH = 1.5;
 // The backdrop dim at rest, in percent (mirrors .sheetLayer's background).
 const BACKDROP_ALPHA_PERCENT = 18;
 

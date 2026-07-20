@@ -1995,8 +1995,8 @@ h1 {
   background: rgb(15 23 42 / 18%);
   overscroll-behavior: none;
   touch-action: none;
-  /* Paired with the closing slide (480ms) so the dim lifts together with it. */
-  transition: background 460ms ease;
+  /* Paired with the closing slide (660ms) so the dim lifts together with it. */
+  transition: background 640ms ease;
 }
 
 .draggableSheet {
@@ -2021,14 +2021,14 @@ h1 {
     opacity 220ms ease;
 }
 
-/* Closing: a longer, settling ease — the sheet should read as "descending
+/* Closing: a long, settling ease — the sheet should read as "descending
    out of the way" while dissolving, not as an instant switch. Keep in sync
-   with the 520ms unmount delay in DraggableBottomSheet. */
+   with the 700ms unmount delay in DraggableBottomSheet. */
 .draggableSheet.isClosing {
   opacity: 0;
   transition:
-    transform 480ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 440ms ease;
+    transform 660ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 600ms ease;
 }
 
 .sheetDragZone {
