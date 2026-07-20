@@ -1973,6 +1973,13 @@ h1 {
   z-index: 68;
 }
 
+/* While a sheet slides down to close, fade the dim backdrop with it and let
+   taps fall through to the page that is being revealed. */
+.sheetLayer.isClosing {
+  background: transparent;
+  pointer-events: none;
+}
+
 .sheetLayer {
   position: fixed;
   left: 0;
@@ -1988,6 +1995,7 @@ h1 {
   background: rgb(15 23 42 / 18%);
   overscroll-behavior: none;
   touch-action: none;
+  transition: background 260ms ease;
 }
 
 .draggableSheet {

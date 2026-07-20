@@ -139,6 +139,9 @@ export function TaskApp() {
   const [hasLoadedTheme, setHasLoadedTheme] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("inbox");
   const [selectedTaskId, setSelectedTaskId] = useState<TaskId | null>(null);
+  // True while the detail sheet plays its slide-down close animation; the
+  // sheet unmounts (selectedTaskId -> null) only when the slide has finished.
+  const [isDetailClosing, setIsDetailClosing] = useState(false);
   const [datePickerTaskId, setDatePickerTaskId] = useState<TaskId | null>(null);
   const [mindMapRootId, setMindMapRootId] = useState<TaskId | null>(null);
   const [detailReturnTarget, setDetailReturnTarget] = useState<"list" | "mindmap">("list");
@@ -348,11 +351,35 @@ export function TaskApp() {
       detailHistoryDepthRef.current -= 1;
       const state = event.state as { detailTaskId?: TaskId } | null;
       detailHistoryFromPopRef.current = true;
-      setSelectedTaskId(state?.detailTaskId ?? null);
+      if (state?.detailTaskId) {
+        setSelectedTaskId(state.detailTaskId);
+      } else {
+        // Backing out of the last level: play the slide-down close (the
+        // from-pop flag is consumed when the animation ends and clears
+        // selectedTaskId).
+        setIsDetailClosing(true);
+      }
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+  // Begin the animated close; every in-app "close the detail sheet" route
+  // funnels through here so they all get the same slide-down.
+  function beginDetailClose() {
+    setIsDetailClosing(true);
+  }
+  function finishDetailClose() {
+    setIsDetailClosing(false);
+    setSelectedTaskId(null);
+  }
+  // Safety: any change of the open task mid-close — a jump to another task
+  // (location picker, popstate) or an outside close (delete, workspace reload)
+  // — cancels the pending slide so the sheet can't get stuck offscreen. The
+  // animated close itself only changes selectedTaskId after the slide, so this
+  // never fires during it.
+  useEffect(() => {
+    setIsDetailClosing(false);
+  }, [selectedTaskId]);
   const datePickerTask = datePickerTaskId
     ? allNodes.find((node) => node.id === datePickerTaskId) ?? null
     : null;
@@ -1910,10 +1937,13 @@ export function TaskApp() {
           className="detailSheet"
           dismissOnBackdrop
           initialOffset={isDetailComposerOpen ? 0 : 88}
+          closing={isDetailClosing}
+          onClosed={finishDetailClose}
           onDismiss={() => {
-            // Closing the sheet mid-compose is handled by the away-navigation
-            // effect, which finishes the session once selectedTaskId changes.
-            setSelectedTaskId(null);
+            // Animated close. Closing mid-compose is handled by the
+            // away-navigation effect once selectedTaskId clears at the end of
+            // the slide.
+            beginDetailClose();
           }}
         >
           <TaskDetailView
@@ -1927,7 +1957,7 @@ export function TaskApp() {
             onUpdatePriority={handleUpdatePriority}
             onDeleteTask={handleDeleteTask}
             onOpenSchedule={setDatePickerTaskId}
-            onClose={() => setSelectedTaskId(null)}
+            onClose={beginDetailClose}
             autoEditTaskId={autoEditTaskId}
             onAutoEditConsumed={() => setAutoEditTaskId(null)}
             onReorderChild={handleReorderChild}

@@ -21,6 +21,10 @@ type DraggableBottomSheetProps = {
   initialOffset?: number;
   showHandle?: boolean;
   onDismiss: () => boolean | void;
+  // Parent-driven close animation: set `closing` to slide the sheet below the
+  // viewport, and unmount it from `onClosed` once the slide has played.
+  closing?: boolean;
+  onClosed?: () => void;
 };
 
 export function DraggableBottomSheet({
@@ -32,6 +36,8 @@ export function DraggableBottomSheet({
   initialOffset = 0,
   showHandle = true,
   onDismiss,
+  closing = false,
+  onClosed,
 }: DraggableBottomSheetProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [translateY, setTranslateY] = useState(initialOffset);
@@ -49,6 +55,31 @@ export function DraggableBottomSheet({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Latest onClosed without re-arming the close timer on parent re-renders.
+  const onClosedRef = useRef(onClosed);
+  useEffect(() => {
+    onClosedRef.current = onClosed;
+  }, [onClosed]);
+
+  // Parent-driven close: slide under the viewport, then hand back control so
+  // the parent unmounts the sheet only after the slide has played. If the
+  // parent cancels (closing back to false while still mounted), slide back up
+  // to the resting offset.
+  useEffect(() => {
+    if (!closing) {
+      if (isDraggingRef.current) return;
+      setIsClosing(false);
+      currentOffsetRef.current = initialOffset;
+      setTranslateY(initialOffset);
+      return;
+    }
+    setIsClosing(true);
+    currentOffsetRef.current = window.innerHeight;
+    setTranslateY(window.innerHeight);
+    const timer = window.setTimeout(() => onClosedRef.current?.(), 300);
+    return () => window.clearTimeout(timer);
+  }, [closing, initialOffset]);
 
   // Let the parent slide the sheet between resting positions (e.g. peek vs full
   // height while the docked composer is open). The transform transition animates
@@ -212,7 +243,13 @@ export function DraggableBottomSheet({
 
   return createPortal(
     <div
-      className={layerClassName ? `sheetLayer ${layerClassName}` : "sheetLayer"}
+      className={[
+        "sheetLayer",
+        layerClassName,
+        isClosing ? "isClosing" : null,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       role="presentation"
     >
       {dismissOnBackdrop ? (
