@@ -43,6 +43,10 @@ export function DraggableBottomSheet({
   const [translateY, setTranslateY] = useState(initialOffset);
   const [isDragging, setIsDragging] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  // 0..1 once a held drag passes the release-would-dismiss threshold: the
+  // sheet (and the backdrop dim) dissolve with the drag's depth, telling the
+  // finger "release here and it closes". 0 while below the threshold.
+  const [dragFadeProgress, setDragFadeProgress] = useState(0);
   const sheetRef = useRef<HTMLElement | null>(null);
   const dragStartXRef = useRef(0);
   const dragStartYRef = useRef(0);
@@ -77,7 +81,9 @@ export function DraggableBottomSheet({
     setIsClosing(true);
     currentOffsetRef.current = window.innerHeight;
     setTranslateY(window.innerHeight);
-    const timer = window.setTimeout(() => onClosedRef.current?.(), 300);
+    // Matches the .draggableSheet.isClosing transition: unmount only after
+    // the unhurried slide has fully played.
+    const timer = window.setTimeout(() => onClosedRef.current?.(), 520);
     return () => window.clearTimeout(timer);
   }, [closing, initialOffset]);
 
@@ -186,6 +192,20 @@ export function DraggableBottomSheet({
 
     currentOffsetRef.current = nextOffset;
     setTranslateY(nextOffset);
+    setDragFadeProgress(getDismissFadeProgress(nextOffset, viewportHeight));
+  }
+
+  // How far past the release-would-dismiss threshold this offset is (0..1).
+  // MUST mirror the release check in handlePointerUp: fading is a promise that
+  // letting go here closes the sheet, so the two use the same numbers.
+  function getDismissFadeProgress(offset: number, viewportHeight: number): number {
+    const thresholdOffset = Math.min(
+      dragStartOffsetRef.current + DISMISS_DRAG_DISTANCE,
+      viewportHeight * DISMISS_POSITION_RATIO,
+    );
+    if (offset <= thresholdOffset) return 0;
+    const range = Math.max(1, viewportHeight - thresholdOffset);
+    return Math.min(1, (offset - thresholdOffset) / range);
   }
 
   function requestDismiss(): boolean {
@@ -195,6 +215,7 @@ export function DraggableBottomSheet({
   function resetSheetPosition() {
     currentOffsetRef.current = initialOffset;
     setTranslateY(initialOffset);
+    setDragFadeProgress(0);
   }
 
   function handlePointerUp(event: PointerEvent<HTMLElement>) {
@@ -216,7 +237,10 @@ export function DraggableBottomSheet({
     const viewportHeight = window.innerHeight;
     const dragDistance = currentOffsetRef.current - dragStartOffsetRef.current;
 
-    if (dragDistance > 170 || currentOffsetRef.current > viewportHeight * 0.42) {
+    if (
+      dragDistance > DISMISS_DRAG_DISTANCE ||
+      currentOffsetRef.current > viewportHeight * DISMISS_POSITION_RATIO
+    ) {
       if (!requestDismiss()) {
         resetSheetPosition();
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -234,6 +258,8 @@ export function DraggableBottomSheet({
       return;
     }
 
+    // Released below the threshold: snap back and restore full opacity.
+    setDragFadeProgress(0);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -251,6 +277,15 @@ export function DraggableBottomSheet({
         .filter(Boolean)
         .join(" ")}
       role="presentation"
+      style={{
+        // The dim lifts in step with the held-drag fade; the closing slide
+        // handles its own fade via .sheetLayer.isClosing.
+        background:
+          !isClosing && dragFadeProgress > 0
+            ? `rgb(15 23 42 / ${(BACKDROP_ALPHA_PERCENT * (1 - dragFadeProgress)).toFixed(1)}%)`
+            : undefined,
+        transition: isDragging ? "none" : undefined,
+      }}
     >
       {dismissOnBackdrop ? (
         <button
@@ -264,7 +299,7 @@ export function DraggableBottomSheet({
       ) : null}
       <section
         ref={sheetRef}
-        className={`draggableSheet ${className ?? ""}`}
+        className={`draggableSheet ${className ?? ""}${isClosing ? " isClosing" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
@@ -281,6 +316,13 @@ export function DraggableBottomSheet({
         style={{
           "--sheet-rest-offset": `${initialOffset}px`,
           transform: translateY > 0 ? `translateY(${translateY}px)` : undefined,
+          // Past the dismiss threshold, dissolve with depth (down to the held
+          // floor). The closing slide's fade-to-0 lives in CSS (.isClosing),
+          // which the inline value must not override.
+          opacity:
+            !isClosing && dragFadeProgress > 0
+              ? 1 - (1 - HELD_MIN_OPACITY) * dragFadeProgress
+              : undefined,
           transition: isDragging ? "none" : undefined,
         } as CSSProperties}
       >
@@ -307,6 +349,16 @@ function shouldIgnoreSheetDrag(target: EventTarget): boolean {
 }
 
 const DRAG_START_THRESHOLD = 10;
+
+// Release-dismiss thresholds, shared by the release check and the held-drag
+// fade so the dimming never promises a close that wouldn't happen.
+const DISMISS_DRAG_DISTANCE = 170;
+const DISMISS_POSITION_RATIO = 0.42;
+// While still held, the sheet dims towards this floor — never fully invisible
+// under the finger. The final fade to 0 happens in the closing slide.
+const HELD_MIN_OPACITY = 0.25;
+// The backdrop dim at rest, in percent (mirrors .sheetLayer's background).
+const BACKDROP_ALPHA_PERCENT = 18;
 
 let activeSheetLockCount = 0;
 
