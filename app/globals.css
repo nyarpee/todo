@@ -3299,6 +3299,14 @@ h1 {
   gap: 2px;
 }
 
+/* Path separators: smaller and softer than any navigation glyph, so the back
+   arrow (a shafted ←) can never be confused with them. */
+.taskLocationCrumbWrap > svg {
+  width: 12px;
+  height: 12px;
+  color: var(--soft);
+}
+
 .taskLocationCrumb {
   display: inline-flex;
   flex: 0 0 auto;

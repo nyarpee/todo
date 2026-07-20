@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { CalendarClock, ChevronLeft, ChevronRight, Flag, MapPin, Plus } from "lucide-react";
+import { ArrowLeft, CalendarClock, ChevronRight, Flag, MapPin, Plus } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
   closestCenter,
@@ -297,7 +297,7 @@ export function TaskDetailView({
             else onClose();
           }}
         >
-          <ChevronLeft size={19} aria-hidden="true" />
+          <ArrowLeft size={19} aria-hidden="true" />
         </button>
         <MapPin size={15} aria-hidden="true" />
         <div ref={detailPathRef} className="taskLocationPath" aria-label={text.taskDetail.path}>
