@@ -1268,9 +1268,14 @@ h1 {
    plus a leading back button: back / pin / path. */
 .detailPath {
   justify-self: start;
-  grid-template-columns: auto auto minmax(0, 1fr);
   max-width: 100%;
   margin-bottom: 8px;
+}
+
+/* Compound selector: must outrank .taskLocationHeader's own two-column
+   template (defined later in this file), or the path wraps to a second row. */
+.taskLocationHeader.detailPath {
+  grid-template-columns: auto auto minmax(0, 1fr);
 }
 
 /* One-level-up button. Small glyph, finger-sized hit area. */
