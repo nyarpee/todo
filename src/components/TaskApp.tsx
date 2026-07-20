@@ -305,6 +305,54 @@ export function TaskApp() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId, composeSession]);
+  // --- Detail sheet <-> browser history -----------------------------------
+  // Every detail level pushes one history entry, so the platform back gesture
+  // (Android edge swipe / hardware back, iOS edge swipe) walks back up the
+  // levels and finally closes the sheet, instead of leaving the app.
+  const detailHistoryDepthRef = useRef(0);
+  // The current change to selectedTaskId came from popstate — don't push.
+  const detailHistoryFromPopRef = useRef(false);
+  // The next popstate is our own unwind (history.go) — don't treat as gesture.
+  const detailHistoryIgnorePopRef = useRef(false);
+  const prevSelectedTaskIdRef = useRef<TaskId | null>(null);
+  useEffect(() => {
+    const previous = prevSelectedTaskIdRef.current;
+    prevSelectedTaskIdRef.current = selectedTaskId;
+    if (selectedTaskId === previous) return;
+    if (detailHistoryFromPopRef.current) {
+      detailHistoryFromPopRef.current = false;
+      return;
+    }
+    if (selectedTaskId !== null) {
+      window.history.pushState({ detailTaskId: selectedTaskId }, "");
+      detailHistoryDepthRef.current += 1;
+      return;
+    }
+    if (detailHistoryDepthRef.current > 0) {
+      // Closed in-app (backdrop tap, drag down, group crumb): unwind all the
+      // entries we pushed so the next platform-back doesn't replay them.
+      const depth = detailHistoryDepthRef.current;
+      detailHistoryDepthRef.current = 0;
+      detailHistoryIgnorePopRef.current = true;
+      window.history.go(-depth);
+    }
+  }, [selectedTaskId]);
+  useEffect(() => {
+    function handlePopState(event: PopStateEvent) {
+      if (detailHistoryIgnorePopRef.current) {
+        detailHistoryIgnorePopRef.current = false;
+        return;
+      }
+      // No entries of ours on the stack: an ordinary back, let it happen.
+      if (detailHistoryDepthRef.current === 0) return;
+      detailHistoryDepthRef.current -= 1;
+      const state = event.state as { detailTaskId?: TaskId } | null;
+      detailHistoryFromPopRef.current = true;
+      setSelectedTaskId(state?.detailTaskId ?? null);
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
   const datePickerTask = datePickerTaskId
     ? allNodes.find((node) => node.id === datePickerTaskId) ?? null
     : null;
@@ -1879,6 +1927,7 @@ export function TaskApp() {
             onUpdatePriority={handleUpdatePriority}
             onDeleteTask={handleDeleteTask}
             onOpenSchedule={setDatePickerTaskId}
+            onClose={() => setSelectedTaskId(null)}
             autoEditTaskId={autoEditTaskId}
             onAutoEditConsumed={() => setAutoEditTaskId(null)}
             onReorderChild={handleReorderChild}

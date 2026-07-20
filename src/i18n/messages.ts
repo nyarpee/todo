@@ -18,6 +18,7 @@ export const messages = {
     common: {
       addTask: "Add task",
       close: "Close",
+      back: "Back",
       save: "Save",
       title: "Title",
       date: "Date",
@@ -118,6 +119,7 @@ export const messages = {
     common: {
       addTask: "タスクを追加",
       close: "閉じる",
+      back: "戻る",
       save: "保存",
       title: "タイトル",
       date: "日付",
@@ -218,6 +220,7 @@ export const messages = {
     common: {
       addTask: "添加任务",
       close: "关闭",
+      back: "返回",
       save: "保存",
       title: "标题",
       date: "日期",
@@ -318,6 +321,7 @@ export const messages = {
     common: {
       addTask: "新增任務",
       close: "關閉",
+      back: "返回",
       save: "儲存",
       title: "標題",
       date: "日期",

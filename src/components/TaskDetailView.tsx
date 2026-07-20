@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { CalendarClock, ChevronRight, Flag, MapPin, Plus } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Flag, MapPin, Plus } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
   closestCenter,
@@ -49,6 +49,8 @@ type TaskDetailViewProps = {
   onUpdatePriority: (taskId: TaskId, priority: TaskNode["priority"]) => void;
   onDeleteTask: (taskId: TaskId) => void;
   onOpenSchedule: (taskId: TaskId) => void;
+  // Close the whole detail sheet, back to the list underneath.
+  onClose: () => void;
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
   onReorderChild: (activeId: TaskId, overId: TaskId) => void;
@@ -79,6 +81,7 @@ export function TaskDetailView({
   onUpdatePriority,
   onDeleteTask,
   onOpenSchedule,
+  onClose,
   autoEditTaskId,
   onAutoEditConsumed,
   onReorderChild,
@@ -282,9 +285,27 @@ export function TaskDetailView({
           "where am I" UI reads as one thing across all three surfaces. The
           group and the current task are labels; ancestors in between navigate. */}
       <div className="taskLocationHeader detailPath" inert={composerOpen}>
+        {/* One level up: the parent task's detail, or — from a root task —
+            close the sheet. Held down repeatedly it always leads to the list. */}
+        <button
+          type="button"
+          className="detailBackButton"
+          aria-label={text.common.back}
+          onClick={() => {
+            const parentNode = path.length > 1 ? path[path.length - 2] : null;
+            if (parentNode) onSelectTask(parentNode.id);
+            else onClose();
+          }}
+        >
+          <ChevronLeft size={19} aria-hidden="true" />
+        </button>
         <MapPin size={15} aria-hidden="true" />
         <div ref={detailPathRef} className="taskLocationPath" aria-label={text.taskDetail.path}>
-          <span className="taskLocationCrumb">{groupName}</span>
+          {/* The group is the path's root: tapping it leaves the tree entirely,
+              back to the inbox list. */}
+          <button type="button" className="taskLocationCrumb" onClick={onClose}>
+            {groupName}
+          </button>
           {path.slice(0, -1).map((node) => (
             <span className="taskLocationCrumbWrap" key={node.id}>
               <ChevronRight size={14} aria-hidden="true" />
