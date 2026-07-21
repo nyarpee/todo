@@ -6,7 +6,6 @@ import { useLanguage } from "@/i18n/LanguageProvider";
 import {
   buildCalendarDays,
   fromDateKey,
-  getEndOfWeekKey,
   getMonthLabel,
   getScheduleLabel,
   getTodayKey,
@@ -90,13 +89,6 @@ export function ScheduleEditorSheet({
             onClick={() => handleSelectDate(getTomorrowKey())}
           >
             {text.common.tomorrow}
-          </button>
-          <button
-            className={dueDate === getEndOfWeekKey() ? "isSelected" : ""}
-            type="button"
-            onClick={() => handleSelectDate(getEndOfWeekKey())}
-          >
-            {text.common.thisWeek}
           </button>
           {!dateOnly ? (
             <button className={dueDate === null ? "isSelected" : ""} type="button" onClick={handleClearDate}>

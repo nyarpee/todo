@@ -527,7 +527,7 @@ export function TaskApp() {
       let nextGroups = storedLocalData.groups.length > 0
         ? storedLocalData.groups
         : createDefaultGroups(workspaceId);
-      let nextTasksBeforeDateRollover =
+      let nextWorkspaceTasks =
         storedLocalData.tasks.length > 0 ? storedLocalData.tasks : createSampleTasks(workspaceId, language);
       let nextHabits = storedLocalData.habits.length > 0
         ? storedLocalData.habits
@@ -544,7 +544,7 @@ export function TaskApp() {
             const mergedSnapshot = mergeSyncSnapshots({
               local: {
                 groups: nextGroups,
-                tasks: nextTasksBeforeDateRollover,
+                tasks: nextWorkspaceTasks,
                 habits: nextHabits,
                 habitEntries: nextHabitEntries,
                 activityEvents: nextActivityEvents,
@@ -553,13 +553,13 @@ export function TaskApp() {
             });
 
             nextGroups = mergedSnapshot.groups;
-            nextTasksBeforeDateRollover = mergedSnapshot.tasks;
+            nextWorkspaceTasks = mergedSnapshot.tasks;
             nextHabits = mergedSnapshot.habits;
             nextHabitEntries = mergedSnapshot.habitEntries;
             nextActivityEvents = mergedSnapshot.activityEvents;
           } else if (hasCloudData) {
             nextGroups = cloudSnapshot.groups;
-            nextTasksBeforeDateRollover = cloudSnapshot.tasks;
+            nextWorkspaceTasks = cloudSnapshot.tasks;
             nextHabits = cloudSnapshot.habits;
             nextHabitEntries = cloudSnapshot.habitEntries;
             nextActivityEvents = cloudSnapshot.activityEvents;
@@ -569,7 +569,7 @@ export function TaskApp() {
             if (hasLocalWorkspaceContent(anonymousLocalData)) {
               const inheritedLocalData = reassignLocalWorkspaceData(anonymousLocalData, workspaceId);
               nextGroups = inheritedLocalData.groups;
-              nextTasksBeforeDateRollover = inheritedLocalData.tasks;
+              nextWorkspaceTasks = inheritedLocalData.tasks;
               nextHabits = inheritedLocalData.habits;
               nextHabitEntries = inheritedLocalData.habitEntries;
               nextActivityEvents = inheritedLocalData.activityEvents;
@@ -582,7 +582,10 @@ export function TaskApp() {
         }
       }
 
-      const nextTasks = rolloverIncompletePastTasks(nextTasksBeforeDateRollover);
+      // Keep unfinished tasks on their original due date. The calendar's
+      // overdue section makes the missed date explicit instead of silently
+      // rewriting it to today every time the workspace loads.
+      const nextTasks = nextWorkspaceTasks;
 
       if (!isActive) return;
 
@@ -2264,20 +2267,6 @@ function buildNodePath(nodes: TaskNode[], task: TaskNode): TaskNode[] {
   return path;
 }
 
-function rolloverIncompletePastTasks(tasks: Task[]): Task[] {
-  const todayKey = getTodayKey();
-  const now = new Date().toISOString();
-
-  return tasks.map((task) => {
-    if (task.completed || task.dueDate === null || task.dueDate >= todayKey) return task;
-
-    return {
-      ...task,
-      dueDate: todayKey,
-      updatedAt: now,
-    };
-  });
-}
 
 function sortHabitsByOrder(first: Habit, second: Habit): number {
   return first.order - second.order || first.createdAt.localeCompare(second.createdAt);

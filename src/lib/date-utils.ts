@@ -34,12 +34,6 @@ export function getTomorrowKey(): string {
   return toDateKey(addDays(new Date(), 1));
 }
 
-export function getEndOfWeekKey(): string {
-  const today = new Date();
-  const daysUntilSunday = 6 - today.getDay();
-  return toDateKey(addDays(today, daysUntilSunday));
-}
-
 export function getMonthLabel(monthDate: Date, locale = "en"): string {
   return new Intl.DateTimeFormat(locale, {
     month: "long",
@@ -55,6 +49,7 @@ export function getDisplayDate(dateKey: string | null, locale = "en", noDateLabe
     day: "numeric",
   }).format(fromDateKey(dateKey));
 }
+
 
 export function getScheduleLabel(
   dueDate: string | null,

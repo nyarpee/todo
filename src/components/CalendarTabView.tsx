@@ -731,7 +731,11 @@ function DayGroup({
   const weekday = weekdays[getWeekdayIndexFromKey(dateKey)] ?? "";
   const isToday = offset === 0;
   const isTomorrow = offset === 1;
-  const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : getDisplayDate(dateKey, locale);
+  const dateLabel = isToday
+    ? getCalendarRelativeDateLabel(todayLabel, dateKey, locale)
+    : isTomorrow
+      ? getCalendarRelativeDateLabel(tomorrowLabel, dateKey, locale)
+      : getDisplayDate(dateKey, locale);
 
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `${DAY_DROPPABLE_PREFIX}${dateKey}`,
@@ -796,6 +800,17 @@ function DayGroup({
       )}
     </section>
   );
+}
+
+function getCalendarRelativeDateLabel(label: string, dateKey: string, locale: string): string {
+  const shortDate = new Intl.DateTimeFormat(locale, {
+    month: "numeric",
+    day: "numeric",
+  }).format(fromDateKey(dateKey));
+
+  return locale.startsWith("ja") || locale.startsWith("zh")
+    ? `${label}（${shortDate}）`
+    : `${label} (${shortDate})`;
 }
 
 type CalendarTaskRowProps = {
