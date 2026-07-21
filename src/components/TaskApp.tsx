@@ -39,7 +39,7 @@ import {
   reorderHabits,
   updateHabit,
 } from "@/lib/habit-actions";
-import { getTodayKey } from "@/lib/date-utils";
+import { getTodayKey, getTomorrowKey } from "@/lib/date-utils";
 import { primeKeyboard } from "@/lib/ios-keyboard";
 import { usePullToRefresh, PULL_TRIGGER_THRESHOLD } from "@/hooks/usePullToRefresh";
 import { useLanguage } from "@/i18n/LanguageProvider";
@@ -76,7 +76,21 @@ import { DatePickerView } from "./DatePickerView";
 import { DraggableBottomSheet } from "./DraggableBottomSheet";
 import { GroupBar, type GroupBarSyncHandle } from "./GroupBar";
 import { GroupSwipePager, type GroupSwipePagerHandle } from "./GroupSwipePager";
-import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
+import { TRASH_DROPPABLE_ID } from "./TrashDropZone";
+import {
+  isTaskDragActionId,
+  MOVE_CALENDAR_DROPPABLE_ID,
+  MOVE_DATE_CORRIDOR_DROPPABLE_ID,
+  MOVE_TODAY_DROPPABLE_ID,
+  MOVE_TOMORROW_DROPPABLE_ID,
+  PRIORITY_CORRIDOR_DROPPABLE_ID,
+  PRIORITY_HIGH_DROPPABLE_ID,
+  PRIORITY_LOW_DROPPABLE_ID,
+  PRIORITY_MEDIUM_DROPPABLE_ID,
+  PRIORITY_NONE_DROPPABLE_ID,
+  TaskDragActions,
+  TaskDragOverlayContent,
+} from "./TaskDragActions";
 import { GroupEditorSheet } from "./GroupEditorSheet";
 import { GroupManagerSheet } from "./GroupManagerSheet";
 import { HabitEditorSheet } from "./HabitEditorSheet";
@@ -168,6 +182,8 @@ export function TaskApp() {
   const [editingHabitId, setEditingHabitId] = useState<HabitId | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<TaskId | null>(null);
   const [isOverTrash, setIsOverTrash] = useState(false);
+  const [dragActionOverId, setDragActionOverId] = useState<string | null>(null);
+  const [dragCalendarTaskId, setDragCalendarTaskId] = useState<TaskId | null>(null);
   const pagerRef = useRef<GroupSwipePagerHandle>(null);
   const groupBarRef = useRef<GroupBarSyncHandle>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
@@ -182,6 +198,7 @@ export function TaskApp() {
   const dragStartYRef = useRef<number | null>(null);
   const latestPointerRef = useRef<{ x: number; y: number } | null>(null);
   const dragTargetGroupIdRef = useRef<TaskGroupId | null>(null);
+  const isOverDragActionRef = useRef(false);
   const groupChipsContainerRef = useRef<HTMLDivElement | null>(null);
   const groupChipRefs = useRef(new Map<TaskGroupId, HTMLButtonElement>());
   const groupChipsScrollTimerRef = useRef<number | null>(null);
@@ -242,21 +259,29 @@ export function TaskApp() {
     return () => window.cancelAnimationFrame(frame);
   }, [isComposingAtRoot, composeTargetKey]);
 
-  // Custom collision detection: the trash drop zone should only win when the
-  // pointer is actually over it (pointerWithin). Otherwise the built-in
-  // closestCenter would snap a task into the trash whenever the current group
-  // has no task droppables nearby (e.g. an empty group), making it look like
-  // the delete button "sucks in" the task. All other droppables keep using
-  // closestCenter for smooth reordering.
+  // Action targets only win when the pointer is actually inside them. Otherwise
+  // closestCenter could snap a task into an action when a list has no nearby
+  // task rows. Regular task targets keep closestCenter for smooth reordering.
   const collisionDetection = useCallback<typeof closestCenter>((args) => {
     const pointerCollisions = pointerWithin(args);
-    const trashCollision = pointerCollisions.find((c) => c.id === TRASH_DROPPABLE_ID);
-    if (trashCollision) return [trashCollision];
+    const actionCollision =
+      pointerCollisions.find(
+        (collision) =>
+          isTaskDragActionId(collision.id) &&
+          collision.id !== MOVE_DATE_CORRIDOR_DROPPABLE_ID &&
+          collision.id !== PRIORITY_CORRIDOR_DROPPABLE_ID,
+      ) ??
+      pointerCollisions.find(
+        (collision) =>
+          collision.id === MOVE_DATE_CORRIDOR_DROPPABLE_ID ||
+          collision.id === PRIORITY_CORRIDOR_DROPPABLE_ID,
+      );
+    if (actionCollision) return [actionCollision];
 
     return closestCenter({
       ...args,
       droppableContainers: args.droppableContainers.filter(
-        (c) => c.id !== TRASH_DROPPABLE_ID,
+        (container) => !isTaskDragActionId(container.id),
       ),
     });
   }, []);
@@ -1463,7 +1488,18 @@ export function TaskApp() {
   }
 
   function handleDragOver(event: DragOverEvent) {
-    setIsOverTrash(event.over?.id === TRASH_DROPPABLE_ID);
+    const overId = event.over?.id ? String(event.over.id) : null;
+    const isOverAction = overId !== null && isTaskDragActionId(overId);
+
+    isOverDragActionRef.current = isOverAction;
+    setIsOverTrash(overId === TRASH_DROPPABLE_ID);
+    setDragActionOverId(isOverAction ? overId : null);
+
+    if (isOverAction) {
+      clearGroupHoverTimer();
+      clearEdgeSwitchTimer();
+      clearGroupChipsScrollTimer();
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -1473,6 +1509,8 @@ export function TaskApp() {
     stopPointerTracking();
     setActiveDragTaskId(null);
     setIsOverTrash(false);
+    setDragActionOverId(null);
+    isOverDragActionRef.current = false;
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     latestPointerRef.current = null;
@@ -1488,6 +1526,41 @@ export function TaskApp() {
       if (draggedTask.children.length === 0 || window.confirm(text.taskDetail.deleteWithSubtasks)) {
         handleDeleteTask(activeId);
       }
+      return;
+    }
+
+    if (overId === MOVE_TODAY_DROPPABLE_ID) {
+      dragTargetGroupIdRef.current = null;
+      handleMoveTaskToDate(activeId, getTodayKey());
+      return;
+    }
+
+    if (overId === MOVE_TOMORROW_DROPPABLE_ID) {
+      dragTargetGroupIdRef.current = null;
+      handleMoveTaskToDate(activeId, getTomorrowKey());
+      return;
+    }
+
+    if (overId === MOVE_CALENDAR_DROPPABLE_ID) {
+      dragTargetGroupIdRef.current = null;
+      setDragCalendarTaskId(activeId);
+      return;
+    }
+
+    if (overId === MOVE_DATE_CORRIDOR_DROPPABLE_ID) {
+      dragTargetGroupIdRef.current = null;
+      return;
+    }
+
+    const nextPriority = getDroppedPriority(overId);
+    if (nextPriority) {
+      dragTargetGroupIdRef.current = null;
+      handleUpdatePriority(activeId, nextPriority);
+      return;
+    }
+
+    if (overId === PRIORITY_CORRIDOR_DROPPABLE_ID) {
+      dragTargetGroupIdRef.current = null;
       return;
     }
 
@@ -1524,6 +1597,8 @@ export function TaskApp() {
     stopPointerTracking();
     setActiveDragTaskId(null);
     setIsOverTrash(false);
+    setDragActionOverId(null);
+    isOverDragActionRef.current = false;
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     latestPointerRef.current = null;
@@ -1574,6 +1649,13 @@ export function TaskApp() {
   }
 
   function handleDragPointerMove(pointerX: number, pointerY: number) {
+    if (isOverDragActionRef.current) {
+      clearGroupHoverTimer();
+      clearEdgeSwitchTimer();
+      clearGroupChipsScrollTimer();
+      return;
+    }
+
     scheduleEdgeGroupSwitch(pointerX);
     scheduleGroupChipsHorizontalScroll(pointerX, pointerY);
 
@@ -1866,6 +1948,7 @@ export function TaskApp() {
         />
       ) : (
         <DndContext
+          autoScroll={{ enabled: dragActionOverId === null }}
           collisionDetection={collisionDetection}
           sensors={sensors}
           onDragStart={handleDragStart}
@@ -1898,16 +1981,23 @@ export function TaskApp() {
               }
             />
           </section>
-          <TrashDropZone active={activeDragTaskId !== null} />
+          <TaskDragActions
+            active={activeDragTaskId !== null}
+            overId={dragActionOverId}
+            todayLabel={text.common.today}
+            tomorrowLabel={text.common.tomorrow}
+            calendarLabel={text.common.calendar}
+            moveDateLabel={text.common.date}
+            deleteLabel={text.common.delete}
+            moveSuffix={text.common.moveHere}
+            selectDateLabel={text.common.selectMoveDate}
+            priorityActionLabel={text.common.priority}
+            priorityLabels={text.priority}
+            priorityFeedback={(label) => text.common.setPriority.replace("{priority}", label)}
+          />
           <DragOverlay modifiers={[snapCenterToCursor]}>
             {activeDragTask ? (
-              <div className={isOverTrash ? "dragOverlayTask isOverTrash" : "dragOverlayTask"}>
-                <span
-                  className={`priorityDot taskPriorityDot ${activeDragTask.priority === "none" ? "priority-none" : `priority-${activeDragTask.priority}`}`}
-                  aria-hidden="true"
-                />
-                <span>{activeDragTask.title}</span>
-              </div>
+              <TaskDragOverlayContent task={activeDragTask} overId={dragActionOverId} />
             ) : null}
           </DragOverlay>
         </DndContext>
@@ -1957,6 +2047,8 @@ export function TaskApp() {
             onUpdatePriority={handleUpdatePriority}
             onDeleteTask={handleDeleteTask}
             onOpenSchedule={setDatePickerTaskId}
+            onMoveTaskToDate={handleMoveTaskToDate}
+            onOpenDragCalendar={setDragCalendarTaskId}
             onClose={beginDetailClose}
             autoEditTaskId={autoEditTaskId}
             onAutoEditConsumed={() => setAutoEditTaskId(null)}
@@ -1986,7 +2078,7 @@ export function TaskApp() {
           }
         />
       ) : null}
-      {showQuickAdd && activeTab !== "calendar" && !composeSession ? (
+      {showQuickAdd && activeTab !== "calendar" && !composeSession && !activeDragTaskId ? (
         <FloatingAddButton
           onClick={() => {
             if (activeTab === "habit") {
@@ -2052,6 +2144,19 @@ export function TaskApp() {
             )
           }
           onDismiss={closeComposePanel}
+        />
+      ) : null}
+      {dragCalendarTaskId ? (
+        <ScheduleEditorSheet
+          dateOnly
+          dueDate={getTodayKey()}
+          dueTime={null}
+          onChange={(dueDate) => {
+            if (!dueDate) return;
+            handleMoveTaskToDate(dragCalendarTaskId, dueDate);
+            setDragCalendarTaskId(null);
+          }}
+          onDismiss={() => setDragCalendarTaskId(null)}
         />
       ) : null}
       {groupEditorMode === "create" ? (
@@ -2124,6 +2229,15 @@ function sortCompletedTasks(first: TaskNode, second: TaskNode): number {
   const secondCompletedAt = second.completedAt ?? second.updatedAt;
   return secondCompletedAt.localeCompare(firstCompletedAt);
 }
+
+function getDroppedPriority(overId: string | null): Task["priority"] | null {
+  if (overId === PRIORITY_HIGH_DROPPABLE_ID) return "high";
+  if (overId === PRIORITY_MEDIUM_DROPPABLE_ID) return "medium";
+  if (overId === PRIORITY_LOW_DROPPABLE_ID) return "low";
+  if (overId === PRIORITY_NONE_DROPPABLE_ID) return "none";
+  return null;
+}
+
 
 const THEME_STORAGE_KEY = "todoapp.theme";
 const CLIENT_ID_STORAGE_KEY = "todoapp.client-id";

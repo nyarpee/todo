@@ -22,6 +22,7 @@ type ScheduleEditorSheetProps = {
   onChange: (dueDate: string | null, dueTime: string | null) => void;
   onDismiss: () => boolean | void;
   onSave?: () => void;
+  dateOnly?: boolean;
 };
 
 export function ScheduleEditorSheet({
@@ -32,6 +33,7 @@ export function ScheduleEditorSheet({
   onChange,
   onDismiss,
   onSave,
+  dateOnly = false,
 }: ScheduleEditorSheetProps) {
   const { messages: text } = useLanguage();
   const [visibleMonth, setVisibleMonth] = useState(() =>
@@ -96,9 +98,11 @@ export function ScheduleEditorSheet({
           >
             {text.common.thisWeek}
           </button>
-          <button className={dueDate === null ? "isSelected" : ""} type="button" onClick={handleClearDate}>
-            {text.common.noneDate}
-          </button>
+          {!dateOnly ? (
+            <button className={dueDate === null ? "isSelected" : ""} type="button" onClick={handleClearDate}>
+              {text.common.noneDate}
+            </button>
+          ) : null}
         </div>
 
         <div className="datePickerPanel">
@@ -137,23 +141,25 @@ export function ScheduleEditorSheet({
           </div>
         </div>
 
-        <div className="timePanel">
-          <label htmlFor="schedule-sheet-time">
-            <CalendarClock size={16} aria-hidden="true" />
-            {text.common.time}
-          </label>
-          <input
-            id="schedule-sheet-time"
-            type="time"
-            value={dueTime ?? ""}
-            disabled={!dueDate}
-            onChange={(event) => handleTimeChange(event.target.value)}
-          />
-          <span>{getScheduleLabel(dueDate, dueTime, {
-            locale: text.common.locale,
-            noDateLabel: text.common.noDate,
-          })}</span>
-        </div>
+        {!dateOnly ? (
+          <div className="timePanel">
+            <label htmlFor="schedule-sheet-time">
+              <CalendarClock size={16} aria-hidden="true" />
+              {text.common.time}
+            </label>
+            <input
+              id="schedule-sheet-time"
+              type="time"
+              value={dueTime ?? ""}
+              disabled={!dueDate}
+              onChange={(event) => handleTimeChange(event.target.value)}
+            />
+            <span>{getScheduleLabel(dueDate, dueTime, {
+              locale: text.common.locale,
+              noDateLabel: text.common.noDate,
+            })}</span>
+          </div>
+        ) : null}
 
         {onSave ? (
           <button className="saveScheduleButton" type="button" onClick={onSave}>

@@ -981,11 +981,82 @@ h1 {
   scale: 0.42;
 }
 
+.dragOverlayTask.isOverMoveDate {
+  opacity: 0.56;
+  scale: 0.62;
+}
+
 .dragOverlayTask span:last-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dragOverlayMorph {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.dragOverlayMorph .dragOverlayTask {
+  transition:
+    scale 170ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease,
+    border-radius 170ms ease;
+}
+
+.dragOverlayActionToken {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 1px solid color-mix(in srgb, var(--focus) 38%, var(--line));
+  border-radius: 999px;
+  color: var(--focus);
+  background: var(--surface);
+  box-shadow: 0 14px 32px rgb(22 29 39 / 20%);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.42);
+  transition:
+    transform 170ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 110ms ease,
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.dragOverlayMorph.isAction .dragOverlayTask {
+  opacity: 0;
+  scale: 0.5;
+  border-radius: 999px;
+}
+
+.dragOverlayMorph.isAction .dragOverlayActionToken {
+  opacity: 0.96;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.dragOverlayMorph.isPriority .dragOverlayActionToken {
+  color: var(--priority-color);
+  border-color: color-mix(in srgb, var(--priority-color) 44%, var(--line));
+  background: color-mix(in srgb, var(--priority-color) 10%, var(--surface));
+}
+
+.dragOverlayMorph.isDelete .dragOverlayActionToken {
+  color: #ffffff;
+  border-color: var(--danger);
+  background: var(--danger);
+  transform: translate(-50%, -50%) scale(0.88);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dragOverlayMorph .dragOverlayTask,
+  .dragOverlayActionToken {
+    transition-duration: 1ms;
+  }
 }
 
 /* Floating trash target that rises from the bottom while dragging a task.
@@ -1043,6 +1114,295 @@ h1 {
   background: #d04444;
   border-color: #d04444;
   scale: 1.28;
+}
+
+/* Drag-only action tray. Date and priority open vertically without moving the
+   three base targets, so an immediate drop still chooses Today / None. */
+.taskDragActionLayer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(98px + env(safe-area-inset-bottom));
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(520px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.taskDragBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 64;
+  background: rgb(15 23 42 / 0%);
+  pointer-events: none;
+  transition: background 160ms ease;
+}
+
+.taskDragBackdrop.isVisible {
+  background: rgb(15 23 42 / 7%);
+}
+
+.taskDragFeedback {
+  min-height: 24px;
+  padding: 6px 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 999px;
+  color: transparent;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  font-size: 13px;
+  font-weight: 750;
+  opacity: 0;
+  transform: translateY(4px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgb(22 29 39 / 10%);
+  transition: opacity 120ms ease, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.taskDragFeedback.isVisible {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--focus) 24%, var(--line));
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.taskDragMenus {
+  --delete-size: 68px;
+  --edit-gap: 12px;
+  --delete-gap: 18px;
+  --edit-width: calc(100% - var(--delete-size) - var(--delete-gap));
+  position: relative;
+  width: 100%;
+  height: 248px;
+}
+
+.taskDropCorridor {
+  position: absolute;
+  z-index: 0;
+  width: calc(var(--edit-width) / 2 - var(--edit-gap) / 2);
+}
+
+.taskDropCorridor.isDate {
+  left: 0;
+  bottom: 0;
+  height: 186px;
+}
+
+.taskDropCorridor.isPriority {
+  right: calc(var(--delete-size) + var(--delete-gap));
+  bottom: 0;
+  height: 248px;
+}
+
+.taskDragActions {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--delete-size);
+  gap: var(--delete-gap);
+  min-height: 62px;
+  pointer-events: auto;
+}
+
+.taskEditActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--edit-gap);
+  width: 100%;
+  min-height: 62px;
+  transition: opacity 150ms ease, filter 150ms ease, transform 180ms ease;
+}
+
+.taskMoveDropTarget,
+.taskPriorityDropTarget,
+.taskDeleteDropTarget {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 16px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 14px 32px rgb(22 29 39 / 13%);
+  backdrop-filter: blur(16px);
+  transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.taskMoveDropTarget span,
+.taskPriorityDropTarget span,
+.taskDeleteDropTarget span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskMoveDropTarget.isOver {
+  color: #ffffff;
+  background: var(--focus);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, #ffffff 24%, transparent);
+}
+
+.taskPriorityDropTarget {
+  color: var(--muted);
+}
+
+.taskPriorityDropTarget.isOver {
+  color: #ffffff;
+  background: var(--focus);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, #ffffff 24%, transparent);
+}
+
+.taskDeleteDropTarget {
+  min-width: var(--delete-size);
+  color: var(--danger);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--danger-soft) 74%, var(--surface));
+  box-shadow: 0 14px 32px rgb(22 29 39 / 12%);
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease, opacity 150ms ease, transform 180ms ease;
+}
+
+.taskDeleteDropTarget span {
+  display: none;
+}
+
+.taskDeleteDropTarget.isOver {
+  color: #ffffff;
+  border-color: var(--danger);
+  background: var(--danger);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, #ffffff 24%, transparent);
+  transform: scale(1.08);
+}
+
+.taskSubTarget {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 14px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 10px 24px rgb(22 29 39 / 10%);
+  font-weight: 750;
+  opacity: 1;
+  transform: translateY(0);
+  backdrop-filter: blur(16px);
+  transition: opacity 120ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease, color 140ms ease;
+  pointer-events: auto;
+}
+
+.taskSubTarget.isDate {
+  left: 0;
+  width: calc(var(--edit-width) / 2 - var(--edit-gap) / 2);
+}
+
+.taskSubTarget.isPriority {
+  right: calc(var(--delete-size) + var(--delete-gap));
+  left: auto;
+  width: calc(var(--edit-width) / 2 - var(--edit-gap) / 2);
+}
+
+.taskSubTarget.level1 {
+  bottom: 70px;
+}
+
+.taskSubTarget.level2 {
+  bottom: 132px;
+}
+
+.taskSubTarget.level3 {
+  bottom: 194px;
+}
+
+.taskSubTarget[aria-hidden="true"] {
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  pointer-events: none;
+}
+
+.taskSubTarget.isOver {
+  color: #ffffff;
+  border-color: var(--focus);
+  background: var(--focus);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, #ffffff 24%, transparent);
+}
+
+.taskSubTarget.priority-high.isOver {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.taskSubTarget.priority-medium.isOver {
+  color: var(--text);
+  background: color-mix(in srgb, #e7a83e 24%, var(--surface));
+  border-color: #e7a83e;
+}
+
+.taskSubTarget.priority-low.isOver {
+  background: var(--focus);
+  border-color: var(--focus);
+}
+
+.taskDragMenus.isDateFocused .taskPriorityDropTarget,
+.taskDragMenus.isDateFocused .taskDeleteDropTarget,
+.taskDragMenus.isPriorityFocused .taskMoveDropTarget,
+.taskDragMenus.isPriorityFocused .taskDeleteDropTarget {
+  opacity: 0.48;
+  filter: saturate(0.55);
+}
+
+.taskDragMenus.isDeleteFocused .taskEditActions {
+  opacity: 0.42;
+  filter: saturate(0.45);
+  transform: scale(0.985);
+}
+
+.taskDragMenus.isDateFocused .taskMoveDropTarget,
+.taskDragMenus.isPriorityFocused .taskPriorityDropTarget {
+  position: relative;
+  z-index: 2;
+  color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, var(--surface));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--focus) 42%, transparent);
+}
+
+.taskDragMenus.isDateFocused .taskMoveDropTarget.isOver,
+.taskDragMenus.isPriorityFocused .taskPriorityDropTarget.isOver {
+  color: #ffffff;
+  background: var(--focus);
+}
+
+@media (max-width: 430px) {
+  .taskDragMenus {
+    --delete-size: 60px;
+    --edit-gap: 10px;
+    --delete-gap: 12px;
+  }
+
+  .taskMoveDropTarget,
+  .taskPriorityDropTarget,
+  .taskDeleteDropTarget,
+  .taskSubTarget {
+    gap: 6px;
+    padding: 0 7px;
+    font-size: 12px;
+  }
 }
 
 .habitTabView {

@@ -27,14 +27,25 @@ import { CSS } from "@dnd-kit/utilities";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import type { TaskId, TaskNode } from "@/types/task";
-import { getScheduleLabel } from "@/lib/date-utils";
+import { getScheduleLabel, getTodayKey, getTomorrowKey } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
 import { ComposeGhostRow } from "./ComposeGhostRow";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
-import { TrashDropZone, TRASH_DROPPABLE_ID } from "./TrashDropZone";
+import { TRASH_DROPPABLE_ID } from "./TrashDropZone";
+import {
+  getTaskDragPriority,
+  isTaskDragActionId,
+  MOVE_CALENDAR_DROPPABLE_ID,
+  MOVE_DATE_CORRIDOR_DROPPABLE_ID,
+  MOVE_TODAY_DROPPABLE_ID,
+  MOVE_TOMORROW_DROPPABLE_ID,
+  PRIORITY_CORRIDOR_DROPPABLE_ID,
+  TaskDragActions,
+  TaskDragOverlayContent,
+} from "./TaskDragActions";
 import { TrashIcon } from "./TrashIcon";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
@@ -49,6 +60,8 @@ type TaskDetailViewProps = {
   onUpdatePriority: (taskId: TaskId, priority: TaskNode["priority"]) => void;
   onDeleteTask: (taskId: TaskId) => void;
   onOpenSchedule: (taskId: TaskId) => void;
+  onMoveTaskToDate: (taskId: TaskId, dueDate: string) => void;
+  onOpenDragCalendar: (taskId: TaskId) => void;
   // Close the whole detail sheet, back to the list underneath.
   onClose: () => void;
   autoEditTaskId: TaskId | null;
@@ -81,6 +94,8 @@ export function TaskDetailView({
   onUpdatePriority,
   onDeleteTask,
   onOpenSchedule,
+  onMoveTaskToDate,
+  onOpenDragCalendar,
   onClose,
   autoEditTaskId,
   onAutoEditConsumed,
@@ -96,7 +111,7 @@ export function TaskDetailView({
   const { messages: text } = useLanguage();
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
-  const [isOverTrash, setIsOverTrash] = useState(false);
+  const [dragActionOverId, setDragActionOverId] = useState<string | null>(null);
   const composerOpen = composeDraft !== null;
   // Press-and-hold to start a drag (same feel as inbox/calendar): a quick tap
   // still toggles/opens the subtask, a hold drags the whole row to reorder or
@@ -106,17 +121,28 @@ export function TaskDetailView({
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
   );
 
-  // Prefer the trash target when the pointer is over it; otherwise reorder among
-  // the subtask rows (mirrors the calendar behaviour).
+  // Actions only win under the pointer. Transparent date/priority corridors
+  // shield the gaps between their expanded choices from background reordering.
   const collisionDetection = useCallback<typeof closestCenter>((args) => {
     const pointerCollisions = pointerWithin(args);
-    const trashCollision = pointerCollisions.find((c) => c.id === TRASH_DROPPABLE_ID);
-    if (trashCollision) return [trashCollision];
+    const actionCollision =
+      pointerCollisions.find(
+        (collision) =>
+          isTaskDragActionId(collision.id) &&
+          collision.id !== MOVE_DATE_CORRIDOR_DROPPABLE_ID &&
+          collision.id !== PRIORITY_CORRIDOR_DROPPABLE_ID,
+      ) ??
+      pointerCollisions.find(
+        (collision) =>
+          collision.id === MOVE_DATE_CORRIDOR_DROPPABLE_ID ||
+          collision.id === PRIORITY_CORRIDOR_DROPPABLE_ID,
+      );
+    if (actionCollision) return [actionCollision];
 
     return closestCenter({
       ...args,
       droppableContainers: args.droppableContainers.filter(
-        (c) => c.id !== TRASH_DROPPABLE_ID,
+        (container) => !isTaskDragActionId(container.id),
       ),
     });
   }, []);
@@ -247,19 +273,20 @@ export function TaskDetailView({
   }
 
   function handleSubtaskDragOver(event: DragOverEvent) {
-    setIsOverTrash(event.over?.id === TRASH_DROPPABLE_ID);
+    const overId = event.over?.id ? String(event.over.id) : null;
+    setDragActionOverId(overId && isTaskDragActionId(overId) ? overId : null);
   }
 
   function handleSubtaskDragCancel() {
     setActiveDragTaskId(null);
-    setIsOverTrash(false);
+    setDragActionOverId(null);
   }
 
   function handleSubtaskDragEnd(event: DragEndEvent) {
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : null;
     setActiveDragTaskId(null);
-    setIsOverTrash(false);
+    setDragActionOverId(null);
 
     const dragged = task.children.find((child) => child.id === activeId);
     if (!dragged) return;
@@ -270,6 +297,32 @@ export function TaskDetailView({
       }
       return;
     }
+
+    if (overId === MOVE_TODAY_DROPPABLE_ID) {
+      onMoveTaskToDate(activeId, getTodayKey());
+      return;
+    }
+
+    if (overId === MOVE_TOMORROW_DROPPABLE_ID) {
+      onMoveTaskToDate(activeId, getTomorrowKey());
+      return;
+    }
+
+    if (overId === MOVE_CALENDAR_DROPPABLE_ID) {
+      onOpenDragCalendar(activeId);
+      return;
+    }
+
+    const priority = getTaskDragPriority(overId);
+    if (priority) {
+      onUpdatePriority(activeId, priority);
+      return;
+    }
+
+    if (
+      overId === MOVE_DATE_CORRIDOR_DROPPABLE_ID ||
+      overId === PRIORITY_CORRIDOR_DROPPABLE_ID
+    ) return;
 
     if (!overId || overId === activeId) return;
     onReorderChild(activeId, overId);
@@ -385,6 +438,7 @@ export function TaskDetailView({
           <span>{task.children.length}</span>
         </div>
         <DndContext
+          autoScroll={{ enabled: dragActionOverId === null }}
           sensors={sensors}
           collisionDetection={collisionDetection}
           measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
@@ -423,7 +477,20 @@ export function TaskDetailView({
               locationLabel={composeLocationLabel}
             />
           ) : null}
-          <TrashDropZone active={activeDragTaskId !== null} compact />
+          <TaskDragActions
+            active={activeDragTaskId !== null}
+            overId={dragActionOverId}
+            todayLabel={text.common.today}
+            tomorrowLabel={text.common.tomorrow}
+            calendarLabel={text.common.calendar}
+            moveDateLabel={text.common.date}
+            deleteLabel={text.common.delete}
+            moveSuffix={text.common.moveHere}
+            selectDateLabel={text.common.selectMoveDate}
+            priorityActionLabel={text.common.priority}
+            priorityLabels={text.priority}
+            priorityFeedback={(label) => text.common.setPriority.replace("{priority}", label)}
+          />
           {/* Portal the overlay to <body> so its position:fixed is relative to
               the viewport, not the transformed detail sheet (a transformed
               ancestor becomes the containing block for fixed descendants, which
@@ -431,13 +498,7 @@ export function TaskDetailView({
           {createPortal(
             <DragOverlay modifiers={[snapCenterToCursor]}>
               {activeDragTask ? (
-                <div className={isOverTrash ? "dragOverlayTask isOverTrash" : "dragOverlayTask"}>
-                  <span
-                    className={`priorityDot taskPriorityDot ${getPriorityClass(activeDragTask.priority)}`}
-                    aria-hidden="true"
-                  />
-                  <span>{activeDragTask.title}</span>
-                </div>
+                <TaskDragOverlayContent task={activeDragTask} overId={dragActionOverId} />
               ) : null}
             </DragOverlay>,
             document.body,
