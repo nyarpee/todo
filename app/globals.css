@@ -1184,6 +1184,19 @@ h1 {
   width: calc(var(--edit-width) / 2 - var(--edit-gap) / 2);
 }
 
+.taskDropCorridor.isFocusArea {
+  inset: 0;
+  width: auto;
+}
+
+.taskDropCorridor.isDock {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  height: 62px;
+}
+
 .taskDropCorridor.isDate {
   left: 0;
   bottom: 0;

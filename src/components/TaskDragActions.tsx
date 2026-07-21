@@ -15,6 +15,8 @@ export const PRIORITY_LOW_DROPPABLE_ID = "priority-low";
 export const PRIORITY_MEDIUM_DROPPABLE_ID = "priority-medium";
 export const PRIORITY_HIGH_DROPPABLE_ID = "priority-high";
 export const PRIORITY_CORRIDOR_DROPPABLE_ID = "priority-corridor";
+export const ACTION_DOCK_CORRIDOR_DROPPABLE_ID = "action-dock-corridor";
+export const ACTION_FOCUS_CORRIDOR_DROPPABLE_ID = "action-focus-corridor";
 
 const ACTION_IDS = new Set([
   MOVE_TODAY_DROPPABLE_ID,
@@ -26,11 +28,22 @@ const ACTION_IDS = new Set([
   PRIORITY_MEDIUM_DROPPABLE_ID,
   PRIORITY_HIGH_DROPPABLE_ID,
   PRIORITY_CORRIDOR_DROPPABLE_ID,
+  ACTION_DOCK_CORRIDOR_DROPPABLE_ID,
+  ACTION_FOCUS_CORRIDOR_DROPPABLE_ID,
   "trash-drop",
 ]);
 
 export function isTaskDragActionId(id: string | number): boolean {
   return ACTION_IDS.has(String(id));
+}
+
+export function isTaskDragCorridorId(id: string | number): boolean {
+  return (
+    id === MOVE_DATE_CORRIDOR_DROPPABLE_ID ||
+    id === PRIORITY_CORRIDOR_DROPPABLE_ID ||
+    id === ACTION_DOCK_CORRIDOR_DROPPABLE_ID ||
+    id === ACTION_FOCUS_CORRIDOR_DROPPABLE_ID
+  );
 }
 
 export function getTaskDragPriority(overId: string | null): TaskNode["priority"] | null {
@@ -111,6 +124,14 @@ export function TaskDragActions(props: TaskDragActionsProps) {
   const highDrop = useDroppable({ id: PRIORITY_HIGH_DROPPABLE_ID, disabled: !props.active || !priorityOpen });
   const priorityCorridorDrop = useDroppable({ id: PRIORITY_CORRIDOR_DROPPABLE_ID, disabled: !props.active || !priorityOpen });
   const deleteDrop = useDroppable({ id: "trash-drop", disabled: !props.active });
+  const dockCorridorDrop = useDroppable({
+    id: ACTION_DOCK_CORRIDOR_DROPPABLE_ID,
+    disabled: !props.active,
+  });
+  const focusCorridorDrop = useDroppable({
+    id: ACTION_FOCUS_CORRIDOR_DROPPABLE_ID,
+    disabled: !props.active || activeMenu === null,
+  });
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -127,7 +148,9 @@ export function TaskDragActions(props: TaskDragActionsProps) {
       props.overId !== MOVE_TODAY_DROPPABLE_ID &&
       props.overId !== MOVE_TOMORROW_DROPPABLE_ID &&
       props.overId !== MOVE_CALENDAR_DROPPABLE_ID &&
-      props.overId !== MOVE_DATE_CORRIDOR_DROPPABLE_ID
+      props.overId !== MOVE_DATE_CORRIDOR_DROPPABLE_ID &&
+      props.overId !== ACTION_DOCK_CORRIDOR_DROPPABLE_ID &&
+      props.overId !== ACTION_FOCUS_CORRIDOR_DROPPABLE_ID
     ) {
       setActiveMenu(null);
     }
@@ -137,7 +160,9 @@ export function TaskDragActions(props: TaskDragActionsProps) {
       props.overId !== PRIORITY_LOW_DROPPABLE_ID &&
       props.overId !== PRIORITY_MEDIUM_DROPPABLE_ID &&
       props.overId !== PRIORITY_HIGH_DROPPABLE_ID &&
-      props.overId !== PRIORITY_CORRIDOR_DROPPABLE_ID
+      props.overId !== PRIORITY_CORRIDOR_DROPPABLE_ID &&
+      props.overId !== ACTION_DOCK_CORRIDOR_DROPPABLE_ID &&
+      props.overId !== ACTION_FOCUS_CORRIDOR_DROPPABLE_ID
     ) {
       setActiveMenu(null);
     }
@@ -168,6 +193,8 @@ export function TaskDragActions(props: TaskDragActionsProps) {
           {feedback}
         </div>
         <div className={menuFocusClass}>
+          <div ref={focusCorridorDrop.setNodeRef} className="taskDropCorridor isFocusArea" aria-hidden="true" />
+          <div ref={dockCorridorDrop.setNodeRef} className="taskDropCorridor isDock" aria-hidden="true" />
           <div ref={dateCorridorDrop.setNodeRef} className="taskDropCorridor isDate" aria-hidden="true" />
           <div ref={priorityCorridorDrop.setNodeRef} className="taskDropCorridor isPriority" aria-hidden="true" />
 

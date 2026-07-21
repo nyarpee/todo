@@ -79,11 +79,10 @@ import { GroupSwipePager, type GroupSwipePagerHandle } from "./GroupSwipePager";
 import { TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import {
   isTaskDragActionId,
+  isTaskDragCorridorId,
   MOVE_CALENDAR_DROPPABLE_ID,
-  MOVE_DATE_CORRIDOR_DROPPABLE_ID,
   MOVE_TODAY_DROPPABLE_ID,
   MOVE_TOMORROW_DROPPABLE_ID,
-  PRIORITY_CORRIDOR_DROPPABLE_ID,
   PRIORITY_HIGH_DROPPABLE_ID,
   PRIORITY_LOW_DROPPABLE_ID,
   PRIORITY_MEDIUM_DROPPABLE_ID,
@@ -268,13 +267,11 @@ export function TaskApp() {
       pointerCollisions.find(
         (collision) =>
           isTaskDragActionId(collision.id) &&
-          collision.id !== MOVE_DATE_CORRIDOR_DROPPABLE_ID &&
-          collision.id !== PRIORITY_CORRIDOR_DROPPABLE_ID,
+          !isTaskDragCorridorId(collision.id),
       ) ??
       pointerCollisions.find(
         (collision) =>
-          collision.id === MOVE_DATE_CORRIDOR_DROPPABLE_ID ||
-          collision.id === PRIORITY_CORRIDOR_DROPPABLE_ID,
+          isTaskDragCorridorId(collision.id),
       );
     if (actionCollision) return [actionCollision];
 
@@ -1493,7 +1490,11 @@ export function TaskApp() {
 
     isOverDragActionRef.current = isOverAction;
     setIsOverTrash(overId === TRASH_DROPPABLE_ID);
-    setDragActionOverId(isOverAction ? overId : null);
+    // Keep the last concrete action while crossing a protected gap so the
+    // expanded menu and morphing ghost do not flicker between states.
+    if (!overId || !isTaskDragCorridorId(overId)) {
+      setDragActionOverId(isOverAction ? overId : null);
+    }
 
     if (isOverAction) {
       clearGroupHoverTimer();
@@ -1547,7 +1548,7 @@ export function TaskApp() {
       return;
     }
 
-    if (overId === MOVE_DATE_CORRIDOR_DROPPABLE_ID) {
+    if (overId && isTaskDragCorridorId(overId)) {
       dragTargetGroupIdRef.current = null;
       return;
     }
@@ -1556,11 +1557,6 @@ export function TaskApp() {
     if (nextPriority) {
       dragTargetGroupIdRef.current = null;
       handleUpdatePriority(activeId, nextPriority);
-      return;
-    }
-
-    if (overId === PRIORITY_CORRIDOR_DROPPABLE_ID) {
-      dragTargetGroupIdRef.current = null;
       return;
     }
 

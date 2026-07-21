@@ -38,11 +38,10 @@ import { TRASH_DROPPABLE_ID } from "./TrashDropZone";
 import {
   getTaskDragPriority,
   isTaskDragActionId,
+  isTaskDragCorridorId,
   MOVE_CALENDAR_DROPPABLE_ID,
-  MOVE_DATE_CORRIDOR_DROPPABLE_ID,
   MOVE_TODAY_DROPPABLE_ID,
   MOVE_TOMORROW_DROPPABLE_ID,
-  PRIORITY_CORRIDOR_DROPPABLE_ID,
   TaskDragActions,
   TaskDragOverlayContent,
 } from "./TaskDragActions";
@@ -129,13 +128,11 @@ export function TaskDetailView({
       pointerCollisions.find(
         (collision) =>
           isTaskDragActionId(collision.id) &&
-          collision.id !== MOVE_DATE_CORRIDOR_DROPPABLE_ID &&
-          collision.id !== PRIORITY_CORRIDOR_DROPPABLE_ID,
+          !isTaskDragCorridorId(collision.id),
       ) ??
       pointerCollisions.find(
         (collision) =>
-          collision.id === MOVE_DATE_CORRIDOR_DROPPABLE_ID ||
-          collision.id === PRIORITY_CORRIDOR_DROPPABLE_ID,
+          isTaskDragCorridorId(collision.id),
       );
     if (actionCollision) return [actionCollision];
 
@@ -274,6 +271,7 @@ export function TaskDetailView({
 
   function handleSubtaskDragOver(event: DragOverEvent) {
     const overId = event.over?.id ? String(event.over.id) : null;
+    if (overId && isTaskDragCorridorId(overId)) return;
     setDragActionOverId(overId && isTaskDragActionId(overId) ? overId : null);
   }
 
@@ -319,10 +317,7 @@ export function TaskDetailView({
       return;
     }
 
-    if (
-      overId === MOVE_DATE_CORRIDOR_DROPPABLE_ID ||
-      overId === PRIORITY_CORRIDOR_DROPPABLE_ID
-    ) return;
+    if (overId && isTaskDragCorridorId(overId)) return;
 
     if (!overId || overId === activeId) return;
     onReorderChild(activeId, overId);
