@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, ChevronRight, Flag, MapPin } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Flag, MapPin } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import { getCompactScheduleLabel } from "@/lib/date-utils";
@@ -12,36 +12,25 @@ type ComposeBarProps = {
   draft: QuickAddDraft;
   onOpenSchedule: () => void;
   onOpenPriority: () => void;
-  // Called before the buttons steal focus so the parent can suppress the
-  // ghost input's blur-to-commit while a date/priority editor is open.
   onSuppressCommit: () => void;
-  // Extra root class, e.g. "isElevated" to raise the bar above an open bottom
-  // sheet (used while the task-detail sheet is open).
+  onFinish: () => void;
   className?: string;
-  // Optional destination strip (inbox/detail/calendar; omitted when the
-  // composer has no movable target). Shown as its own full-width row above the
-  // attribute chips: the location is where the task lands — context, not an
-  // attribute — so it gets a different shape and its own line for the path.
   groupLabel?: string;
   onOpenGroup?: () => void;
 };
 
-// The slim bar pinned just above the keyboard while composing. It only edits the
-// date/priority of the shared draft — the title lives in the ghost row (inbox
-// top / subtask or day tail). There is no send button: committing happens on
-// Enter (continue) or on blur (finish), handled by the ghost row.
 export function ComposeBar({
   draft,
   onOpenSchedule,
   onOpenPriority,
   onSuppressCommit,
+  onFinish,
   className,
   groupLabel,
   onOpenGroup,
 }: ComposeBarProps) {
   const { messages: text } = useLanguage();
   const priorityLabels = usePriorityLabels(getTranslatedPriorityLabels(text)).labels;
-
   const scheduleLabel = draft.dueDate
     ? getCompactScheduleLabel(draft.dueDate, draft.dueTime, draft.scheduleType, text.common.locale)
     : null;
@@ -51,22 +40,32 @@ export function ComposeBar({
   return (
     <div className={className ? `composeBar ${className}` : "composeBar"} role="presentation">
       <div className="composeBarInner">
-        {onOpenGroup ? (
+        <div className="composeBarHeader">
           <button
-            className="composeBarLocation"
+            className="composeBarCloseButton"
             type="button"
-            onPointerDown={onSuppressCommit}
-            onClick={onOpenGroup}
+            aria-label={text.common.back}
+            title={text.common.back}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={onFinish}
           >
-            <MapPin size={15} aria-hidden="true" />
-            {/* The path clips from the LEFT when it overflows, so the tail —
-                the actual destination — always stays visible. */}
-            <span className="composeBarLocationPath">
-              <span>{groupLabel || text.lists.area}</span>
-            </span>
-            <ChevronRight size={15} aria-hidden="true" />
+            <ArrowLeft size={19} aria-hidden="true" />
           </button>
-        ) : null}
+          {onOpenGroup ? (
+            <button
+              className="composeBarLocation"
+              type="button"
+              onPointerDown={onSuppressCommit}
+              onClick={onOpenGroup}
+            >
+              <MapPin size={15} aria-hidden="true" />
+              <span className="composeBarLocationPath">
+                <span>{groupLabel || text.lists.area}</span>
+              </span>
+              <ChevronRight size={15} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
 
         <div className="composeBarActions">
           <button

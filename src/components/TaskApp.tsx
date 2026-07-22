@@ -186,6 +186,9 @@ export function TaskApp() {
   // Guards against a double commit when a single tap on the scrim both blurs the
   // ghost input (onBlur -> finish) and clicks the scrim (onClick -> finish).
   const finishingComposeRef = useRef(false);
+  // A pointerdown closes the composer before its matching click is emitted.
+  // Keep that click from being reused by the task or group underneath.
+  const blockOutsideComposeClickUntilRef = useRef(0);
   const [calendarFocusedDate, setCalendarFocusedDate] = useState<string | null>(() => getTodayKey());
   const [groupEditorMode, setGroupEditorMode] = useState<"create" | "manage" | null>(null);
   const [habitEditorMode, setHabitEditorMode] = useState<"create" | "edit" | null>(null);
@@ -325,12 +328,29 @@ export function TaskApp() {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       if (target.closest(".composeGhostRow, .composeBar, .draggableSheet")) return;
+      blockOutsideComposeClickUntilRef.current = Date.now() + 700;
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       finishCompose();
     }
 
     document.addEventListener("pointerdown", handleOutsideComposePointer, true);
     return () => document.removeEventListener("pointerdown", handleOutsideComposePointer, true);
   }, [isComposingAtRoot, composeSession]);
+
+  useEffect(() => {
+    function blockDismissalClick(event: MouseEvent) {
+      if (Date.now() > blockOutsideComposeClickUntilRef.current) return;
+      blockOutsideComposeClickUntilRef.current = 0;
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
+
+    document.addEventListener("click", blockDismissalClick, true);
+    return () => document.removeEventListener("click", blockDismissalClick, true);
+  }, []);
 
   // Action targets only win when the pointer is actually inside them. Otherwise
   // closestCenter could snap a task into an action when a list has no nearby
@@ -2185,6 +2205,8 @@ export function TaskApp() {
             autoEditTaskId={autoEditTaskId}
             onAutoEditConsumed={() => setAutoEditTaskId(null)}
             onReorderChild={handleReorderChild}
+            sortMode={getGroupSortMode(selectedTask.id)}
+            onChangeSort={(mode) => handleChangeTaskSort(selectedTask.id, mode)}
             composeDraft={
               isDetailComposerOpen && composeSession ? toQuickAddDraft(composeSession) : null
             }
@@ -2236,6 +2258,7 @@ export function TaskApp() {
           onSuppressCommit={() => {
             suppressComposeCommitRef.current = true;
           }}
+          onFinish={finishCompose}
         />
       ) : null}
       {composeSession?.panel === "location" ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { ArrowLeft, CalendarClock, ChevronRight, Flag, MapPin, Plus } from "lucide-react";
+import { ArrowDownUp, ArrowLeft, CalendarClock, ChevronDown, ChevronRight, Flag, MapPin, Plus } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
   closestCenter,
@@ -29,6 +29,8 @@ import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import type { TaskId, TaskNode } from "@/types/task";
 import { getCompactScheduleLabel, getTodayKey, getTomorrowKey } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
+import { getComposeInsertIndex, sortTaskRoots, type TaskSortMode } from "@/lib/task-sort";
+import { getTaskSortLabels } from "@/i18n/task-sort-labels";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
@@ -46,6 +48,7 @@ import {
   TaskDragOverlayContent,
 } from "./TaskDragActions";
 import { TrashIcon } from "./TrashIcon";
+import { TaskSortEditorSheet } from "./TaskSortEditorSheet";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
 type TaskDetailViewProps = {
@@ -66,6 +69,8 @@ type TaskDetailViewProps = {
   autoEditTaskId: TaskId | null;
   onAutoEditConsumed: () => void;
   onReorderChild: (activeId: TaskId, overId: TaskId) => void;
+  sortMode: TaskSortMode;
+  onChangeSort: (mode: TaskSortMode) => void;
   // The app-level compose session, projected onto this view: non-null while the
   // session targets this task, in which case the ghost row renders at the tail
   // of the subtask list. This view never owns a draft or any compose sheets —
@@ -99,6 +104,8 @@ export function TaskDetailView({
   autoEditTaskId,
   onAutoEditConsumed,
   onReorderChild,
+  sortMode,
+  onChangeSort,
   composeDraft,
   composeInputRef,
   composeLocationLabel,
@@ -107,8 +114,10 @@ export function TaskDetailView({
   onFinishCompose,
   onOpenComposer,
 }: TaskDetailViewProps) {
-  const { messages: text } = useLanguage();
+  const { language, messages: text } = useLanguage();
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [isCompletedOpen, setIsCompletedOpen] = useState(false);
   const [activeDragTaskId, setActiveDragTaskId] = useState<TaskId | null>(null);
   const [dragActionOverId, setDragActionOverId] = useState<string | null>(null);
   const composerOpen = composeDraft !== null;
@@ -145,6 +154,22 @@ export function TaskDetailView({
   }, []);
   const translatedPriorityLabels = useMemo(() => getTranslatedPriorityLabels(text), [text]);
   const { labels } = usePriorityLabels(translatedPriorityLabels);
+  const sortLabels = getTaskSortLabels(language);
+  const activeChildren = useMemo(
+    () => sortTaskRoots(task.children.filter((child) => !child.completed), sortMode),
+    [sortMode, task.children],
+  );
+  const completedChildren = useMemo(
+    () => task.children
+      .filter((child) => child.completed)
+      .slice()
+      .sort((first, second) =>
+        (second.completedAt ?? second.updatedAt).localeCompare(first.completedAt ?? first.updatedAt)),
+    [task.children],
+  );
+  const composeIndex = composeDraft
+    ? getComposeInsertIndex(activeChildren, composeDraft, sortMode)
+    : 0;
 
   const viewRef = useRef<HTMLElement>(null);
   const detailPathRef = useRef<HTMLDivElement | null>(null);
@@ -319,7 +344,7 @@ export function TaskDetailView({
 
     if (overId && isTaskDragCorridorId(overId)) return;
 
-    if (!overId || overId === activeId) return;
+    if (!overId || overId === activeId || sortMode !== "manual") return;
     onReorderChild(activeId, overId);
   }
 
@@ -429,7 +454,19 @@ export function TaskDetailView({
       <section className="subtasksSection">
         <div className="subtasksHeader">
           <h3>{text.taskDetail.subtasks}</h3>
-          <span>{task.children.length}</span>
+          <div className="subtasksHeaderActions">
+            <span>{task.children.length}</span>
+            <button
+              className="subtaskSortButton"
+              type="button"
+              disabled={composerOpen}
+              aria-label={`${sortLabels.title}: ${sortLabels.modes[sortMode]}`}
+              title={`${sortLabels.title}: ${sortLabels.modes[sortMode]}`}
+              onClick={() => setIsSortOpen(true)}
+            >
+              <ArrowDownUp size={16} aria-hidden="true" />
+            </button>
+          </div>
         </div>
         <DndContext
           autoScroll={{ enabled: dragActionOverId === null }}
@@ -442,34 +479,80 @@ export function TaskDetailView({
           onDragCancel={handleSubtaskDragCancel}
         >
           <SortableContext
-            items={task.children.map((child) => child.id)}
+            items={activeChildren.map((child) => child.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="subtaskList" inert={composerOpen}>
-              {task.children.map((child) => (
-                <SortableSubtaskRow
-                  key={child.id}
-                  child={child}
-                  autoEditTaskId={autoEditTaskId}
-                  onAutoEditConsumed={onAutoEditConsumed}
-                  onSelectTask={onSelectTask}
-                  onToggleComplete={onToggleComplete}
-                  onRenameTask={onRenameTask}
-                  completeLabel={text.taskDetail.complete}
-                  disabled={composerOpen}
-                />
-              ))}
+            <div className="subtaskList">
+              {activeChildren.flatMap((child, index) => [
+                composeDraft && index === composeIndex ? (
+                  <div key="subtask-compose-slot" style={{ display: "contents" }}>
+                    <ComposeGhostRow
+                      draft={composeDraft}
+                      inputRef={composeInputRef}
+                      onChangeTitle={onChangeComposeTitle}
+                      onSubmit={onCommitCompose}
+                      onFinish={onFinishCompose}
+                      {...(composeLocationLabel ? { locationLabel: composeLocationLabel } : {})}
+                    />
+                  </div>
+                ) : null,
+                <div key={child.id} style={{ display: "contents" }} {...(composerOpen ? { inert: true } : {})}>
+                  <SortableSubtaskRow
+                    child={child}
+                    autoEditTaskId={autoEditTaskId}
+                    onAutoEditConsumed={onAutoEditConsumed}
+                    onSelectTask={onSelectTask}
+                    onToggleComplete={onToggleComplete}
+                    onRenameTask={onRenameTask}
+                    completeLabel={text.taskDetail.complete}
+                    disabled={composerOpen}
+                    reorderEnabled={sortMode === "manual"}
+                  />
+                </div>,
+              ]).concat(composeDraft && composeIndex >= activeChildren.length ? [(
+                <div key="subtask-compose-slot" style={{ display: "contents" }}>
+                  <ComposeGhostRow
+                    draft={composeDraft}
+                    inputRef={composeInputRef}
+                    onChangeTitle={onChangeComposeTitle}
+                    onSubmit={onCommitCompose}
+                    onFinish={onFinishCompose}
+                    {...(composeLocationLabel ? { locationLabel: composeLocationLabel } : {})}
+                  />
+                </div>
+              )] : [])}
             </div>
           </SortableContext>
-          {composeDraft ? (
-            <ComposeGhostRow
-              draft={composeDraft}
-              inputRef={composeInputRef}
-              onChangeTitle={onChangeComposeTitle}
-              onSubmit={onCommitCompose}
-              onFinish={onFinishCompose}
-              {...(composeLocationLabel ? { locationLabel: composeLocationLabel } : {})}
-            />
+          {completedChildren.length > 0 ? (
+            <section className="completedSection subtaskCompletedSection" inert={composerOpen}>
+              <button
+                className="completedToggle"
+                type="button"
+                onClick={() => setIsCompletedOpen((current) => !current)}
+              >
+                <span>{text.lists.completed}</span>
+                <strong>{completedChildren.length}</strong>
+                <ChevronDown className={isCompletedOpen ? "isOpen" : ""} size={16} aria-hidden="true" />
+              </button>
+              {isCompletedOpen ? (
+                <div className="subtaskList completedList">
+                  {completedChildren.map((child) => (
+                    <SortableSubtaskRow
+                      key={child.id}
+                      child={child}
+                      autoEditTaskId={autoEditTaskId}
+                      onAutoEditConsumed={onAutoEditConsumed}
+                      onSelectTask={onSelectTask}
+                      onToggleComplete={onToggleComplete}
+                      onRenameTask={onRenameTask}
+                      completeLabel={text.taskDetail.complete}
+                      disabled
+                      reorderEnabled={false}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </section>
           ) : null}
           <TaskDragActions
             active={activeDragTaskId !== null}
@@ -537,6 +620,13 @@ export function TaskDetailView({
           onDismiss={() => setIsPriorityOpen(false)}
         />
       ) : null}
+      {isSortOpen ? (
+        <TaskSortEditorSheet
+          value={sortMode}
+          onChange={onChangeSort}
+          onDismiss={() => setIsSortOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -552,6 +642,7 @@ type SortableSubtaskRowProps = {
   // While composing, keep the row in place (and hittable, so the sheet scrolls)
   // but don't let it be dragged/reordered.
   disabled?: boolean;
+  reorderEnabled: boolean;
 };
 
 function SortableSubtaskRow({
@@ -563,9 +654,14 @@ function SortableSubtaskRow({
   onRenameTask,
   completeLabel,
   disabled = false,
+  reorderEnabled,
 }: SortableSubtaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: child.id, data: { type: "subtask" }, disabled });
+    useSortable({
+      id: child.id,
+      data: { type: "subtask" },
+      disabled: disabled ? true : { droppable: !reorderEnabled },
+    });
 
   return (
     <div

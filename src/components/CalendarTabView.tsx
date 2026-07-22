@@ -629,9 +629,10 @@ export function CalendarTabView({
             onOpenGroup={openComposeGroup}
             onOpenSchedule={openComposeSchedule}
             onOpenPriority={openComposePriority}
-          onSuppressCommit={() => {
+            onSuppressCommit={() => {
               suppressComposeCommitRef.current = true;
             }}
+            onFinish={finishCompose}
           />,
           document.body,
         )

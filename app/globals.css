@@ -912,6 +912,13 @@ h1 {
   text-align: left;
 }
 
+.composeBarHeader {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+}
+
 /* Clip the path from the LEFT on overflow: the innermost location (the tail)
    is what "where am I" means, so it must never be the part that gets cut. */
 .composeBarLocationPath {
@@ -926,8 +933,27 @@ h1 {
 .composeBarActions {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.composeBarCloseButton {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.composeBarCloseButton:hover,
+.composeBarCloseButton:focus-visible {
+  color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+  outline: none;
 }
 
 /* Row 2, date-expanded: the date chip's slot becomes an inline quick picker so
@@ -2013,6 +2039,51 @@ h1 {
 .subtasksHeader span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.subtasksHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subtaskSortButton {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.subtaskSortButton:hover,
+.subtaskSortButton:focus-visible {
+  color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 9%, transparent);
+  outline: none;
+}
+
+.subtaskCompletedSection {
+  margin-top: 10px;
+  padding-bottom: 0;
+}
+
+.subtaskCompletedSection .completedToggle {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.subtaskCompletedSection .completedToggle:hover,
+.subtaskCompletedSection .completedToggle:focus-visible {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  outline: none;
 }
 
 .detailAdd {
