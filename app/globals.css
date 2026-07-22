@@ -437,6 +437,7 @@ h1 {
 
 .groupChips {
   position: relative;
+  isolation: isolate;
   display: flex;
   gap: 8px;
   min-width: 0;
@@ -458,7 +459,9 @@ h1 {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 0;
+  /* This is a true background layer of the isolated chip row. Keeping it
+     negative prevents a promoted animation frame from ever covering labels. */
+  z-index: -1;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--focus) 36%, var(--line));
   background: var(--surface-muted);
