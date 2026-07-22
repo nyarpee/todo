@@ -611,7 +611,7 @@ export const GroupBar = forwardRef<GroupBarSyncHandle, GroupBarProps>(function G
             .join(" ")}
           aria-hidden="true"
         >
-          {pressedGroup.name}
+          <span className="groupChipLabel">{pressedGroup.name}</span>
         </div>
       ) : null}
     </section>
@@ -640,7 +640,7 @@ function GroupChip({ group, isActive, isPlaceholder, onClick, onPointerDown, ref
       onClick={(event) => onClick(group.id, event)}
       onPointerDown={(event) => onPointerDown(group.id, event)}
     >
-      {group.name}
+      <span className="groupChipLabel">{group.name}</span>
     </button>
   );
 }

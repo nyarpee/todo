@@ -59,6 +59,7 @@ import { getBrowserSupabaseClient } from "@/lib/supabase-client";
 import { pullSupabaseSnapshot, pushLocalSnapshotToSupabase } from "@/lib/supabase-sync";
 import { mergeSyncSnapshots } from "@/lib/sync-merge";
 import { createGroup, createDefaultGroups, DEFAULT_MY_TASKS_GROUP_ID } from "@/lib/task-groups";
+import { inspectAndRepairTaskGroups } from "@/lib/task-group-integrity";
 import { buildTaskTree, flattenTaskTree } from "@/lib/task-tree";
 import { getComposeInsertIndex, sortTaskRoots, type TaskSortMode } from "@/lib/task-sort";
 import {
@@ -692,6 +693,16 @@ export function TaskApp() {
           console.error("Initial cloud pull failed", error);
           setSyncStatus(`Cloud sync failed: ${message}`);
         }
+      }
+
+      const groupIntegrity = inspectAndRepairTaskGroups(nextGroups);
+      nextGroups = groupIntegrity.groups;
+      if (groupIntegrity.issues.length > 0) {
+        console.warn("Task group data integrity issues detected", {
+          workspaceId,
+          repaired: groupIntegrity.repaired,
+          issues: groupIntegrity.issues,
+        });
       }
 
       // Keep unfinished tasks on their original due date. The calendar's
