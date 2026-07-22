@@ -48,6 +48,7 @@ const EMPTY_COMPOSE_DRAFT: QuickAddDraft = {
   title: "",
   dueDate: null,
   dueTime: null,
+  scheduleType: "scheduled",
   priority: "none",
 };
 
@@ -353,8 +354,9 @@ export function CalendarTabView({
     setComposeDraft({
       ...EMPTY_COMPOSE_DRAFT,
       dueDate: composeDate,
-      groupId: composeDraft.groupId,
-      parentTaskId: composeDraft.parentTaskId,
+      scheduleType: composeDraft.scheduleType,
+      ...(composeDraft.groupId ? { groupId: composeDraft.groupId } : {}),
+      ...(composeDraft.parentTaskId !== undefined ? { parentTaskId: composeDraft.parentTaskId } : {}),
     });
     window.requestAnimationFrame(() => composeInputRef.current?.focus({ preventScroll: true }));
   }
@@ -627,11 +629,7 @@ export function CalendarTabView({
             onOpenGroup={openComposeGroup}
             onOpenSchedule={openComposeSchedule}
             onOpenPriority={openComposePriority}
-            onSelectQuickDate={(dueDate, dueTime) =>
-              setComposeDraft((current) => ({ ...current, dueDate, dueTime }))
-            }
-            onResumeCompose={closeComposeEditors}
-            onSuppressCommit={() => {
+          onSuppressCommit={() => {
               suppressComposeCommitRef.current = true;
             }}
           />,
@@ -658,8 +656,9 @@ export function CalendarTabView({
       <ScheduleEditorSheet
         dueDate={composeDraft.dueDate}
         dueTime={composeDraft.dueTime}
-        onChange={(dueDate, dueTime) =>
-          setComposeDraft((current) => ({ ...current, dueDate, dueTime }))
+        scheduleType={composeDraft.scheduleType}
+        onChange={(dueDate, dueTime, scheduleType) =>
+          setComposeDraft((current) => ({ ...current, dueDate, dueTime, scheduleType }))
         }
         onDismiss={closeComposeEditors}
       />
@@ -692,7 +691,7 @@ type DayGroupProps = {
   tasks: TaskNode[];
   todayKey: string;
   locale: string;
-  weekdays: string[];
+  weekdays: readonly string[];
   todayLabel: string;
   tomorrowLabel: string;
   onSelectTask: (taskId: TaskId) => void;

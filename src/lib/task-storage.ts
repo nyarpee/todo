@@ -54,9 +54,14 @@ function assertTask(value: unknown): Task {
     priority: isTaskPriority(task.priority) ? task.priority : "none",
     dueDate: typeof task.dueDate === "string" ? task.dueDate : null,
     dueTime: typeof task.dueTime === "string" ? task.dueTime : null,
+    scheduleType: isTaskScheduleType(task.scheduleType) ? task.scheduleType : "deadline",
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
   };
+}
+
+function isTaskScheduleType(value: unknown): value is Task["scheduleType"] {
+  return value === "scheduled" || value === "deadline";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

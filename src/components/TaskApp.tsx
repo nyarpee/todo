@@ -60,6 +60,12 @@ import { pullSupabaseSnapshot, pushLocalSnapshotToSupabase } from "@/lib/supabas
 import { mergeSyncSnapshots } from "@/lib/sync-merge";
 import { createGroup, createDefaultGroups, DEFAULT_MY_TASKS_GROUP_ID } from "@/lib/task-groups";
 import { buildTaskTree, flattenTaskTree } from "@/lib/task-tree";
+import { getComposeInsertIndex, sortTaskRoots, type TaskSortMode } from "@/lib/task-sort";
+import {
+  loadTaskSortPreferences,
+  saveTaskSortPreferences,
+  type TaskSortPreferences,
+} from "@/lib/task-sort-preferences";
 import { IndexedDbActivityEventRepository } from "@/repositories/indexed-db-activity-event-repository";
 import { IndexedDbGroupRepository } from "@/repositories/indexed-db-group-repository";
 import { IndexedDbHabitRepository } from "@/repositories/indexed-db-habit-repository";
@@ -106,12 +112,14 @@ import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 import { TaskDetailView } from "./TaskDetailView";
 import { TaskListView } from "./TaskListView";
+import { TaskSortEditorSheet } from "./TaskSortEditorSheet";
 import { ThemeToggle } from "./ThemeToggle";
 
 const EMPTY_COMPOSE_DRAFT: ComposeDraft = {
   title: "",
   dueDate: null,
   dueTime: null,
+  scheduleType: "deadline",
   priority: "none",
 };
 
@@ -146,6 +154,9 @@ export function TaskApp() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitEntries, setHabitEntries] = useState<HabitEntry[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<TaskGroupId>(DEFAULT_MY_TASKS_GROUP_ID);
+  const [sortPreferences, setSortPreferences] = useState<TaskSortPreferences>({});
+  const [loadedSortWorkspaceId, setLoadedSortWorkspaceId] = useState<UserId | null>(null);
+  const [sortEditorGroupId, setSortEditorGroupId] = useState<TaskGroupId | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<UserId | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -239,24 +250,87 @@ export function TaskApp() {
   const composeTargetKey = composeSession
     ? `${composeSession.target.groupId}:${composeSession.target.parentTaskId ?? ""}`
     : null;
+  const inboxComposePlacementKey = composeSession
+    ? [
+        composeSession.target.groupId,
+        composeSession.draft.dueDate ?? "",
+        composeSession.draft.scheduleType,
+        composeSession.draft.priority,
+        sortPreferences[composeSession.target.groupId] ?? "manual",
+        tasks.length,
+      ].join(":")
+    : null;
   useEffect(() => {
     if (!isComposingAtRoot) return;
-    let frame = 0;
-    let tries = 0;
-    const focusGhost = () => {
+    const scroller = appScrollRef.current;
+    if (!scroller) return;
+    const activeScroller = scroller;
+    const previousPaddingBottom = activeScroller.style.paddingBottom;
+
+    function alignInboxGhost(behavior: ScrollBehavior) {
       const input = composeInputRef.current;
-      if (input) {
-        input.focus({ preventScroll: true });
-        appScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-        return;
+      input?.focus({ preventScroll: true });
+
+      const ghost = document.querySelector<HTMLElement>(
+        ".groupPagerPanel.isCenter .composeGhostRow",
+      );
+      if (!ghost) return;
+
+      const viewport = window.visualViewport;
+      const visibleBottom = viewport
+        ? viewport.offsetTop + viewport.height
+        : window.innerHeight;
+      const bar = document.querySelector<HTMLElement>(".composeBar .composeBarInner");
+      const barTop = bar?.getBoundingClientRect().top ?? visibleBottom - 140;
+      const scrollerRect = activeScroller.getBoundingClientRect();
+      const requiredBottomSpace = Math.max(96, scrollerRect.bottom - barTop + 16);
+      activeScroller.style.paddingBottom = `${Math.round(requiredBottomSpace)}px`;
+
+      const ghostRect = ghost.getBoundingClientRect();
+      const targetBottom = barTop - 8;
+      const delta = ghostRect.bottom - targetBottom;
+      const nextTop = Math.max(0, activeScroller.scrollTop + delta);
+      if (behavior === "smooth") {
+        activeScroller.scrollTo({ top: nextTop, behavior: "smooth" });
+      } else {
+        activeScroller.scrollTop = nextTop;
       }
-      if (tries > 30) return;
-      tries += 1;
-      frame = window.requestAnimationFrame(focusGhost);
+    }
+
+    // The keyboard and fixed compose bar settle over several frames on mobile.
+    // Re-measure during that transition so the final position is not based on
+    // an intermediate visualViewport height.
+    let frame = 0;
+    const openedAt = performance.now();
+    const tick = () => {
+      alignInboxGhost("auto");
+      if (performance.now() - openedAt > 700) return;
+      frame = window.requestAnimationFrame(tick);
     };
-    frame = window.requestAnimationFrame(focusGhost);
-    return () => window.cancelAnimationFrame(frame);
-  }, [isComposingAtRoot, composeTargetKey]);
+    frame = window.requestAnimationFrame(tick);
+    const alignInstant = () => alignInboxGhost("auto");
+    window.visualViewport?.addEventListener("resize", alignInstant);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.visualViewport?.removeEventListener("resize", alignInstant);
+      activeScroller.style.paddingBottom = previousPaddingBottom;
+    };
+  }, [isComposingAtRoot, composeTargetKey, inboxComposePlacementKey]);
+
+  useEffect(() => {
+    if (!isComposingAtRoot) return;
+
+    function handleOutsideComposePointer(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.closest(".composeGhostRow, .composeBar, .draggableSheet")) return;
+      finishCompose();
+    }
+
+    document.addEventListener("pointerdown", handleOutsideComposePointer, true);
+    return () => document.removeEventListener("pointerdown", handleOutsideComposePointer, true);
+  }, [isComposingAtRoot, composeSession]);
 
   // Action targets only win when the pointer is actually inside them. Otherwise
   // closestCenter could snap a task into an action when a list has no nearby
@@ -283,6 +357,24 @@ export function TaskApp() {
     });
   }, []);
   const workspaceId = authUser ? getAuthenticatedWorkspaceId(authUser.id) : ANONYMOUS_USER_ID;
+
+  useEffect(() => {
+    setSortPreferences(loadTaskSortPreferences(workspaceId));
+    setLoadedSortWorkspaceId(workspaceId);
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (loadedSortWorkspaceId !== workspaceId) return;
+    saveTaskSortPreferences(workspaceId, sortPreferences);
+  }, [loadedSortWorkspaceId, sortPreferences, workspaceId]);
+
+  function getGroupSortMode(groupId: TaskGroupId): TaskSortMode {
+    return sortPreferences[groupId] ?? "manual";
+  }
+
+  function handleChangeTaskSort(groupId: TaskGroupId, mode: TaskSortMode) {
+    setSortPreferences((current) => ({ ...current, [groupId]: mode }));
+  }
 
   const roots = useMemo(() => buildTaskTree(tasks), [tasks]);
   const allNodes = useMemo(() => flattenTaskTree(roots), [roots]);
@@ -931,7 +1023,14 @@ export function TaskApp() {
       { ...toQuickAddDraft(session), title: session.draft.title.trim() },
       { skipScrollIntoView: true },
     );
-    setComposeSession({ ...session, draft: { ...EMPTY_COMPOSE_DRAFT } });
+    setComposeSession({
+      ...session,
+      draft: {
+        ...EMPTY_COMPOSE_DRAFT,
+        dueDate: session.draft.dueDate,
+        scheduleType: session.draft.scheduleType,
+      },
+    });
     window.requestAnimationFrame(() => {
       composeInputRef.current?.focus({ preventScroll: true });
     });
@@ -1043,6 +1142,7 @@ export function TaskApp() {
       order: topOrder,
       dueDate: draft?.dueDate ?? null,
       dueTime: draft?.dueTime ?? null,
+      scheduleType: draft?.scheduleType ?? "deadline",
       priority: draft?.priority ?? "none",
     }, {
       generateId: () => taskId,
@@ -1089,6 +1189,7 @@ export function TaskApp() {
       parentId,
       dueDate: draft?.dueDate ?? null,
       dueTime: draft?.dueTime ?? null,
+      scheduleType: draft?.scheduleType ?? "deadline",
       priority: draft?.priority ?? "none",
     }, {
       generateId: () => taskId,
@@ -1285,21 +1386,24 @@ export function TaskApp() {
     taskId: TaskId,
     dueDate: string | null,
     dueTime: string | null,
+    scheduleType: Task["scheduleType"],
   ) {
     const now = new Date().toISOString();
     setTasks((currentTasks) =>
-      updateTaskSchedule(currentTasks, taskId, dueDate, dueTime, { now: () => now }),
+      updateTaskSchedule(currentTasks, taskId, dueDate, dueTime, scheduleType, { now: () => now }),
     );
     setDatePickerTaskId(null);
     recordActivity("task_scheduled", "task", taskId, {
       patch: {
         dueDate,
         dueTime,
+        scheduleType,
         updatedAt: now,
       },
       dueDate,
       dueTime,
-      fields: ["dueDate", "dueTime"],
+      scheduleType,
+      fields: ["dueDate", "dueTime", "scheduleType"],
     });
   }
 
@@ -1309,7 +1413,7 @@ export function TaskApp() {
     const now = new Date().toISOString();
     const dueTime = task.dueTime ?? null;
     setTasks((currentTasks) =>
-      updateTaskSchedule(currentTasks, taskId, dueDate, dueTime, { now: () => now }),
+      updateTaskSchedule(currentTasks, taskId, dueDate, dueTime, task.scheduleType, { now: () => now }),
     );
     recordActivity("task_scheduled", "task", taskId, {
       patch: {
@@ -1565,6 +1669,13 @@ export function TaskApp() {
 
     if (!overId) {
       if (dragTargetGroupIdRef.current) {
+        if (
+          dragTargetGroupIdRef.current === draggedTask.groupId &&
+          getGroupSortMode(dragTargetGroupIdRef.current) !== "manual"
+        ) {
+          dragTargetGroupIdRef.current = null;
+          return;
+        }
         const nextTasks = moveRootTaskToGroupEnd(activeId, dragTargetGroupIdRef.current);
         recordActivity("task_moved", "task", activeId, {
           tasks: getChangedTasks(tasks, nextTasks),
@@ -1578,6 +1689,19 @@ export function TaskApp() {
 
     const overTask = allNodes.find((node) => node.id === overId);
     if (!overTask || overTask.parentId !== null || overTask.completed) return;
+
+    if (getGroupSortMode(overTask.groupId) !== "manual") {
+      if (overTask.groupId !== draggedTask.groupId) {
+        const nextTasks = moveRootTaskToGroupEnd(activeId, overTask.groupId);
+        recordActivity("task_moved", "task", activeId, {
+          tasks: getChangedTasks(tasks, nextTasks),
+          groupId: overTask.groupId,
+          fields: ["groupId", "parentId", "order"],
+        });
+      }
+      dragTargetGroupIdRef.current = null;
+      return;
+    }
 
     const nextTasks = moveRootTaskBefore(activeId, overTask.id, overTask.groupId);
     recordActivity("task_moved", "task", activeId, {
@@ -1810,6 +1934,7 @@ export function TaskApp() {
 
   function renderGroupList(groupId: TaskGroupId, isActive: boolean) {
     const groupRoots = rootsByGroup.get(groupId) ?? [];
+    const sortMode = getGroupSortMode(groupId);
     const isComposingHere =
       isActive &&
       activeTab === "inbox" &&
@@ -1824,7 +1949,10 @@ export function TaskApp() {
       );
     }
 
-    const activeRoots = groupRoots.filter((root) => !root.completed);
+    const activeRoots = sortTaskRoots(groupRoots.filter((root) => !root.completed), sortMode);
+    const composeIndex = isComposingHere && composeSession
+      ? getComposeInsertIndex(activeRoots, composeSession.draft, sortMode)
+      : 0;
     const completedRoots = groupRoots
       .filter((root) => root.completed)
       .slice()
@@ -1833,6 +1961,10 @@ export function TaskApp() {
     return (
       <TaskListView
         roots={activeRoots}
+        sortMode={sortMode}
+        onOpenSort={() => {
+          if (isActive) setSortEditorGroupId(groupId);
+        }}
         completedRoots={completedRoots}
         // Non-interactive (and inert) not only while the ghost composes in
         // this list, but during ANY compose session — a detail-sheet compose
@@ -1859,6 +1991,7 @@ export function TaskApp() {
             />
           ) : null
         }
+        composeIndex={composeIndex}
       />
     );
   }
@@ -2056,9 +2189,9 @@ export function TaskApp() {
               isDetailComposerOpen && composeSession ? toQuickAddDraft(composeSession) : null
             }
             composeInputRef={composeInputRef}
-            composeLocationLabel={
-              composeSession ? getComposeLocationLabel(composeSession.target) : undefined
-            }
+            {...(composeSession
+              ? { composeLocationLabel: getComposeLocationLabel(composeSession.target) }
+              : {})}
             onChangeComposeTitle={updateComposeTitle}
             onCommitCompose={commitComposeAndContinue}
             onFinishCompose={finishCompose}
@@ -2072,8 +2205,8 @@ export function TaskApp() {
         <DatePickerView
           task={datePickerTask}
           onBack={() => setDatePickerTaskId(null)}
-          onSave={(dueDate, dueTime) =>
-            handleSaveSchedule(datePickerTask.id, dueDate, dueTime)
+          onSave={(dueDate, dueTime, scheduleType) =>
+            handleSaveSchedule(datePickerTask.id, dueDate, dueTime, scheduleType)
           }
         />
       ) : null}
@@ -2095,17 +2228,11 @@ export function TaskApp() {
       {composeSession ? (
         <ComposeBar
           draft={toQuickAddDraft(composeSession)}
-          className={selectedTask ? "isElevated" : undefined}
+          {...(selectedTask ? { className: "isElevated" } : {})}
           groupLabel={getComposeLocationLabel(composeSession.target)}
           onOpenGroup={() => openComposePanel("location")}
           onOpenSchedule={() => openComposePanel("schedule")}
           onOpenPriority={() => openComposePanel("priority")}
-          onSelectQuickDate={(dueDate, dueTime) =>
-            setComposeSession((current) =>
-              current ? { ...current, draft: { ...current.draft, dueDate, dueTime } } : current,
-            )
-          }
-          onResumeCompose={closeComposePanel}
           onSuppressCommit={() => {
             suppressComposeCommitRef.current = true;
           }}
@@ -2125,9 +2252,10 @@ export function TaskApp() {
           layerClassName="composeSheetLayer"
           dueDate={composeSession.draft.dueDate}
           dueTime={composeSession.draft.dueTime}
-          onChange={(dueDate, dueTime) =>
+          scheduleType={composeSession.draft.scheduleType}
+          onChange={(dueDate, dueTime, scheduleType) =>
             setComposeSession((current) =>
-              current ? { ...current, draft: { ...current.draft, dueDate, dueTime } } : current,
+              current ? { ...current, draft: { ...current.draft, dueDate, dueTime, scheduleType } } : current,
             )
           }
           onDismiss={closeComposePanel}
@@ -2150,12 +2278,20 @@ export function TaskApp() {
           dateOnly
           dueDate={getTodayKey()}
           dueTime={null}
+          scheduleType="scheduled"
           onChange={(dueDate) => {
             if (!dueDate) return;
             handleMoveTaskToDate(dragCalendarTaskId, dueDate);
             setDragCalendarTaskId(null);
           }}
           onDismiss={() => setDragCalendarTaskId(null)}
+        />
+      ) : null}
+      {sortEditorGroupId ? (
+        <TaskSortEditorSheet
+          value={getGroupSortMode(sortEditorGroupId)}
+          onChange={(mode) => handleChangeTaskSort(sortEditorGroupId, mode)}
+          onDismiss={() => setSortEditorGroupId(null)}
         />
       ) : null}
       {groupEditorMode === "create" ? (

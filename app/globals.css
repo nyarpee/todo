@@ -612,6 +612,92 @@ h1 {
   padding-bottom: 150px;
 }
 
+.taskSortCard {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 86%, var(--bg));
+  box-shadow: 0 4px 14px rgb(22 29 39 / 3%);
+  font-size: 13px;
+  text-align: left;
+}
+
+.taskSortCard strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 740;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskSortCard:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--focus) 42%, var(--line));
+  background: var(--surface);
+}
+
+.taskSortCard:disabled {
+  pointer-events: none;
+}
+
+.taskSortSheet {
+  align-content: start;
+  gap: 14px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.taskSortSheet h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.taskSortOptions {
+  display: grid;
+  gap: 8px;
+}
+
+.taskSortOptions button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text);
+  background: var(--surface);
+  text-align: left;
+}
+
+.taskSortOptions button > span {
+  display: grid;
+  gap: 3px;
+}
+
+.taskSortOptions strong {
+  font-size: 14px;
+}
+
+.taskSortOptions small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.taskSortOptions button.isSelected {
+  color: var(--focus);
+  border-color: color-mix(in srgb, var(--focus) 48%, var(--line));
+  background: color-mix(in srgb, var(--focus) 8%, var(--surface));
+}
+
 .listPlaceholder {
   padding: 4px 2px;
 }
@@ -2471,6 +2557,194 @@ h1 {
 
 .scheduleSheet {
   height: calc(var(--kb-view-height, 100dvh) - 8px);
+  align-content: start;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.scheduleSummary {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 20px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.scheduleSentence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  font-size: clamp(18px, 5vw, 24px);
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.scheduleSentence button {
+  padding: 2px 4px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--focus) 45%, transparent);
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.scheduleSentence .scheduleRelation {
+  color: var(--focus);
+  border: 1px solid color-mix(in srgb, var(--focus) 30%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--focus) 8%, transparent);
+}
+
+.scheduleEmptySentence {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.scheduleTypeMenu {
+  display: grid;
+  gap: 6px;
+}
+
+.scheduleTypeMenu button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--bg);
+  font-weight: 700;
+  text-align: left;
+}
+
+.scheduleTypeMenu button.isSelected {
+  border-color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, var(--surface));
+}
+
+.scheduleActions {
+  display: grid;
+  gap: 8px;
+}
+
+.scheduleActionLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.scheduleActionLine > button:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  color: var(--text);
+  background: var(--surface);
+  font-weight: 720;
+}
+
+.scheduleRemove {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.weekCalendarPanel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.weekCalendarScroller {
+  height: min(310px, 38dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.weekCalendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.weekCalendarDay {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  min-width: 0;
+  min-height: 54px;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--text);
+  background: transparent;
+  font-weight: 750;
+}
+
+.weekCalendarDay small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.weekCalendarDay.isPast {
+  opacity: 0.28;
+}
+
+.weekCalendarDay.isToday {
+  border-color: color-mix(in srgb, var(--focus) 45%, transparent);
+}
+
+.weekCalendarDay.isSelected {
+  color: #fff;
+  border-color: var(--focus);
+  background: var(--focus);
+}
+
+.weekCalendarDay.isSelected small {
+  color: rgb(255 255 255 / 78%);
+}
+
+.inlineTimeEditor {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.inlineTimeEditor input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--bg);
+  font-size: 18px;
+  font-weight: 750;
 }
 
 .detailSheet {

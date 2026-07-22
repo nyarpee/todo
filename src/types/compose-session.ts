@@ -1,4 +1,4 @@
-import type { TaskGroupId, TaskId, TaskPriority } from "./task";
+import type { TaskGroupId, TaskId, TaskPriority, TaskScheduleType } from "./task";
 
 export type ComposeTarget = {
   groupId: TaskGroupId;
@@ -9,6 +9,7 @@ export type ComposeDraft = {
   title: string;
   dueDate: string | null;
   dueTime: string | null;
+  scheduleType: TaskScheduleType;
   priority: TaskPriority;
 };
 

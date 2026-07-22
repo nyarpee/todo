@@ -286,6 +286,7 @@ function createTask(
     priority: "none",
     dueDate: null,
     dueTime: null,
+    scheduleType: "deadline",
     createdAt: date,
     updatedAt: date,
   };

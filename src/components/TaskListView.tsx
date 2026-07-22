@@ -4,10 +4,12 @@ import { MouseEvent, useState } from "react";
 import type React from "react";
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, Network } from "lucide-react";
+import { ArrowDownUp, ChevronDown, ChevronRight, Network } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import type { AppMessages } from "@/i18n/messages";
+import { getTaskSortLabels } from "@/i18n/task-sort-labels";
 import { getPriorityClass } from "@/lib/priority";
+import type { TaskSortMode } from "@/lib/task-sort";
 import type { TaskId, TaskNode } from "@/types/task";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
@@ -30,6 +32,9 @@ type TaskListViewProps = {
   // The inbox inline-compose ghost row, pinned at the top of the list while a
   // new task is being composed. Rendered outside the sortable context.
   composeSlot?: React.ReactNode;
+  composeIndex?: number;
+  sortMode: TaskSortMode;
+  onOpenSort: () => void;
 };
 
 export function TaskListView({
@@ -45,8 +50,12 @@ export function TaskListView({
   isSortingTask = false,
   interactive = true,
   composeSlot = null,
+  composeIndex = 0,
+  sortMode,
+  onOpenSort,
 }: TaskListViewProps) {
-  const { messages: text } = useLanguage();
+  const { language, messages: text } = useLanguage();
+  const sortLabels = getTaskSortLabels(language);
   const [isCompletedOpen, setIsCompletedOpen] = useState(false);
 
   function handleRowClick(event: MouseEvent<HTMLDivElement>, taskId: TaskId) {
@@ -76,20 +85,37 @@ export function TaskListView({
     );
 
     if (!sortable) return row;
-    return <SortableTaskRow key={root.id} taskId={root.id}>{row}</SortableTaskRow>;
+    return <SortableTaskRow key={root.id} taskId={root.id} reorderEnabled={sortMode === "manual"}>{row}</SortableTaskRow>;
   }
+
+  const keyedComposeSlot = composeSlot ? (
+    <div key="compose-slot" style={{ display: "contents" }}>
+      {composeSlot}
+    </div>
+  ) : null;
 
   const activeRows = interactive ? (
     <SortableContext items={roots.map((root) => root.id)} strategy={verticalListSortingStrategy}>
       {roots.map((root) => renderTaskRow(root))}
     </SortableContext>
   ) : (
-    roots.map((root) => renderTaskRow(root, { sortable: false }))
+    roots.flatMap((root, index) => [
+      index === composeIndex ? keyedComposeSlot : null,
+      <div key={root.id} style={{ display: "contents" }} inert>
+        {renderTaskRow(root, { sortable: false })}
+      </div>,
+    ]).concat(keyedComposeSlot && composeIndex >= roots.length ? [keyedComposeSlot] : [])
   );
 
   return (
     <div className="simpleTaskList">
-      {composeSlot}
+      <button className="taskSortCard" type="button" disabled={!interactive} onClick={onOpenSort}>
+        <ArrowDownUp size={16} aria-hidden="true" />
+        <span>{sortLabels.title}</span>
+        <strong>{sortLabels.modes[sortMode]}</strong>
+        <ChevronRight size={16} aria-hidden="true" />
+      </button>
+      {interactive ? keyedComposeSlot : null}
       {roots.length === 0 && !composeSlot ? (
         <p className="placeholderText listPlaceholder">No active tasks.</p>
       ) : null}
@@ -99,10 +125,10 @@ export function TaskListView({
           sees fields to step through from the ghost input and shows its
           prev/next/done assistant bar above the keyboard. display:contents
           keeps the wrapper out of the list's layout. */}
-      <div style={{ display: "contents" }} inert={!interactive}>
+      <div style={{ display: "contents" }}>
         {activeRows}
         {completedRoots.length > 0 ? (
-          <section className="completedSection">
+          <section className="completedSection" inert={!interactive}>
             <button
               className="completedToggle"
               type="button"
@@ -130,12 +156,13 @@ export function TaskListView({
 
 type SortableTaskRowProps = {
   taskId: TaskId;
+  reorderEnabled: boolean;
   children: React.ReactNode;
 };
 
-function SortableTaskRow({ taskId, children }: SortableTaskRowProps) {
+function SortableTaskRow({ taskId, reorderEnabled, children }: SortableTaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: taskId, data: { type: "task" } });
+    useSortable({ id: taskId, data: { type: "task" }, disabled: { droppable: !reorderEnabled } });
 
   return (
     <div

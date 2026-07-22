@@ -152,6 +152,7 @@ function createTask(overrides: Partial<Task>): Task {
     priority: "none",
     dueDate: null,
     dueTime: null,
+    scheduleType: "deadline",
     createdAt: "2026-07-05T00:00:00.000Z",
     updatedAt: "2026-07-05T00:00:00.000Z",
     ...overrides,

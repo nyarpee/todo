@@ -63,6 +63,38 @@ export function getScheduleLabel(
   return dueTime ? `${displayDate} ${dueTime}` : displayDate;
 }
 
+export function getCompactScheduleLabel(
+  dueDate: string,
+  dueTime: string | null,
+  scheduleType: "scheduled" | "deadline",
+  locale = "en",
+): string {
+  const date = fromDateKey(dueDate);
+  const isEnglish = locale.toLowerCase().startsWith("en");
+  const isJapanese = locale.toLowerCase().startsWith("ja");
+  const dateLabel = new Intl.DateTimeFormat(locale, isEnglish
+    ? { month: "short", day: "numeric" }
+    : { month: "numeric", day: "numeric" }).format(date);
+  const timeLabel = dueTime ? ` ${formatScheduleTime(dueTime, locale)}` : "";
+
+  if (isEnglish) {
+    return `${scheduleType === "deadline" ? "By" : "On"} ${dateLabel}${timeLabel}`;
+  }
+
+  if (isJapanese) {
+    return `${dateLabel}${timeLabel}${scheduleType === "deadline" ? "まで" : "に"}`;
+  }
+
+  const isSimplifiedChinese = locale.toLowerCase() === "zh-cn";
+  return `${dateLabel}${timeLabel} ${scheduleType === "deadline" ? "截止" : isSimplifiedChinese ? "当天" : "當天"}`;
+}
+
+function formatScheduleTime(value: string, locale: string): string {
+  const [hours, minutes] = value.split(":").map(Number);
+  const date = new Date(2000, 0, 1, hours, minutes);
+  return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
 export function buildCalendarDays(monthDate: Date): CalendarDay[] {
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();

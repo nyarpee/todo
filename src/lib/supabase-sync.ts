@@ -201,6 +201,7 @@ function taskToRow(task: Task, authUserId: string): TaskRow {
     priority: task.priority,
     due_date: task.dueDate,
     due_time: task.dueTime,
+    schedule_type: task.scheduleType,
     client_id: null,
     created_at: task.createdAt,
     updated_at: task.updatedAt,
@@ -276,6 +277,7 @@ function rowToTask(row: TaskRow, localUserId: UserId): Task {
     priority: row.priority,
     dueDate: row.due_date,
     dueTime: row.due_time,
+    scheduleType: row.schedule_type ?? "deadline",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -344,6 +346,7 @@ type TaskRow = BaseRow & {
   priority: Task["priority"];
   due_date: string | null;
   due_time: string | null;
+  schedule_type: Task["scheduleType"] | null;
 };
 
 type HabitRow = BaseRow & {

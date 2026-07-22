@@ -4,7 +4,7 @@ import { useEffect, type KeyboardEvent, type RefObject } from "react";
 import { CalendarDays } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
-import { getScheduleLabel } from "@/lib/date-utils";
+import { getCompactScheduleLabel } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import type { QuickAddDraft } from "./QuickAddSheet";
@@ -40,10 +40,7 @@ export function ComposeGhostRow({
   const priorityLabels = usePriorityLabels(getTranslatedPriorityLabels(text)).labels;
 
   const scheduleLabel = draft.dueDate
-    ? getScheduleLabel(draft.dueDate, draft.dueTime, {
-        locale: text.common.locale,
-        noDateLabel: text.common.noDate,
-      })
+    ? getCompactScheduleLabel(draft.dueDate, draft.dueTime, draft.scheduleType, text.common.locale)
     : null;
   const priorityLabel =
     draft.priority !== "none" ? getPriorityLabel(draft.priority, priorityLabels) : null;

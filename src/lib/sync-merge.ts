@@ -239,7 +239,7 @@ function getEventFields(event: ActivityEvent): string[] {
   }
 
   if (event.type === "task_scheduled") {
-    return ["dueDate", "dueTime"];
+    return ["dueDate", "dueTime", "scheduleType"];
   }
 
   if (event.type === "task_moved") {
@@ -349,6 +349,7 @@ const TASK_FIELDS = [
   "priority",
   "dueDate",
   "dueTime",
+  "scheduleType",
 ] as const satisfies readonly (keyof Task)[];
 
 const GROUP_FIELDS = [

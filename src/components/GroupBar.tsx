@@ -486,7 +486,7 @@ export const GroupBar = forwardRef<GroupBarSyncHandle, GroupBarProps>(function G
     // While a reorder drag is active we block that native scroll so the chip
     // follows the finger cleanly instead of the row scrolling underneath.
     const preventScrollWhileDragging = (event: TouchEvent) => {
-      if (gestureRef.current?.active) event.preventDefault();
+      if (gestureRef.current?.active && event.cancelable) event.preventDefault();
     };
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("pointerup", up);

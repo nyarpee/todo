@@ -2,6 +2,7 @@ export type TaskId = string;
 export type TaskGroupId = string;
 export type UserId = string;
 export type TaskPriority = "high" | "medium" | "low" | "none";
+export type TaskScheduleType = "scheduled" | "deadline";
 
 export type TaskGroup = {
   id: TaskGroupId;
@@ -25,6 +26,7 @@ export type Task = {
   priority: TaskPriority;
   dueDate: string | null;
   dueTime: string | null;
+  scheduleType: TaskScheduleType;
   createdAt: string;
   updatedAt: string;
 };
@@ -44,6 +46,7 @@ export type CreateTaskInput = {
   priority?: TaskPriority;
   dueDate?: string | null;
   dueTime?: string | null;
+  scheduleType?: TaskScheduleType;
   parentId?: TaskId | null;
 };
 
@@ -60,5 +63,6 @@ export type UpdateTaskInput = Partial<
     | "priority"
     | "dueDate"
     | "dueTime"
+    | "scheduleType"
   >
 >;

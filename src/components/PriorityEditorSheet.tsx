@@ -57,7 +57,7 @@ export function PriorityEditorSheet({
     <DraggableBottomSheet
       ariaLabel={text.common.priority}
       className="prioritySheet"
-      layerClassName={layerClassName}
+      {...(layerClassName ? { layerClassName } : {})}
       dismissOnBackdrop
       onDismiss={handleDismiss}
     >

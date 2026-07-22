@@ -121,13 +121,13 @@ export function DraggableBottomSheet({
 
       const sheet = target.closest(".draggableSheet");
       if (!(sheet instanceof HTMLElement)) {
-        event.preventDefault();
+        if (event.cancelable) event.preventDefault();
         return;
       }
 
       const scrollContainer = findScrollableAncestor(target, sheet);
       if (!scrollContainer) {
-        event.preventDefault();
+        if (event.cancelable) event.preventDefault();
         return;
       }
 
@@ -138,7 +138,7 @@ export function DraggableBottomSheet({
           scrollContainer.scrollHeight - 1;
 
       if (isPullingDownAtTop || isPushingUpAtBottom) {
-        event.preventDefault();
+        if (event.cancelable) event.preventDefault();
       }
     }
 

@@ -39,6 +39,7 @@ export function addTask(
     priority: input.priority ?? "none",
     dueDate: input.dueDate ?? null,
     dueTime: input.dueTime ?? null,
+    scheduleType: input.scheduleType ?? "deadline",
     createdAt: now,
     updatedAt: now,
   };
@@ -131,9 +132,10 @@ export function updateTaskSchedule(
   taskId: TaskId,
   dueDate: string | null,
   dueTime: string | null,
+  scheduleType: Task["scheduleType"] = "deadline",
   options: Pick<TaskActionOptions, "now"> = {},
 ): Task[] {
-  return updateTask(tasks, taskId, { dueDate, dueTime }, options);
+  return updateTask(tasks, taskId, { dueDate, dueTime, scheduleType }, options);
 }
 
 export function updateTaskPriority(

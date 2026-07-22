@@ -42,6 +42,7 @@ export function usePullToRefresh(
   useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
+    const activeContainer = container;
 
     // The nearest vertically scrollable element under the touch, up to (and
     // including) the app scroller. We only engage when that element is at its
@@ -49,7 +50,7 @@ export function usePullToRefresh(
     // that isn't scrolled to the top keeps scrolling instead of refreshing.
     function scrollerAtPoint(target: EventTarget | null): HTMLElement | null {
       let node = target instanceof HTMLElement ? target : null;
-      while (node && container.contains(node)) {
+      while (node && activeContainer.contains(node)) {
         const overflowY = window.getComputedStyle(node).overflowY;
         if (
           (overflowY === "auto" || overflowY === "scroll") &&
@@ -57,10 +58,10 @@ export function usePullToRefresh(
         ) {
           return node;
         }
-        if (node === container) break;
+        if (node === activeContainer) break;
         node = node.parentElement;
       }
-      return container;
+      return activeContainer;
     }
 
     function reset() {
@@ -84,6 +85,7 @@ export function usePullToRefresh(
         return;
       }
       const touch = event.touches[0];
+      if (!touch) return;
       startXRef.current = touch.clientX;
       startYRef.current = touch.clientY;
       startTimeRef.current = event.timeStamp;
@@ -95,6 +97,7 @@ export function usePullToRefresh(
         return;
       }
       const touch = event.touches[0];
+      if (!touch) return;
       const dy = touch.clientY - startYRef.current;
       const dx = touch.clientX - startXRef.current;
 
@@ -130,7 +133,7 @@ export function usePullToRefresh(
       }
 
       // Take over the gesture so the scroller doesn't fight the pull.
-      event.preventDefault();
+      if (event.cancelable) event.preventDefault();
       const next = Math.min(MAX_PULL, dy * RESISTANCE);
       distRef.current = next;
       setPull(next);

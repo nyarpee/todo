@@ -27,7 +27,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
 import type { TaskId, TaskNode } from "@/types/task";
-import { getScheduleLabel, getTodayKey, getTomorrowKey } from "@/lib/date-utils";
+import { getCompactScheduleLabel, getTodayKey, getTomorrowKey } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
@@ -409,10 +409,9 @@ export function TaskDetailView({
           onClick={() => onOpenSchedule(task.id)}
         >
           <CalendarClock size={16} aria-hidden="true" />
-          <span>{getScheduleLabel(task.dueDate, task.dueTime, {
-            locale: text.common.locale,
-            noDateLabel: text.common.noDate,
-          })}</span>
+          <span>{task.dueDate
+            ? getCompactScheduleLabel(task.dueDate, task.dueTime, task.scheduleType, text.common.locale)
+            : text.common.noDate}</span>
         </button>
         <button
           className="detailMetaAction"
@@ -469,7 +468,7 @@ export function TaskDetailView({
               onChangeTitle={onChangeComposeTitle}
               onSubmit={onCommitCompose}
               onFinish={onFinishCompose}
-              locationLabel={composeLocationLabel}
+              {...(composeLocationLabel ? { locationLabel: composeLocationLabel } : {})}
             />
           ) : null}
           <TaskDragActions

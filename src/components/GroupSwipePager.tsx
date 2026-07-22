@@ -83,7 +83,7 @@ export const GroupSwipePager = forwardRef<GroupSwipePagerHandle, GroupSwipePager
     const container = containerRef.current;
     if (!container) return;
     const onTouchMove = (event: TouchEvent) => {
-      if (gestureRef.current?.active) event.preventDefault();
+      if (gestureRef.current?.active && event.cancelable) event.preventDefault();
     };
     container.addEventListener("touchmove", onTouchMove, { passive: false });
     return () => container.removeEventListener("touchmove", onTouchMove);

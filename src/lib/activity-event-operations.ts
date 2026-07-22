@@ -323,6 +323,7 @@ function readTaskPayload(value: unknown): Task | null {
     priority: isTaskPriority(task.priority) ? task.priority : "none",
     dueDate: typeof task.dueDate === "string" ? task.dueDate : null,
     dueTime: typeof task.dueTime === "string" ? task.dueTime : null,
+    scheduleType: isTaskScheduleType(task.scheduleType) ? task.scheduleType : "deadline",
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
   };
@@ -450,6 +451,7 @@ function readTaskPatchPayload(value: unknown, event: ActivityEvent): (Partial<Ta
     if (typeof rawPatch.dueTime === "string" || rawPatch.dueTime === null) {
       patch.dueTime = rawPatch.dueTime;
     }
+    if (isTaskScheduleType(rawPatch.scheduleType)) patch.scheduleType = rawPatch.scheduleType;
     if (typeof rawPatch.updatedAt === "string") patch.updatedAt = rawPatch.updatedAt;
 
     return Object.keys(patch).length > 0 ? patch : null;
@@ -459,6 +461,7 @@ function readTaskPatchPayload(value: unknown, event: ActivityEvent): (Partial<Ta
     return {
       dueDate: typeof event.payload.dueDate === "string" ? event.payload.dueDate : null,
       dueTime: typeof event.payload.dueTime === "string" ? event.payload.dueTime : null,
+      scheduleType: isTaskScheduleType(event.payload.scheduleType) ? event.payload.scheduleType : "deadline",
       updatedAt: event.createdAt,
     };
   }
@@ -471,6 +474,10 @@ function readTaskPatchPayload(value: unknown, event: ActivityEvent): (Partial<Ta
   }
 
   return null;
+}
+
+function isTaskScheduleType(value: unknown): value is Task["scheduleType"] {
+  return value === "scheduled" || value === "deadline";
 }
 
 function readGroupPatchPayload(value: unknown): (Partial<TaskGroup> & { updatedAt?: string }) | null {

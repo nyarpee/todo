@@ -4,10 +4,10 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, CalendarDays, Flag, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getTranslatedPriorityLabels } from "@/i18n/priority-labels";
-import { getScheduleLabel } from "@/lib/date-utils";
+import { getCompactScheduleLabel } from "@/lib/date-utils";
 import { getPriorityClass, getPriorityLabel } from "@/lib/priority";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
-import type { TaskGroupId, TaskId, TaskPriority } from "@/types/task";
+import type { TaskGroupId, TaskId, TaskPriority, TaskScheduleType } from "@/types/task";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { ScheduleEditorSheet } from "./ScheduleEditorSheet";
 
@@ -15,6 +15,7 @@ export type QuickAddDraft = {
   title: string;
   dueDate: string | null;
   dueTime: string | null;
+  scheduleType: TaskScheduleType;
   priority: TaskPriority;
   // Target group for the new task; falls back to the active group when unset.
   groupId?: TaskGroupId;
@@ -53,6 +54,7 @@ export function QuickAddSheet({
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueTime, setDueTime] = useState<string | null>(null);
+  const [scheduleType, setScheduleType] = useState<TaskScheduleType>("deadline");
   const [priority, setPriority] = useState<TaskPriority>("none");
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
@@ -86,6 +88,7 @@ export function QuickAddSheet({
     setTitle("");
     setDueDate(null);
     setDueTime(null);
+    setScheduleType("deadline");
     setPriority("none");
     setIsScheduleOpen(false);
     setIsPriorityOpen(false);
@@ -104,7 +107,7 @@ export function QuickAddSheet({
 
     if (keepOpenOnSave) {
       // Compose mode: add and stay open for the next task, keeping the keyboard up.
-      onSave({ title: title.trim(), dueDate, dueTime, priority });
+      onSave({ title: title.trim(), dueDate, dueTime, scheduleType, priority });
       setTitle("");
       setDueTime(null);
       setPriority("none");
@@ -120,15 +123,13 @@ export function QuickAddSheet({
       title: title.trim(),
       dueDate,
       dueTime,
+      scheduleType,
       priority,
     });
   }
 
   const scheduleLabel = dueDate
-    ? getScheduleLabel(dueDate, dueTime, {
-        locale: text.common.locale,
-        noDateLabel: text.common.noDate,
-      })
+    ? getCompactScheduleLabel(dueDate, dueTime, scheduleType, text.common.locale)
     : null;
   const priorityLabel = priority !== "none" ? getPriorityLabel(priority, labels) : null;
 
@@ -189,9 +190,11 @@ export function QuickAddSheet({
         <ScheduleEditorSheet
           dueDate={dueDate}
           dueTime={dueTime}
-          onChange={(nextDueDate, nextDueTime) => {
+          scheduleType={scheduleType}
+          onChange={(nextDueDate, nextDueTime, nextScheduleType) => {
             setDueDate(nextDueDate);
             setDueTime(nextDueTime);
+            setScheduleType(nextScheduleType);
           }}
           onDismiss={() => setIsScheduleOpen(false)}
         />
