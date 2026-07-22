@@ -181,6 +181,13 @@ export const GroupBar = forwardRef<GroupBarSyncHandle, GroupBarProps>(function G
     appliedPixelsRef.current = pixels;
   }
 
+  function setMovingIndicatorVisible(visible: boolean) {
+    const container = chipsContainerRef.current;
+    const indicator = indicatorRef.current;
+    container?.classList.toggle("isIndicatorMoving", visible);
+    if (indicator) indicator.style.opacity = visible ? "1" : "0";
+  }
+
   function setIndicator(
     fromId: TaskGroupId,
     toId: TaskGroupId | null,
@@ -193,9 +200,31 @@ export const GroupBar = forwardRef<GroupBarSyncHandle, GroupBarProps>(function G
     cancelSyncTween();
     const from = appliedPixelsRef.current;
     if (!animate || !from) {
-      applyIndicator(target);
+      appliedPixelsRef.current = target;
+      if (toId && t > 0) {
+        setMovingIndicatorVisible(true);
+        applyIndicator(target);
+      } else {
+        setMovingIndicatorVisible(false);
+      }
       return;
     }
+
+    const changed =
+      Math.abs(from.left - target.left) > 0.5 ||
+      Math.abs(from.top - target.top) > 0.5 ||
+      Math.abs(from.width - target.width) > 0.5 ||
+      Math.abs(from.height - target.height) > 0.5;
+    if (!changed) {
+      appliedPixelsRef.current = target;
+      // A committed swipe reaches its target before activeGroupId changes. Keep
+      // the travelling indicator until that state change hands the background
+      // back to the destination chip.
+      setMovingIndicatorVisible(Boolean(toId));
+      return;
+    }
+
+    setMovingIndicatorVisible(true);
 
     const start = performance.now();
     const step = (now: number) => {
@@ -208,7 +237,12 @@ export const GroupBar = forwardRef<GroupBarSyncHandle, GroupBarProps>(function G
         height: from.height + (target.height - from.height) * e,
         scrollLeft: from.scrollLeft + (target.scrollLeft - from.scrollLeft) * e,
       });
-      syncRafRef.current = x < 1 ? requestAnimationFrame(step) : null;
+      if (x < 1) {
+        syncRafRef.current = requestAnimationFrame(step);
+      } else {
+        syncRafRef.current = null;
+        if (!toId) setMovingIndicatorVisible(false);
+      }
     };
     syncRafRef.current = requestAnimationFrame(step);
   }

@@ -496,6 +496,24 @@ h1 {
   -webkit-touch-callout: none;
 }
 
+/* At rest the selection belongs to the chip itself, so there is no separate
+   element that can ever be composited over its label. */
+.groupChip.isActive::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 1px solid color-mix(in srgb, var(--focus) 36%, var(--line));
+  border-radius: inherit;
+  background: var(--surface-muted);
+  pointer-events: none;
+}
+
+/* While the shared bubble is travelling, avoid showing a second resting pill. */
+.groupChips.isIndicatorMoving .groupChip.isActive::before {
+  opacity: 0;
+}
+
 /* Keep text in an explicit foreground layer. Some browsers can otherwise
    composite the independently animated indicator above an older, reused chip
    layer after a swipe or a FLIP reorder animation settles. */
