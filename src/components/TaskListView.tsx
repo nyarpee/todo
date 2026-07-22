@@ -12,7 +12,8 @@ import { getPriorityClass } from "@/lib/priority";
 import type { TaskSortMode } from "@/lib/task-sort";
 import type { TaskId, TaskNode } from "@/types/task";
 import { EditableTitle } from "./EditableTitle";
-import { ProgressBar } from "./ProgressBar";
+import { ProgressCheckbox } from "./ProgressCheckbox";
+import { TaskRowSchedule } from "./TaskRowSchedule";
 
 type TaskListViewProps = {
   roots: TaskNode[];
@@ -212,21 +213,31 @@ function TaskRow({
       <div
         className={[
           "simpleTaskRow",
-          root.children.length > 0 ? "hasProgress" : "",
           root.completed ? "isCompletedRow" : "",
           isHighlighted ? "isNewlyAdded" : "",
         ].filter(Boolean).join(" ")}
         data-task-id={root.id}
         onClick={(event) => onRowClick(event, root.id)}
       >
-        <input
-          className={`check ${getPriorityClass(root.priority)}`}
-          type="checkbox"
-          checked={root.completed}
-          disabled={!interactive}
-          onChange={() => onToggleComplete(root.id)}
-          aria-label={text.taskDetail.complete.replace("{title}", root.title)}
-        />
+        {root.children.length > 0 ? (
+          <ProgressCheckbox
+            checked={root.completed}
+            progress={root.progress}
+            priority={root.priority}
+            disabled={!interactive}
+            onChange={() => onToggleComplete(root.id)}
+            ariaLabel={text.taskDetail.complete.replace("{title}", root.title)}
+          />
+        ) : (
+          <input
+            className={`check ${getPriorityClass(root.priority)}`}
+            type="checkbox"
+            checked={root.completed}
+            disabled={!interactive}
+            onChange={() => onToggleComplete(root.id)}
+            aria-label={text.taskDetail.complete.replace("{title}", root.title)}
+          />
+        )}
         <div className="simpleTaskContent">
           <EditableTitle
             value={root.title}
@@ -238,8 +249,12 @@ function TaskRow({
             onClick={() => onSelectTask(root.id)}
             onSave={(title) => onRenameTask(root.id, title)}
           />
+          <TaskRowSchedule
+            task={root}
+            locale={text.common.locale}
+            progress={root.children.length > 0 ? root.progress : null}
+          />
         </div>
-        {root.children.length > 0 ? <ProgressBar value={root.progress} /> : null}
         <button
           className="treeOpenButton"
           type="button"

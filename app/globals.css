@@ -18,6 +18,8 @@
   --bar-done: #1b8a4b;
   --focus: #2f6fed;
   --danger: #d64545;
+  --date-today: #e86f18;
+  --date-tomorrow: #b88700;
   --danger-soft: #fbeaea;
   --shadow: 0 16px 40px rgb(22 29 39 / 8%);
   --canvas-bg: #fbfcfe;
@@ -41,6 +43,8 @@
   --bar-done: #4ade80;
   --focus: #67e8f9;
   --danger: #f8807a;
+  --date-today: #fb923c;
+  --date-tomorrow: #facc15;
   --danger-soft: #3a2226;
   --shadow: 0 16px 42px rgb(0 0 0 / 24%);
   --canvas-bg: #101827;
@@ -742,7 +746,7 @@ h1 {
 }
 
 .simpleTaskRow.hasProgress {
-  grid-template-columns: 24px minmax(0, 1fr) minmax(108px, 176px) 38px;
+  grid-template-columns: 24px minmax(0, 1fr) 44px 38px;
 }
 
 .simpleTaskRow.isNewlyAdded,
@@ -1703,12 +1707,135 @@ h1 {
   outline-offset: 2px;
 }
 
+.progressCheckbox {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--priority-color, var(--soft));
+  cursor: pointer;
+}
+
+.progressCheckbox input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.progressCheckbox input:disabled {
+  cursor: default;
+}
+
+.progressCheckbox svg {
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+  transform: rotate(-90deg);
+}
+
+.progressCheckbox circle {
+  fill: none;
+  stroke-width: 2;
+}
+
+.progressCheckboxBase {
+  stroke: color-mix(in srgb, var(--priority-color, var(--soft)) 52%, var(--surface));
+}
+
+.progressCheckboxValue {
+  stroke: var(--priority-color, var(--soft));
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 180ms ease;
+}
+
+.progressCheckboxMark {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background 160ms ease;
+}
+
+.progressCheckbox.isChecked .progressCheckboxMark {
+  background: var(--priority-color, var(--focus));
+}
+
+.progressCheckbox:focus-within {
+  border-radius: 999px;
+  outline: 3px solid rgb(103 232 249 / 30%);
+  outline-offset: 2px;
+}
+
 .simpleTaskContent {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+  align-content: center;
+  gap: 3px;
   min-width: 0;
+}
+
+.simpleTaskContent .simpleTaskTitle {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.taskRowSchedule {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--soft);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.taskRowProgressValue {
+  color: var(--muted);
+}
+
+.taskRowProgressValue:not(:first-child)::before {
+  content: "·";
+  margin-right: 4px;
+  color: var(--soft);
+}
+
+.taskRowScheduleRelative {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+}
+
+.taskRowScheduleRelative::before {
+  content: "·";
+  margin-right: 4px;
+  color: var(--soft);
+}
+
+.taskRowSchedule.isOverdue,
+.taskRowSchedule.isOverdue .taskRowScheduleRelative {
+  color: var(--danger);
+}
+
+.taskRowSchedule.isToday .taskRowDate,
+.taskRowSchedule.isToday .taskRowScheduleRelative {
+  color: var(--date-today);
+}
+
+.taskRowSchedule.isTomorrow .taskRowDate,
+.taskRowSchedule.isTomorrow .taskRowScheduleRelative {
+  color: var(--date-tomorrow);
 }
 
 .simpleTaskTitle,
@@ -1893,7 +2020,7 @@ h1 {
 }
 
 .detailHeader.hasProgress {
-  grid-template-columns: 24px minmax(0, 1fr) minmax(104px, 176px);
+  grid-template-columns: 24px minmax(0, 1fr) 44px;
 }
 
 .detailTitle {
@@ -2095,6 +2222,19 @@ h1 {
   gap: 0;
 }
 
+.subtaskContent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.subtaskContent .subtaskTitle {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .subtaskRow {
   display: grid;
   grid-template-columns: 22px minmax(90px, 1fr);
@@ -2110,7 +2250,7 @@ h1 {
 }
 
 .subtaskRow.hasProgress {
-  grid-template-columns: 22px minmax(90px, 1fr) minmax(90px, 138px);
+  grid-template-columns: 22px minmax(90px, 1fr) 44px;
 }
 
 .subtaskRow:hover {
@@ -2241,10 +2381,9 @@ h1 {
 }
 
 .progressInline {
-  display: grid;
-  grid-template-columns: minmax(64px, 1fr) 40px;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
   min-width: 0;
 }
 
@@ -3675,7 +3814,11 @@ h1 {
 }
 
 .calDayGroup.isToday .calDayDate {
-  color: var(--focus);
+  color: var(--date-today);
+}
+
+.calDayGroup.isTomorrow .calDayDate {
+  color: var(--date-tomorrow);
 }
 
 .calDayWeekday {
@@ -3683,21 +3826,6 @@ h1 {
   color: var(--text);
   font-size: 12px;
   font-weight: 720;
-}
-
-.calDayOffset {
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 780;
-}
-
-.calDayOffset.isToday {
-  color: var(--focus);
-}
-
-.calDayOffset.isPast {
-  color: var(--danger);
 }
 
 .calDayTasks {
@@ -4283,8 +4411,31 @@ h1 {
   background: var(--surface);
 }
 
-.agendaRow.hasProgress {
-  grid-template-columns: 48px minmax(0, 1fr) minmax(86px, 130px);
+.agendaRow.hasRemaining {
+  grid-template-columns: 48px minmax(0, 1fr) 56px;
+}
+
+.agendaRemaining {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agendaRemaining.isToday {
+  color: var(--date-today);
+}
+
+.agendaRemaining.isTomorrow {
+  color: var(--date-tomorrow);
+}
+
+.agendaRemaining.isOverdue {
+  color: var(--danger);
 }
 
 .priorityEditRow input {
@@ -4332,7 +4483,7 @@ h1 {
 }
 
 .treeCardHeader.hasProgress {
-  grid-template-columns: 22px minmax(70px, 1fr) minmax(92px, 140px);
+  grid-template-columns: 22px minmax(70px, 1fr) 44px;
 }
 
 .cardTitle {
@@ -4400,7 +4551,7 @@ h1 {
 }
 
 .mindMapTitle.hasProgress {
-  grid-template-columns: minmax(0, 1fr) minmax(150px, 260px);
+  grid-template-columns: minmax(0, 1fr) 44px;
 }
 
 .mindMapTitle h2 {
@@ -4788,7 +4939,7 @@ h1 {
 }
 
 .focusTitle.hasProgress {
-  grid-template-columns: minmax(0, 1fr) minmax(150px, 260px);
+  grid-template-columns: minmax(0, 1fr) 44px;
 }
 
 .focusTitle h2 {
@@ -4893,7 +5044,7 @@ h1 {
   }
 
   .simpleTaskRow.hasProgress {
-    grid-template-columns: 22px minmax(0, 1fr) minmax(72px, 92px) 34px;
+    grid-template-columns: 22px minmax(0, 1fr) 38px 34px;
   }
 
   .groupChip {
@@ -4984,8 +5135,8 @@ h1 {
     padding: 3px 4px;
   }
 
-  .agendaRow.hasProgress {
-    grid-template-columns: 42px minmax(0, 1fr) minmax(72px, 92px);
+  .agendaRow.hasRemaining {
+    grid-template-columns: 42px minmax(0, 1fr) 50px;
   }
 
   .agendaTime {
@@ -5015,7 +5166,7 @@ h1 {
   }
 
   .detailHeader.hasProgress {
-    grid-template-columns: 22px minmax(0, 1fr) minmax(72px, 92px);
+    grid-template-columns: 22px minmax(0, 1fr) 38px;
   }
 
   .detailHeader .progressInline {
@@ -5037,7 +5188,7 @@ h1 {
   }
 
   .subtaskRow.hasProgress {
-    grid-template-columns: 20px minmax(64px, 1fr) minmax(72px, 90px);
+    grid-template-columns: 20px minmax(64px, 1fr) 38px;
   }
 
   .treeCardGrid {
@@ -5049,7 +5200,7 @@ h1 {
   }
 
   .treeCardHeader.hasProgress {
-    grid-template-columns: 22px minmax(64px, 1fr) minmax(82px, 104px);
+    grid-template-columns: 22px minmax(64px, 1fr) 38px;
   }
 
   .treeCardHeader .progressInline {

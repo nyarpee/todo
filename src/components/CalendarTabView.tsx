@@ -29,6 +29,7 @@ import {
   getDisplayDate,
   getMonthLabel,
   getMonthLabelFromKey,
+  getRelativeDayLabel,
   getTodayKey,
   getWeekdayIndexFromKey,
   sortScheduleValues,
@@ -36,7 +37,6 @@ import {
 } from "@/lib/date-utils";
 import { getHighestPriority, getPriorityClass } from "@/lib/priority";
 import { primeKeyboard } from "@/lib/ios-keyboard";
-import { ProgressBar } from "./ProgressBar";
 import { ComposeBar } from "./ComposeBar";
 import { ComposeGhostRow } from "./ComposeGhostRow";
 import { TaskLocationPicker } from "./TaskLocationPicker";
@@ -566,8 +566,6 @@ export function CalendarTabView({
                   todayKey={todayKey}
                   locale={text.common.locale}
                   weekdays={text.common.weekdays}
-                  todayLabel={text.common.today}
-                  tomorrowLabel={text.common.tomorrow}
                   onSelectTask={onSelectTask}
                   isSelected={group.date === focusedDate}
                   isComposing={group.date === composeDate}
@@ -596,8 +594,6 @@ export function CalendarTabView({
             todayKey={todayKey}
             locale={text.common.locale}
             weekdays={text.common.weekdays}
-            todayLabel={text.common.today}
-            tomorrowLabel={text.common.tomorrow}
             onSelectTask={onSelectTask}
             isSelected={day.date === focusedDate}
             isComposing={day.date === composeDate}
@@ -693,8 +689,6 @@ type DayGroupProps = {
   todayKey: string;
   locale: string;
   weekdays: readonly string[];
-  todayLabel: string;
-  tomorrowLabel: string;
   onSelectTask: (taskId: TaskId) => void;
   isSelected: boolean;
   isComposing: boolean;
@@ -714,8 +708,6 @@ function DayGroup({
   todayKey,
   locale,
   weekdays,
-  todayLabel,
-  tomorrowLabel,
   onSelectTask,
   isSelected,
   isComposing,
@@ -731,11 +723,7 @@ function DayGroup({
   const weekday = weekdays[getWeekdayIndexFromKey(dateKey)] ?? "";
   const isToday = offset === 0;
   const isTomorrow = offset === 1;
-  const dateLabel = isToday
-    ? getCalendarRelativeDateLabel(todayLabel, dateKey, locale)
-    : isTomorrow
-      ? getCalendarRelativeDateLabel(tomorrowLabel, dateKey, locale)
-      : getDisplayDate(dateKey, locale);
+  const dateLabel = getDisplayDate(dateKey, locale);
 
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `${DAY_DROPPABLE_PREFIX}${dateKey}`,
@@ -750,6 +738,7 @@ function DayGroup({
   const groupClassName = [
     "calDayGroup",
     isToday ? "isToday" : "",
+    isTomorrow ? "isTomorrow" : "",
     isOverdue ? "isOverdue" : "",
     isSelected ? "isSelected" : "",
     isComposing ? "isComposing" : "",
@@ -769,7 +758,6 @@ function DayGroup({
           <span className="calDayDate">{dateLabel}</span>
           <span className="calDayWeekday">{weekday}</span>
         </span>
-        <span className={offsetClassName(offset)}>{formatOffset(offset)}</span>
       </button>
       {tasks.length > 0 ? (
         <div className="calDayTasks">
@@ -802,17 +790,6 @@ function DayGroup({
   );
 }
 
-function getCalendarRelativeDateLabel(label: string, dateKey: string, locale: string): string {
-  const shortDate = new Intl.DateTimeFormat(locale, {
-    month: "numeric",
-    day: "numeric",
-  }).format(fromDateKey(dateKey));
-
-  return locale.startsWith("ja") || locale.startsWith("zh")
-    ? `${label}（${shortDate}）`
-    : `${label} (${shortDate})`;
-}
-
 type CalendarTaskRowProps = {
   task: TaskNode;
   onSelectTask: (taskId: TaskId) => void;
@@ -820,16 +797,21 @@ type CalendarTaskRowProps = {
 };
 
 function CalendarTaskRow({ task, onSelectTask, isHighlighted = false }: CalendarTaskRowProps) {
+  const { messages: text } = useLanguage();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
     data: { type: "calendar-task", dueDate: task.dueDate },
   });
 
   const className = [
-    task.children.length > 0 ? "agendaRow hasProgress" : "agendaRow",
+    "agendaRow hasRemaining",
     isDragging ? "isDragging" : "",
     isHighlighted ? "isNewlyAdded" : "",
   ].filter(Boolean).join(" ");
+  const remainingDays = task.dueDate ? diffDaysFromKey(task.dueDate, getTodayKey()) : null;
+  const remainingLabel = remainingDays !== null && !task.completed
+    ? getRelativeDayLabel(remainingDays, text.common.locale, { compact: true })
+    : null;
 
   return (
     <button
@@ -852,7 +834,16 @@ function CalendarTaskRow({ task, onSelectTask, isHighlighted = false }: Calendar
         />
         {task.title}
       </span>
-      {task.children.length > 0 ? <ProgressBar value={task.progress} /> : null}
+      <span
+        className={[
+          "agendaRemaining",
+          remainingDays === 0 ? "isToday" : "",
+          remainingDays === 1 ? "isTomorrow" : "",
+          remainingDays !== null && remainingDays < 0 ? "isOverdue" : "",
+        ].filter(Boolean).join(" ")}
+      >
+        {remainingLabel}
+      </span>
     </button>
   );
 }
@@ -876,15 +867,4 @@ function getComposeLocationLabel(
   }
 
   return [group.name, ...path].join(" > ");
-}
-
-function formatOffset(offset: number): string {
-  if (offset === 0) return "±0";
-  return offset > 0 ? `+${offset}` : `${offset}`;
-}
-
-function offsetClassName(offset: number): string {
-  if (offset === 0) return "calDayOffset isToday";
-  if (offset < 0) return "calDayOffset isPast";
-  return "calDayOffset";
 }

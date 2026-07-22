@@ -121,6 +121,27 @@ export function diffDaysFromKey(dateKey: string, fromKey: string): number {
   return Math.round((target - base) / 86_400_000);
 }
 
+export function getRelativeDayLabel(
+  days: number,
+  locale = "en",
+  options: { compact?: boolean } = {},
+): string {
+  const normalized = locale.toLowerCase();
+  if (normalized.startsWith("ja")) {
+    if (days === 0) return "今日";
+    if (days > 0) return `あと${days}日`;
+    return `${Math.abs(days)}日超過`;
+  }
+  if (normalized.startsWith("en")) {
+    if (days === 0) return "today";
+    if (days > 0) return `${days}d left`;
+    return options.compact ? `${Math.abs(days)}d late` : `${Math.abs(days)}d overdue`;
+  }
+  if (days === 0) return "今天";
+  if (days > 0) return `還有${days}天`;
+  return `逾期${Math.abs(days)}天`;
+}
+
 export function getWeekdayIndexFromKey(dateKey: string): number {
   return fromDateKey(dateKey).getDay();
 }

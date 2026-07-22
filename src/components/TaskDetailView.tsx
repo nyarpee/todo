@@ -34,6 +34,7 @@ import { getTaskSortLabels } from "@/i18n/task-sort-labels";
 import { usePriorityLabels } from "@/hooks/usePriorityLabels";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
+import { ProgressCheckbox } from "./ProgressCheckbox";
 import { ComposeGhostRow } from "./ComposeGhostRow";
 import { PriorityEditorSheet } from "./PriorityEditorSheet";
 import { TRASH_DROPPABLE_ID } from "./TrashDropZone";
@@ -49,6 +50,7 @@ import {
 } from "./TaskDragActions";
 import { TrashIcon } from "./TrashIcon";
 import { TaskSortEditorSheet } from "./TaskSortEditorSheet";
+import { TaskRowSchedule } from "./TaskRowSchedule";
 import type { QuickAddDraft } from "./QuickAddSheet";
 
 type TaskDetailViewProps = {
@@ -407,13 +409,23 @@ export function TaskDetailView({
         className={task.children.length > 0 ? "detailHeader hasProgress" : "detailHeader"}
         inert={composerOpen}
       >
-        <input
-          className={`check ${getPriorityClass(task.priority)}`}
-          type="checkbox"
-          checked={task.completed}
-          onChange={() => onToggleComplete(task.id)}
-          aria-label={text.taskDetail.complete.replace("{title}", task.title)}
-        />
+        {task.children.length > 0 ? (
+          <ProgressCheckbox
+            checked={task.completed}
+            progress={task.progress}
+            priority={task.priority}
+            onChange={() => onToggleComplete(task.id)}
+            ariaLabel={text.taskDetail.complete.replace("{title}", task.title)}
+          />
+        ) : (
+          <input
+            className={`check ${getPriorityClass(task.priority)}`}
+            type="checkbox"
+            checked={task.completed}
+            onChange={() => onToggleComplete(task.id)}
+            aria-label={text.taskDetail.complete.replace("{title}", task.title)}
+          />
+        )}
         <EditableTitle
           value={task.title}
           className={task.completed ? "detailTitle titleButton isCompleted" : "detailTitle titleButton"}
@@ -505,6 +517,7 @@ export function TaskDetailView({
                     onToggleComplete={onToggleComplete}
                     onRenameTask={onRenameTask}
                     completeLabel={text.taskDetail.complete}
+                    locale={text.common.locale}
                     disabled={composerOpen}
                     reorderEnabled={sortMode === "manual"}
                   />
@@ -546,6 +559,7 @@ export function TaskDetailView({
                       onToggleComplete={onToggleComplete}
                       onRenameTask={onRenameTask}
                       completeLabel={text.taskDetail.complete}
+                      locale={text.common.locale}
                       disabled
                       reorderEnabled={false}
                     />
@@ -639,6 +653,7 @@ type SortableSubtaskRowProps = {
   onToggleComplete: (taskId: TaskId) => void;
   onRenameTask: (taskId: TaskId, title: string) => void;
   completeLabel: string;
+  locale: string;
   // While composing, keep the row in place (and hittable, so the sheet scrolls)
   // but don't let it be dragged/reordered.
   disabled?: boolean;
@@ -653,6 +668,7 @@ function SortableSubtaskRow({
   onToggleComplete,
   onRenameTask,
   completeLabel,
+  locale,
   disabled = false,
   reorderEnabled,
 }: SortableSubtaskRowProps) {
@@ -672,31 +688,47 @@ function SortableSubtaskRow({
       {...(disabled ? {} : listeners)}
     >
       <div
-        className={child.children.length > 0 ? "subtaskRow hasProgress" : "subtaskRow"}
+        className="subtaskRow"
         onClick={(event) => {
           const target = event.target as HTMLElement;
           if (target.closest("button,input")) return;
           onSelectTask(child.id);
         }}
       >
-        <input
-          className={`check ${getPriorityClass(child.priority)}`}
-          type="checkbox"
-          checked={child.completed}
-          onChange={() => onToggleComplete(child.id)}
-          aria-label={completeLabel.replace("{title}", child.title)}
-        />
-        <EditableTitle
-          value={child.title}
-          className={child.completed ? "subtaskTitle isCompleted" : "subtaskTitle"}
-          inputClassName="subtaskTitle titleInput"
-          taskId={child.id}
-          autoEditTaskId={autoEditTaskId}
-          onAutoEditConsumed={onAutoEditConsumed}
-          onClick={() => onSelectTask(child.id)}
-          onSave={(title) => onRenameTask(child.id, title)}
-        />
-        {child.children.length > 0 ? <ProgressBar value={child.progress} /> : null}
+        {child.children.length > 0 ? (
+          <ProgressCheckbox
+            checked={child.completed}
+            progress={child.progress}
+            priority={child.priority}
+            onChange={() => onToggleComplete(child.id)}
+            ariaLabel={completeLabel.replace("{title}", child.title)}
+          />
+        ) : (
+          <input
+            className={`check ${getPriorityClass(child.priority)}`}
+            type="checkbox"
+            checked={child.completed}
+            onChange={() => onToggleComplete(child.id)}
+            aria-label={completeLabel.replace("{title}", child.title)}
+          />
+        )}
+        <div className="subtaskContent">
+          <EditableTitle
+            value={child.title}
+            className={child.completed ? "subtaskTitle isCompleted" : "subtaskTitle"}
+            inputClassName="subtaskTitle titleInput"
+            taskId={child.id}
+            autoEditTaskId={autoEditTaskId}
+            onAutoEditConsumed={onAutoEditConsumed}
+            onClick={() => onSelectTask(child.id)}
+            onSave={(title) => onRenameTask(child.id, title)}
+          />
+          <TaskRowSchedule
+            task={child}
+            locale={locale}
+            progress={child.children.length > 0 ? child.progress : null}
+          />
+        </div>
       </div>
     </div>
   );

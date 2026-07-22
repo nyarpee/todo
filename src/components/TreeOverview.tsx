@@ -4,6 +4,7 @@ import type { TaskId, TaskNode } from "@/types/task";
 import { getPriorityClass } from "@/lib/priority";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
+import { ProgressCheckbox } from "./ProgressCheckbox";
 
 type TreeOverviewProps = {
   roots: TaskNode[];
@@ -25,13 +26,23 @@ export function TreeOverview({
       {roots.map((root) => (
         <article className="treeCard" key={root.id}>
           <div className={root.children.length > 0 ? "treeCardHeader hasProgress" : "treeCardHeader"}>
-            <input
-              className={`check ${getPriorityClass(root.priority)}`}
-              type="checkbox"
-              checked={root.completed}
-              onChange={() => onToggleComplete(root.id)}
-              aria-label={`${root.title} complete`}
-            />
+            {root.children.length > 0 ? (
+              <ProgressCheckbox
+                checked={root.completed}
+                progress={root.progress}
+                priority={root.priority}
+                onChange={() => onToggleComplete(root.id)}
+                ariaLabel={`${root.title} complete`}
+              />
+            ) : (
+              <input
+                className={`check ${getPriorityClass(root.priority)}`}
+                type="checkbox"
+                checked={root.completed}
+                onChange={() => onToggleComplete(root.id)}
+                aria-label={`${root.title} complete`}
+              />
+            )}
             <EditableTitle
               value={root.title}
               className={root.completed ? "cardTitle isCompleted" : "cardTitle"}

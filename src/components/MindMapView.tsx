@@ -17,6 +17,7 @@ import { getPriorityClass } from "@/lib/priority";
 import type { TaskId, TaskNode } from "@/types/task";
 import { EditableTitle } from "./EditableTitle";
 import { ProgressBar } from "./ProgressBar";
+import { ProgressCheckbox } from "./ProgressCheckbox";
 
 type MindMapViewProps = {
   root: TaskNode;
@@ -118,13 +119,23 @@ function TaskMindMapNode({ data }: NodeProps<Node<TaskMindMapNodeData>>) {
     >
       <Handle className="mindMapHandle" type="target" position={Position.Left} />
       <div className="mindMapNodeMain">
-        <input
-          className={`check ${getPriorityClass(task.priority)}`}
-          type="checkbox"
-          checked={task.completed}
-          onChange={() => onToggleComplete(task.id)}
-          aria-label={text.taskDetail.complete.replace("{title}", task.title)}
-        />
+        {task.children.length > 0 ? (
+          <ProgressCheckbox
+            checked={task.completed}
+            progress={task.progress}
+            priority={task.priority}
+            onChange={() => onToggleComplete(task.id)}
+            ariaLabel={text.taskDetail.complete.replace("{title}", task.title)}
+          />
+        ) : (
+          <input
+            className={`check ${getPriorityClass(task.priority)}`}
+            type="checkbox"
+            checked={task.completed}
+            onChange={() => onToggleComplete(task.id)}
+            aria-label={text.taskDetail.complete.replace("{title}", task.title)}
+          />
+        )}
         <EditableTitle
           value={task.title}
           className={task.completed ? "mindMapNodeTitle isCompleted" : "mindMapNodeTitle"}

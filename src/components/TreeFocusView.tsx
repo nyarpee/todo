@@ -4,6 +4,7 @@ import type { TaskId, TaskNode } from "@/types/task";
 import { getPriorityClass } from "@/lib/priority";
 import { AddTaskForm } from "./AddTaskForm";
 import { ProgressBar } from "./ProgressBar";
+import { ProgressCheckbox } from "./ProgressCheckbox";
 
 type TreeFocusViewProps = {
   root: TaskNode;
@@ -64,13 +65,23 @@ function TreeFocusNode({
     <div className="focusNode">
       <div className={node.children.length > 0 ? "focusNodeCard hasProgress" : "focusNodeCard"}>
         <div className="focusNodeMain">
-          <input
-            className={`check ${getPriorityClass(node.priority)}`}
-            type="checkbox"
-            checked={node.completed}
-            onChange={() => onToggleComplete(node.id)}
-            aria-label={`${node.title} complete`}
-          />
+          {node.children.length > 0 ? (
+            <ProgressCheckbox
+              checked={node.completed}
+              progress={node.progress}
+              priority={node.priority}
+              onChange={() => onToggleComplete(node.id)}
+              ariaLabel={`${node.title} complete`}
+            />
+          ) : (
+            <input
+              className={`check ${getPriorityClass(node.priority)}`}
+              type="checkbox"
+              checked={node.completed}
+              onChange={() => onToggleComplete(node.id)}
+              aria-label={`${node.title} complete`}
+            />
+          )}
           <span className={node.completed ? "focusNodeTitle isCompleted" : "focusNodeTitle"}>
             {node.title}
           </span>
