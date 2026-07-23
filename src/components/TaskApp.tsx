@@ -219,6 +219,15 @@ export function TaskApp() {
   const groupChipsScrollDirectionRef = useRef<"left" | "right" | null>(null);
   const lastSyncedFingerprintRef = useRef<string | null>(null);
   const pendingActivityWritesRef = useRef<Promise<void>[]>([]);
+  const syncInFlightRef = useRef<Promise<void> | null>(null);
+  const syncRequestedRef = useRef(false);
+  const currentSyncDataRef = useRef({
+    groups,
+    tasks,
+    habits,
+    habitEntries,
+  });
+  currentSyncDataRef.current = { groups, tasks, habits, habitEntries };
   const resetAnonymousOnNextLoadRef = useRef(false);
   const appScrollRef = useRef<HTMLDivElement>(null);
   const handlePullRefresh = useCallback(() => window.location.reload(), []);
@@ -896,61 +905,161 @@ export function TaskApp() {
 
   async function syncLocalDataToCloud(fingerprint: string) {
     if (!authUser || !supabase) return;
+    void fingerprint;
+    syncRequestedRef.current = true;
+    if (syncInFlightRef.current) return syncInFlightRef.current;
 
-    try {
-      setSyncStatus("Syncing...");
-      if (pendingActivityWritesRef.current.length > 0) {
-        await Promise.allSettled(pendingActivityWritesRef.current);
+    const client = supabase;
+    const authenticatedUserId = authUser.id;
+    const syncRun = (async () => {
+      while (syncRequestedRef.current) {
+        syncRequestedRef.current = false;
+
+        try {
+          setSyncStatus("Checking cloud changes...");
+          if (pendingActivityWritesRef.current.length > 0) {
+            await Promise.allSettled([...pendingActivityWritesRef.current]);
+          }
+
+          const [localActivityEvents, pendingSyncItems, cloudSnapshot] = await Promise.all([
+            activityRepository.listEvents(workspaceId),
+            syncQueueRepository.listPendingItems(workspaceId),
+            pullSupabaseSnapshot(client, authenticatedUserId, workspaceId),
+          ]);
+          const localData = currentSyncDataRef.current;
+          const hasCloudData = hasExistingCloudWorkspace(cloudSnapshot);
+
+          // Always reconcile with the activity log. This also recovers the case
+          // where a newer phone edit was once synced, then a stale desktop
+          // snapshot overwrote only the materialized cloud row.
+          const nextSnapshot = hasCloudData
+            ? mergeSyncSnapshots({
+                local: {
+                  ...localData,
+                  activityEvents: localActivityEvents,
+                },
+                remote: cloudSnapshot,
+              })
+            : {
+                ...localData,
+                activityEvents: localActivityEvents,
+              };
+
+          const nextFingerprint = buildSyncFingerprint(
+            nextSnapshot.groups,
+            nextSnapshot.tasks,
+            nextSnapshot.habits,
+            nextSnapshot.habitEntries,
+          );
+          const cloudFingerprint = hasCloudData
+            ? buildSyncFingerprint(
+                cloudSnapshot.groups,
+                cloudSnapshot.tasks,
+                cloudSnapshot.habits,
+                cloudSnapshot.habitEntries,
+              )
+            : null;
+          const shouldRepairCloudSnapshot =
+            hasCloudData && cloudFingerprint !== null && nextFingerprint !== cloudFingerprint;
+
+          if (pendingSyncItems.length > 0 || shouldRepairCloudSnapshot) {
+            setSyncStatus(
+              pendingSyncItems.length > 0
+                ? `Syncing ${pendingSyncItems.length} change${pendingSyncItems.length === 1 ? "" : "s"}...`
+                : "Repairing cloud data...",
+            );
+            const syncedQueueItemIds = await pushLocalSnapshotToSupabase(
+              client,
+              authenticatedUserId,
+              {
+                ...nextSnapshot,
+                pendingSyncItems,
+              },
+            );
+            await syncQueueRepository.markItemsSynced(workspaceId, syncedQueueItemIds);
+          }
+
+          const currentFingerprint = buildSyncFingerprint(
+            localData.groups,
+            localData.tasks,
+            localData.habits,
+            localData.habitEntries,
+          );
+
+          // Events can be created while the network request is in flight. Union
+          // the latest local set with the pulled set instead of replacing it
+          // with the older pre-request snapshot.
+          const latestLocalEvents = await activityRepository.listEvents(workspaceId);
+          const activityEventsById = new Map(
+            [...nextSnapshot.activityEvents, ...latestLocalEvents].map((event) => [event.id, event]),
+          );
+          await activityRepository.saveEvents(
+            workspaceId,
+            Array.from(activityEventsById.values()).sort((first, second) =>
+              first.createdAt.localeCompare(second.createdAt)),
+          );
+          lastSyncedFingerprintRef.current = nextFingerprint;
+
+          const liveData = currentSyncDataRef.current;
+          const liveFingerprint = buildSyncFingerprint(
+            liveData.groups,
+            liveData.tasks,
+            liveData.habits,
+            liveData.habitEntries,
+          );
+          const changedDuringSync = liveFingerprint !== currentFingerprint;
+
+          if (changedDuringSync) {
+            // Do not paint an older network result over edits made while the
+            // request was running. The coalesced next pass will merge and send
+            // the live state with its newly queued activity events.
+            syncRequestedRef.current = true;
+          } else if (nextFingerprint !== currentFingerprint) {
+            currentSyncDataRef.current = {
+              groups: nextSnapshot.groups,
+              tasks: nextSnapshot.tasks,
+              habits: nextSnapshot.habits,
+              habitEntries: nextSnapshot.habitEntries,
+            };
+            setGroups(nextSnapshot.groups);
+            setTasks(nextSnapshot.tasks);
+            setHabits(nextSnapshot.habits);
+            setHabitEntries(nextSnapshot.habitEntries);
+          }
+
+          setSyncStatus("Synced with cloud");
+        } catch (error) {
+          const message = getSyncErrorMessage(error);
+          console.error("Cloud sync failed", error);
+          setSyncStatus(`Cloud sync failed: ${message}`);
+        }
       }
-      const [activityEvents, pendingSyncItems] = await Promise.all([
-        activityRepository.listEvents(workspaceId),
-        syncQueueRepository.listPendingItems(workspaceId),
-      ]);
+    })().finally(() => {
+      syncInFlightRef.current = null;
+      // A state change can request another pass while the previous promise is
+      // settling. Start it after releasing the single-flight lock.
+      if (syncRequestedRef.current) {
+        void syncLocalDataToCloud(
+          buildSyncFingerprint(
+            currentSyncDataRef.current.groups,
+            currentSyncDataRef.current.tasks,
+            currentSyncDataRef.current.habits,
+            currentSyncDataRef.current.habitEntries,
+          ),
+        );
+      }
+    });
 
-      const syncedQueueItemIds = await pushLocalSnapshotToSupabase(supabase, authUser.id, {
-        groups,
-        tasks,
-        habits,
-        habitEntries,
-        activityEvents,
-        pendingSyncItems,
-      });
-
-      await syncQueueRepository.markItemsSynced(workspaceId, syncedQueueItemIds);
-      lastSyncedFingerprintRef.current = fingerprint;
-      setSyncStatus("Synced with cloud");
-    } catch (error) {
-      const message = getSyncErrorMessage(error);
-      console.error("Cloud sync failed", error);
-      setSyncStatus(`Cloud sync failed: ${message}`);
-    }
+    syncInFlightRef.current = syncRun;
+    return syncRun;
   }
 
   async function syncRemoteActivityEventsFromCloud() {
     if (!authUser || !supabase) return;
-
-    try {
-      setSyncStatus("Checking cloud changes...");
-      const [localEvents, pulledSnapshot] = await Promise.all([
-        activityRepository.listEvents(workspaceId),
-        pullSupabaseSnapshot(supabase, authUser.id, workspaceId),
-      ]);
-      const localEventIds = new Set(localEvents.map((event) => event.id));
-      const remoteEvents = pulledSnapshot.activityEvents.filter(
-        (event) => !localEventIds.has(event.id) && event.clientId !== getClientId(),
-      );
-
-      for (const event of remoteEvents) {
-        await activityRepository.addEvent(event);
-        applyRemoteActivityEvent(event);
-      }
-
-      setSyncStatus(remoteEvents.length > 0 ? "Updated from cloud" : "Synced with cloud");
-    } catch (error) {
-      const message = getSyncErrorMessage(error);
-      console.error("Cloud event catch-up failed", error);
-      setSyncStatus(`Cloud sync failed: ${message}`);
-    }
+    const current = currentSyncDataRef.current;
+    await syncLocalDataToCloud(
+      buildSyncFingerprint(current.groups, current.tasks, current.habits, current.habitEntries),
+    );
   }
 
   function recordActivity(
@@ -2565,13 +2674,12 @@ function buildSyncFingerprint(
   habitEntries: HabitEntry[],
 ): string {
   return JSON.stringify({
-    groups: groups.map((group) => [
+    groups: groups.slice().sort((first, second) => first.id.localeCompare(second.id)).map((group) => [
       group.id,
       group.name,
       group.order,
-      group.updatedAt,
     ]),
-    tasks: tasks.map((task) => [
+    tasks: tasks.slice().sort((first, second) => first.id.localeCompare(second.id)).map((task) => [
       task.id,
       task.groupId,
       task.parentId,
@@ -2583,18 +2691,17 @@ function buildSyncFingerprint(
       task.priority,
       task.dueDate,
       task.dueTime,
-      task.updatedAt,
+      task.scheduleType,
     ]),
-    habits: habits.map((habit) => [
+    habits: habits.slice().sort((first, second) => first.id.localeCompare(second.id)).map((habit) => [
       habit.id,
       habit.title,
       habit.unitType,
       habit.unitMinutes,
       habit.color,
       habit.order,
-      habit.updatedAt,
     ]),
-    habitEntries: habitEntries.map((entry) => [
+    habitEntries: habitEntries.slice().sort((first, second) => first.id.localeCompare(second.id)).map((entry) => [
       entry.id,
       entry.habitId,
       entry.minutes,
