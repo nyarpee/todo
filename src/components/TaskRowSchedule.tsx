@@ -4,12 +4,14 @@ import {
   diffDaysFromKey,
   fromDateKey,
   getRelativeDayLabel,
+  getRelativeHourLabel,
+  getRemainingHourCount,
   getTodayKey,
 } from "@/lib/date-utils";
 import type { TaskNode } from "@/types/task";
 
 type TaskRowScheduleProps = {
-  task: Pick<TaskNode, "dueDate" | "scheduleType" | "completed">;
+  task: Pick<TaskNode, "dueDate" | "dueTime" | "scheduleType" | "completed">;
   locale: string;
   progress?: number | null;
 };
@@ -25,9 +27,13 @@ export function TaskRowSchedule({ task, locale, progress = null }: TaskRowSchedu
     : null;
   const isDeadline = task.scheduleType === "deadline";
   const dateLabel = date ? formatDateLabel(date, isDeadline, locale) : null;
-  const shouldShowRelative = isDeadline || dayDifference < 0;
-  const relativeLabel = date && shouldShowRelative && !task.completed
-    ? getRelativeDayLabel(dayDifference, locale)
+  const remainingHours = task.dueDate
+    ? getRemainingHourCount(task.dueDate, task.dueTime)
+    : null;
+  const relativeLabel = date && !task.completed
+    ? remainingHours !== null
+      ? getRelativeHourLabel(remainingHours, locale)
+      : getRelativeDayLabel(dayDifference, locale)
     : null;
   const titleParts = [dateLabel, relativeLabel, progress !== null ? `${progress}%` : null]
     .filter(Boolean)

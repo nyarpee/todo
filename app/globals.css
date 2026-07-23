@@ -177,6 +177,7 @@ p {
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+  justify-self: end;
 }
 
 .brand {
@@ -1861,16 +1862,6 @@ h1 {
 .taskRowSchedule.isOverdue,
 .taskRowSchedule.isOverdue .taskRowScheduleRelative {
   color: var(--danger);
-}
-
-.taskRowSchedule.isToday .taskRowDate,
-.taskRowSchedule.isToday .taskRowScheduleRelative {
-  color: var(--date-today);
-}
-
-.taskRowSchedule.isTomorrow .taskRowDate,
-.taskRowSchedule.isTomorrow .taskRowScheduleRelative {
-  color: var(--date-tomorrow);
 }
 
 .simpleTaskTitle,
@@ -3725,19 +3716,6 @@ h1 {
   font-weight: 780;
 }
 
-.calOverdueCount {
-  display: grid;
-  place-items: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--danger) 20%, transparent);
-  color: var(--danger);
-  font-size: 12px;
-  font-weight: 750;
-}
-
 .calChevron {
   transition: transform 180ms ease;
 }
@@ -3749,7 +3727,53 @@ h1 {
 .calOverdueBody {
   display: grid;
   gap: 8px;
+  grid-auto-rows: max-content;
+  align-content: start;
+  max-height: var(--cal-overdue-height, 116px);
   margin-top: 2px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 24px), transparent 100%);
+  transition: max-height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.calOverdue.isStage1 .calOverdueBody {
+  max-height: 260px;
+}
+
+.calOverdue.isStage2 .calOverdueBody {
+  max-height: min(48dvh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  mask-image: none;
+}
+
+.calOverdue.isResizing .calOverdueBody {
+  max-height: var(--cal-overdue-height);
+  transition: none;
+}
+
+.calOverdueResizeHandle {
+  display: grid;
+  place-items: center;
+  min-height: 16px;
+  margin: -2px -4px -6px;
+  border-radius: 999px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.calOverdueResizeHandle span {
+  width: 34px;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 32%, var(--line));
+  transition: width 160ms ease, background 160ms ease;
+}
+
+.calOverdueResizeHandle:is(:hover, :focus-visible) span,
+.calOverdue.isResizing .calOverdueResizeHandle span {
+  width: 42px;
+  background: color-mix(in srgb, var(--danger) 55%, var(--line));
 }
 
 .calDayList {
@@ -3846,14 +3870,6 @@ h1 {
   font-weight: 820;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.calDayGroup.isToday .calDayDate {
-  color: var(--date-today);
-}
-
-.calDayGroup.isTomorrow .calDayDate {
-  color: var(--date-tomorrow);
 }
 
 .calDayWeekday {
@@ -4447,7 +4463,7 @@ h1 {
 }
 
 .agendaRow.hasRemaining {
-  grid-template-columns: 48px minmax(0, 1fr) 56px;
+  grid-template-columns: 48px minmax(0, 1fr) minmax(72px, max-content);
 }
 
 .agendaRemaining {
@@ -4459,14 +4475,6 @@ h1 {
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.agendaRemaining.isToday {
-  color: var(--date-today);
-}
-
-.agendaRemaining.isTomorrow {
-  color: var(--date-tomorrow);
 }
 
 .agendaRemaining.isOverdue {
@@ -5053,7 +5061,6 @@ h1 {
 
   .appHeader {
     align-items: center;
-    flex-direction: row;
     gap: 12px;
   }
 
@@ -5171,7 +5178,7 @@ h1 {
   }
 
   .agendaRow.hasRemaining {
-    grid-template-columns: 42px minmax(0, 1fr) 50px;
+    grid-template-columns: 42px minmax(0, 1fr) minmax(72px, max-content);
   }
 
   .agendaTime {

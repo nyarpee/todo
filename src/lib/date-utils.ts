@@ -142,6 +142,33 @@ export function getRelativeDayLabel(
   return `逾期${Math.abs(days)}天`;
 }
 
+export function getRemainingHourCount(
+  dueDate: string,
+  dueTime: string | null,
+  now = new Date(),
+): number | null {
+  const target = fromDateKey(dueDate);
+  if (dueTime) {
+    const [hours = 0, minutes = 0] = dueTime.split(":").map(Number);
+    target.setHours(hours, minutes, 0, 0);
+  } else {
+    // A date without a time remains actionable through the end of that day.
+    target.setHours(23, 59, 59, 999);
+  }
+
+  const remainingMs = target.getTime() - now.getTime();
+  if (remainingMs <= 0 || remainingMs >= 86_400_000) return null;
+  return Math.max(1, Math.ceil(remainingMs / 3_600_000));
+}
+
+export function getRelativeHourLabel(hours: number, locale = "en"): string {
+  const normalized = locale.toLowerCase();
+  if (normalized.startsWith("ja")) return `\u3042\u3068${hours}\u6642\u9593`;
+  if (normalized.startsWith("en")) return `${hours}h left`;
+  if (normalized === "zh-cn") return `\u8fd8\u5269${hours}\u5c0f\u65f6`;
+  return `\u9084\u6709${hours}\u5c0f\u6642`;
+}
+
 export function getWeekdayIndexFromKey(dateKey: string): number {
   return fromDateKey(dateKey).getDay();
 }

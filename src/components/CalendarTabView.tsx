@@ -1,6 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
@@ -30,6 +40,8 @@ import {
   getMonthLabel,
   getMonthLabelFromKey,
   getRelativeDayLabel,
+  getRelativeHourLabel,
+  getRemainingHourCount,
   getTodayKey,
   getWeekdayIndexFromKey,
   sortScheduleValues,
@@ -73,6 +85,10 @@ type CalendarTabViewProps = {
 const INITIAL_FORWARD_DAYS = 45;
 const FORWARD_CHUNK = 30;
 const DAY_DROPPABLE_PREFIX = "cal-day:";
+const OVERDUE_PEEK_HEIGHT = 116;
+const OVERDUE_MID_HEIGHT = 260;
+
+type OverdueStage = 0 | 1 | 2;
 
 // Timed tasks first (by time), then untimed tasks in creation order so a task
 // just composed lands at the BOTTOM of its day group — right above the compose
@@ -86,6 +102,14 @@ function compareDayTasks(first: TaskNode, second: TaskNode): number {
   );
   if (scheduleCompare !== 0) return scheduleCompare;
   return first.createdAt.localeCompare(second.createdAt);
+}
+
+function formatOverdueCount(label: string, count: number, locale: string): string {
+  const normalized = locale.toLowerCase();
+  if (normalized.startsWith("ja")) return `${label} ${count}\u4ef6`;
+  if (normalized.startsWith("en")) return `${label} ${count} tasks`;
+  if (normalized === "zh-cn") return `${label} ${count}\u9879`;
+  return `${label} ${count}\u9805`;
 }
 
 export function CalendarTabView({
@@ -105,7 +129,8 @@ export function CalendarTabView({
   const todayKey = getTodayKey();
 
   const [endOffset, setEndOffset] = useState(INITIAL_FORWARD_DAYS);
-  const [isOverdueOpen, setIsOverdueOpen] = useState(true);
+  const [overdueStage, setOverdueStage] = useState<OverdueStage>(0);
+  const [overdueDragHeight, setOverdueDragHeight] = useState<number | null>(null);
   const [isMonthGridOpen, setIsMonthGridOpen] = useState(false);
   const [gridMonth, setGridMonth] = useState(() => new Date());
   const [visibleMonthLabel, setVisibleMonthLabel] = useState(() =>
@@ -146,6 +171,9 @@ export function CalendarTabView({
   }, []);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const overdueBodyRef = useRef<HTMLDivElement | null>(null);
+  const overdueDragRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null);
+  const overdueWheelLockRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const dayRefs = useRef(new Map<string, HTMLElement>());
   const scrollRafRef = useRef<number | null>(null);
@@ -179,6 +207,68 @@ export function CalendarTabView({
     () => overdueGroups.reduce((total, group) => total + group.tasks.length, 0),
     [overdueGroups],
   );
+
+  function getOverdueSnapHeights(): [number, number, number] {
+    const viewportHeight = typeof window === "undefined" ? 800 : window.innerHeight;
+    const maximum = Math.max(OVERDUE_MID_HEIGHT, Math.min(480, viewportHeight * 0.48));
+    return [OVERDUE_PEEK_HEIGHT, Math.min(OVERDUE_MID_HEIGHT, maximum), maximum];
+  }
+
+  function cycleOverdueStage() {
+    setOverdueDragHeight(null);
+    setOverdueStage((current) => ((current + 1) % 3) as OverdueStage);
+  }
+
+  function handleOverdueHandlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    const body = overdueBodyRef.current;
+    if (!body) return;
+    overdueDragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: body.getBoundingClientRect().height,
+    };
+    setOverdueDragHeight(body.getBoundingClientRect().height);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleOverdueHandlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = overdueDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const heights = getOverdueSnapHeights();
+    const nextHeight = Math.max(heights[0], Math.min(heights[2], drag.startHeight + event.clientY - drag.startY));
+    setOverdueDragHeight(nextHeight);
+  }
+
+  function finishOverdueHandleDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = overdueDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    overdueDragRef.current = null;
+    const height = overdueDragHeight ?? drag.startHeight;
+    const heights = getOverdueSnapHeights();
+    let nearest: OverdueStage = 0;
+    heights.forEach((snapHeight, index) => {
+      if (Math.abs(snapHeight - height) < Math.abs(heights[nearest] - height)) {
+        nearest = index as OverdueStage;
+      }
+    });
+    setOverdueStage(nearest);
+    setOverdueDragHeight(null);
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may already have been released by the browser.
+    }
+  }
+
+  function handleOverdueWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    if (event.deltaY <= 0 || overdueStage === 2 || overdueWheelLockRef.current) return;
+    event.preventDefault();
+    overdueWheelLockRef.current = true;
+    setOverdueStage((current) => Math.min(2, current + 1) as OverdueStage);
+    window.setTimeout(() => {
+      overdueWheelLockRef.current = false;
+    }, 280);
+  }
 
   const forwardDays = useMemo(() => {
     const base = fromDateKey(todayKey);
@@ -539,25 +629,30 @@ export function CalendarTabView({
       ) : null}
 
       {overdueCount > 0 ? (
-        <section className="calOverdue">
+        <section className={`calOverdue isStage${overdueStage}${overdueDragHeight !== null ? " isResizing" : ""}`}>
           <button
             type="button"
             className="calOverdueHead"
-            onClick={() => setIsOverdueOpen((open) => !open)}
-            aria-expanded={isOverdueOpen}
+            onClick={cycleOverdueStage}
+            aria-expanded={overdueStage === 2}
           >
             <span className="calOverdueTitle">
-              {text.calendar.overdue}
-              <span className="calOverdueCount">{overdueCount}</span>
+              {formatOverdueCount(text.calendar.overdue, overdueCount, text.common.locale)}
             </span>
             <ChevronDown
               size={18}
               aria-hidden="true"
-              className={isOverdueOpen ? "calChevron isOpen" : "calChevron"}
+              className={overdueStage === 2 ? "calChevron isOpen" : "calChevron"}
             />
           </button>
-          {isOverdueOpen ? (
-            <div className="calOverdueBody">
+            <div
+              ref={overdueBodyRef}
+              className="calOverdueBody"
+              onWheel={handleOverdueWheel}
+              style={overdueDragHeight !== null
+                ? ({ "--cal-overdue-height": `${overdueDragHeight}px` } as CSSProperties)
+                : undefined}
+            >
               {overdueGroups.map((group) => (
                 <DayGroup
                   key={group.date}
@@ -577,7 +672,30 @@ export function CalendarTabView({
                 />
               ))}
             </div>
-          ) : null}
+            <div
+              className="calOverdueResizeHandle"
+              role="separator"
+              aria-orientation="horizontal"
+              aria-valuemin={0}
+              aria-valuemax={2}
+              aria-valuenow={overdueStage}
+              tabIndex={0}
+              onPointerDown={handleOverdueHandlePointerDown}
+              onPointerMove={handleOverdueHandlePointerMove}
+              onPointerUp={finishOverdueHandleDrag}
+              onPointerCancel={finishOverdueHandleDrag}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setOverdueStage((current) => Math.min(2, current + 1) as OverdueStage);
+                } else if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setOverdueStage((current) => Math.max(0, current - 1) as OverdueStage);
+                }
+              }}
+            >
+              <span aria-hidden="true" />
+            </div>
         </section>
       ) : null}
 
@@ -719,11 +837,17 @@ function DayGroup({
   highlightedTaskId = null,
   composeSlot = null,
 }: DayGroupProps) {
+  const { messages: text } = useLanguage();
   const offset = diffDaysFromKey(dateKey, todayKey);
   const weekday = weekdays[getWeekdayIndexFromKey(dateKey)] ?? "";
   const isToday = offset === 0;
   const isTomorrow = offset === 1;
-  const dateLabel = getDisplayDate(dateKey, locale);
+  const displayDate = getDisplayDate(dateKey, locale);
+  const dateLabel = isToday
+    ? `${text.common.today} (${displayDate})`
+    : isTomorrow
+      ? `${text.common.tomorrow} (${displayDate})`
+      : displayDate;
 
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `${DAY_DROPPABLE_PREFIX}${dateKey}`,
@@ -809,8 +933,13 @@ function CalendarTaskRow({ task, onSelectTask, isHighlighted = false }: Calendar
     isHighlighted ? "isNewlyAdded" : "",
   ].filter(Boolean).join(" ");
   const remainingDays = task.dueDate ? diffDaysFromKey(task.dueDate, getTodayKey()) : null;
+  const remainingHours = task.dueDate
+    ? getRemainingHourCount(task.dueDate, task.dueTime)
+    : null;
   const remainingLabel = remainingDays !== null && !task.completed
-    ? getRelativeDayLabel(remainingDays, text.common.locale, { compact: true })
+    ? remainingHours !== null
+      ? getRelativeHourLabel(remainingHours, text.common.locale)
+      : getRelativeDayLabel(remainingDays, text.common.locale, { compact: true })
     : null;
 
   return (
