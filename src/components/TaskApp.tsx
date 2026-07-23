@@ -1214,10 +1214,15 @@ export function TaskApp() {
     const taskId = crypto.randomUUID();
     const title = draft?.title ?? text.newTask;
     const now = new Date().toISOString();
+    const siblingOrders = tasks
+      .filter((task) => task.parentId === parentId)
+      .map((task) => task.order);
+    const topOrder = siblingOrders.length > 0 ? Math.min(...siblingOrders) - 1 : 0;
     const nextTasks = addTask(tasks, {
       userId: workspaceId,
       title,
       parentId,
+      order: topOrder,
       dueDate: draft?.dueDate ?? null,
       dueTime: draft?.dueTime ?? null,
       scheduleType: draft?.scheduleType ?? "deadline",
